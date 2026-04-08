@@ -1541,7 +1541,7 @@
           "Accounts"
         ],
         "summary": "Add Account",
-        "description": "Create a new account with default configuration files.\n\nArgs:\n    account_name: Name of the new account to create\n    \nReturns:\n    Success message when account is created\n    \nRaises:\n    HTTPException: 400 if account already exists",
+        "description": "Create a new account with default configuration files.\n\nArgs:\n    account_name: Name of the new account to create\n\nReturns:\n    Success message when account is created\n\nRaises:\n    HTTPException: 400 if account already exists",
         "operationId": "add_account_accounts_add_account_post",
         "security": [
           {
@@ -1587,7 +1587,7 @@
           "Accounts"
         ],
         "summary": "Delete Account",
-        "description": "Delete an account and all its associated credentials.\n\nArgs:\n    account_name: Name of the account to delete\n    \nReturns:\n    Success message when account is deleted\n    \nRaises:\n    HTTPException: 400 if trying to delete master account, 404 if account not found",
+        "description": "Delete an account and all its associated credentials.\n\nArgs:\n    account_name: Name of the account to delete\n\nReturns:\n    Success message when account is deleted\n\nRaises:\n    HTTPException: 400 if trying to delete master account, 404 if account not found",
         "operationId": "delete_account_accounts_delete_account_post",
         "security": [
           {
@@ -1633,7 +1633,7 @@
           "Accounts"
         ],
         "summary": "Delete Credential",
-        "description": "Delete a specific connector credential for an account.\n\nArgs:\n    account_name: Name of the account\n    connector_name: Name of the connector to delete credentials for\n    \nReturns:\n    Success message when credential is deleted\n    \nRaises:\n    HTTPException: 404 if credential not found",
+        "description": "Delete a specific connector credential for an account.\n\nArgs:\n    account_name: Name of the account\n    connector_name: Name of the connector to delete credentials for\n\nReturns:\n    Success message when credential is deleted\n\nRaises:\n    HTTPException: 404 if credential not found",
         "operationId": "delete_credential_accounts_delete_credential__account_name___connector_name__post",
         "security": [
           {
@@ -1780,7 +1780,7 @@
           "Accounts"
         ],
         "summary": "Add Gateway Wallet",
-        "description": "Add a wallet to Gateway. Gateway handles encryption and storage internally.\n\nArgs:\n    wallet_credential: Wallet credentials (chain and private_key)\n\nReturns:\n    Wallet information from Gateway including address\n\nRaises:\n    HTTPException: 503 if Gateway unavailable, 400 on validation error",
+        "description": "Add an existing wallet to Gateway using its private key.\nGateway handles encryption and storage internally.\n\nArgs:\n    wallet_credential: Wallet credentials (chain, private_key, and optional set_default)\n\nReturns:\n    Wallet information from Gateway including address\n\nRaises:\n    HTTPException: 503 if Gateway unavailable, 400 on validation error",
         "operationId": "add_gateway_wallet_accounts_gateway_add_wallet_post",
         "requestBody": {
           "content": {
@@ -1798,6 +1798,55 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/accounts/gateway/wallet/set-default": {
+      "post": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Set Default Gateway Wallet",
+        "description": "Set the default wallet for a chain in Gateway.\n\nWhen multiple wallets are configured for a chain, this endpoint allows\nswitching which wallet is used as the default for operations.\n\nArgs:\n    request: Contains chain and wallet address to set as default\n\nReturns:\n    Dict with success status and updated wallet info.\n\nExample: POST /accounts/gateway/wallet/set-default\n{\n    \"chain\": \"solana\",\n    \"address\": \"82SggYRE2Vo4jN4a2pk3aQ4SET4ctafZJGbowmCqyHx5\"\n}",
+        "operationId": "set_default_gateway_wallet_accounts_gateway_wallet_set_default_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDefaultWalletRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Set Default Gateway Wallet Accounts Gateway Wallet Set Default Post"
+                }
               }
             }
           },
@@ -1880,7 +1929,7 @@
           "Connectors"
         ],
         "summary": "Available Connectors",
-        "description": "Get a list of all available connectors.\n\nReturns:\n    List of connector names supported by the system",
+        "description": "Get a list of all available connectors.\n\nReturns:\n    List of connector names supported by the system (excludes DEX providers which use Gateway networks)",
         "operationId": "available_connectors_connectors_get",
         "responses": {
           "200": {
@@ -1964,7 +2013,7 @@
           "Connectors"
         ],
         "summary": "Get Trading Rules",
-        "description": "Get trading rules for a connector, optionally filtered by trading pairs.\n\nThis endpoint uses the MarketDataFeedManager to access non-trading connector instances,\nwhich means no authentication or account setup is required.\n\nArgs:\n    request: FastAPI request object\n    connector_name: Name of the connector (e.g., 'binance', 'binance_perpetual')\n    trading_pairs: Optional list of trading pairs to filter by (e.g., ['BTC-USDT', 'ETH-USDT'])\n    \nReturns:\n    Dictionary mapping trading pairs to their trading rules\n    \nRaises:\n    HTTPException: 404 if connector not found, 500 for other errors",
+        "description": "Get trading rules for a connector, optionally filtered by trading pairs.\n\nThis endpoint uses the MarketDataService to access non-trading connector instances,\nwhich means no authentication or account setup is required.\n\nArgs:\n    request: FastAPI request object\n    connector_name: Name of the connector (e.g., 'binance', 'binance_perpetual')\n    trading_pairs: Optional list of trading pairs to filter by (e.g., ['BTC-USDT', 'ETH-USDT'])\n\nReturns:\n    Dictionary mapping trading pairs to their trading rules\n\nRaises:\n    HTTPException: 404 if connector not found, 500 for other errors",
         "operationId": "get_trading_rules_connectors__connector_name__trading_rules_get",
         "security": [
           {
@@ -2031,7 +2080,7 @@
           "Connectors"
         ],
         "summary": "Get Supported Order Types",
-        "description": "Get order types supported by a specific connector.\n\nThis endpoint uses the MarketDataFeedManager to access non-trading connector instances,\nwhich means no authentication or account setup is required.\n\nArgs:\n    request: FastAPI request object\n    connector_name: Name of the connector (e.g., 'binance', 'binance_perpetual')\n\nReturns:\n    List of supported order types (LIMIT, MARKET, LIMIT_MAKER)\n\nRaises:\n    HTTPException: 404 if connector not found, 500 for other errors",
+        "description": "Get order types supported by a specific connector.\n\nThis endpoint uses the MarketDataService to access non-trading connector instances,\nwhich means no authentication or account setup is required.\n\nArgs:\n    request: FastAPI request object\n    connector_name: Name of the connector (e.g., 'binance', 'binance_perpetual')\n\nReturns:\n    List of supported order types (LIMIT, MARKET, LIMIT_MAKER)\n\nRaises:\n    HTTPException: 404 if connector not found, 500 for other errors",
         "operationId": "get_supported_order_types_connectors__connector_name__order_types_get",
         "security": [
           {
@@ -2222,39 +2271,19 @@
       }
     },
     "/portfolio/accounts-distribution": {
-      "post": {
+      "get": {
         "tags": [
           "Portfolio"
         ],
         "summary": "Get Accounts Distribution",
-        "description": "Get portfolio distribution by accounts with percentages.\n\nArgs:\n    filter_request: JSON payload with filtering criteria\n    \nReturns:\n    Dictionary with account distribution including percentages, values, and breakdown by connectors",
-        "operationId": "get_accounts_distribution_portfolio_accounts_distribution_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AccountsDistributionFilterRequest"
-              }
-            }
-          },
-          "required": true
-        },
+        "description": "Get portfolio distribution by accounts with percentages.\n\nReturns:\n    Dictionary with account distribution including percentages, values, and breakdown by connectors",
+        "operationId": "get_accounts_distribution_portfolio_accounts_distribution_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
               }
             }
           }
@@ -2272,7 +2301,7 @@
           "Trading"
         ],
         "summary": "Place Trade",
-        "description": "Place a buy or sell order using a specific account and connector.\n\nArgs:\n    trade_request: Trading request with account, connector, trading pair, type, amount, etc.\n    accounts_service: Injected accounts service\n    market_data_manager: Market data manager for price fetching\n\nReturns:\n    TradeResponse with order ID and trading details\n\nRaises:\n    HTTPException: 400 for invalid parameters, 404 for account/connector not found, 500 for trade execution errors",
+        "description": "Place a buy or sell order using a specific account and connector.\n\nArgs:\n    trade_request: Trading request with account, connector, trading pair, type, amount, etc.\n    accounts_service: Injected accounts service\n\nReturns:\n    TradeResponse with order ID and trading details\n\nRaises:\n    HTTPException: 400 for invalid parameters, 404 for account/connector not found, 500 for trade execution errors",
         "operationId": "place_trade_trading_orders_post",
         "requestBody": {
           "content": {
@@ -3461,6 +3490,96 @@
         ]
       }
     },
+    "/gateway/clmm/add": {
+      "post": {
+        "tags": [
+          "Gateway CLMM"
+        ],
+        "summary": "Add Liquidity To Clmm Position",
+        "description": "Add MORE liquidity to an EXISTING CLMM position.\n\nExample:\n    connector: 'meteora'\n    network: 'solana-mainnet-beta'\n    position_address: '...'\n    base_token_amount: 0.5\n    quote_token_amount: 50.0\n    slippage_pct: 1\n    wallet_address: (optional)\n\nReturns:\n    Transaction hash",
+        "operationId": "add_liquidity_to_clmm_position_gateway_clmm_add_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CLMMAddLiquidityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/gateway/clmm/remove": {
+      "post": {
+        "tags": [
+          "Gateway CLMM"
+        ],
+        "summary": "Remove Liquidity From Clmm Position",
+        "description": "Remove SOME liquidity from a CLMM position (partial removal).\n\nExample:\n    connector: 'meteora'\n    network: 'solana-mainnet-beta'\n    position_address: '...'\n    percentage: 50\n    wallet_address: (optional)\n\nReturns:\n    Transaction hash",
+        "operationId": "remove_liquidity_from_clmm_position_gateway_clmm_remove_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CLMMRemoveLiquidityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
     "/gateway/clmm/close": {
       "post": {
         "tags": [
@@ -3850,7 +3969,7 @@
           "Bot Orchestration"
         ],
         "summary": "Get Active Bots Status",
-        "description": "Get the status of all active bots.\n\nArgs:\n    bots_manager: Bot orchestrator service dependency\n    \nReturns:\n    Dictionary with status and data containing all active bot statuses",
+        "description": "Get the status of all active bots.\n\nArgs:\n    bots_manager: Bot orchestrator service dependency\n\nReturns:\n    Dictionary with status and data containing all active bot statuses",
         "operationId": "get_active_bots_status_bot_orchestration_status_get",
         "responses": {
           "200": {
@@ -3875,7 +3994,7 @@
           "Bot Orchestration"
         ],
         "summary": "Get Mqtt Status",
-        "description": "Get MQTT connection status and discovered bots.\n\nArgs:\n    bots_manager: Bot orchestrator service dependency\n    \nReturns:\n    Dictionary with MQTT connection status, discovered bots, and broker information",
+        "description": "Get MQTT connection status and discovered bots.\n\nArgs:\n    bots_manager: Bot orchestrator service dependency\n\nReturns:\n    Dictionary with MQTT connection status, discovered bots, and broker information",
         "operationId": "get_mqtt_status_bot_orchestration_mqtt_get",
         "responses": {
           "200": {
@@ -3900,7 +4019,7 @@
           "Bot Orchestration"
         ],
         "summary": "Get Bot Status",
-        "description": "Get the status of a specific bot.\n\nArgs:\n    bot_name: Name of the bot to get status for\n    bots_manager: Bot orchestrator service dependency\n    \nReturns:\n    Dictionary with bot status information\n    \nRaises:\n    HTTPException: 404 if bot not found",
+        "description": "Get the status of a specific bot.\n\nArgs:\n    bot_name: Name of the bot to get status for\n    bots_manager: Bot orchestrator service dependency\n\nReturns:\n    Dictionary with bot status information\n\nRaises:\n    HTTPException: 404 if bot not found",
         "operationId": "get_bot_status_bot_orchestration__bot_name__status_get",
         "security": [
           {
@@ -3946,7 +4065,7 @@
           "Bot Orchestration"
         ],
         "summary": "Get Bot History",
-        "description": "Get trading history for a bot with optional parameters.\n\nArgs:\n    bot_name: Name of the bot to get history for\n    days: Number of days of history to retrieve (0 for all)\n    verbose: Whether to include verbose output\n    precision: Decimal precision for numerical values\n    timeout: Timeout in seconds for the operation\n    bots_manager: Bot orchestrator service dependency\n    \nReturns:\n    Dictionary with bot trading history",
+        "description": "Get trading history for a bot with optional parameters.\n\nArgs:\n    bot_name: Name of the bot to get history for\n    days: Number of days of history to retrieve (0 for all)\n    verbose: Whether to include verbose output\n    precision: Decimal precision for numerical values\n    timeout: Timeout in seconds for the operation\n    bots_manager: Bot orchestrator service dependency\n\nReturns:\n    Dictionary with bot trading history",
         "operationId": "get_bot_history_bot_orchestration__bot_name__history_get",
         "security": [
           {
@@ -4031,7 +4150,7 @@
           "Bot Orchestration"
         ],
         "summary": "Start Bot",
-        "description": "Start a bot with the specified configuration.\n\nArgs:\n    action: StartBotAction containing bot configuration parameters\n    bots_manager: Bot orchestrator service dependency\n    db_manager: Database manager dependency\n    \nReturns:\n    Dictionary with status and response from bot start operation",
+        "description": "Start a bot with the specified configuration.\n\nArgs:\n    action: StartBotAction containing bot configuration parameters\n    bots_manager: Bot orchestrator service dependency\n    db_manager: Database manager dependency\n\nReturns:\n    Dictionary with status and response from bot start operation",
         "operationId": "start_bot_bot_orchestration_start_bot_post",
         "requestBody": {
           "content": {
@@ -4076,7 +4195,7 @@
           "Bot Orchestration"
         ],
         "summary": "Stop Bot",
-        "description": "Stop a bot with the specified configuration.\n\nArgs:\n    action: StopBotAction containing bot stop parameters\n    bots_manager: Bot orchestrator service dependency\n    db_manager: Database manager dependency\n    \nReturns:\n    Dictionary with status and response from bot stop operation",
+        "description": "Stop a bot with the specified configuration.\n\nArgs:\n    action: StopBotAction containing bot stop parameters\n    bots_manager: Bot orchestrator service dependency\n    db_manager: Database manager dependency\n\nReturns:\n    Dictionary with status and response from bot stop operation",
         "operationId": "stop_bot_bot_orchestration_stop_bot_post",
         "requestBody": {
           "content": {
@@ -4121,7 +4240,7 @@
           "Bot Orchestration"
         ],
         "summary": "Get Bot Runs",
-        "description": "Get bot runs with optional filtering.\n\nArgs:\n    bot_name: Filter by bot name\n    account_name: Filter by account name\n    strategy_type: Filter by strategy type (script or controller)\n    strategy_name: Filter by strategy name\n    run_status: Filter by run status (CREATED, RUNNING, STOPPED, ERROR)\n    deployment_status: Filter by deployment status (DEPLOYED, FAILED, ARCHIVED)\n    limit: Maximum number of results to return\n    offset: Number of results to skip\n    db_manager: Database manager dependency\n    \nReturns:\n    List of bot runs with their details",
+        "description": "Get bot runs with optional filtering.\n\nArgs:\n    bot_name: Filter by bot name\n    account_name: Filter by account name\n    strategy_type: Filter by strategy type (script or controller)\n    strategy_name: Filter by strategy name\n    run_status: Filter by run status (CREATED, RUNNING, STOPPED, ERROR)\n    deployment_status: Filter by deployment status (DEPLOYED, FAILED, ARCHIVED)\n    limit: Maximum number of results to return\n    offset: Number of results to skip\n    db_manager: Database manager dependency\n\nReturns:\n    List of bot runs with their details",
         "operationId": "get_bot_runs_bot_orchestration_bot_runs_get",
         "security": [
           {
@@ -4232,7 +4351,7 @@
           "Bot Orchestration"
         ],
         "summary": "Get Bot Run By Id",
-        "description": "Get a specific bot run by ID.\n\nArgs:\n    bot_run_id: ID of the bot run\n    db_manager: Database manager dependency\n    \nReturns:\n    Bot run details\n    \nRaises:\n    HTTPException: 404 if bot run not found",
+        "description": "Get a specific bot run by ID.\n\nArgs:\n    bot_run_id: ID of the bot run\n    db_manager: Database manager dependency\n\nReturns:\n    Bot run details\n\nRaises:\n    HTTPException: 404 if bot run not found",
         "operationId": "get_bot_run_by_id_bot_orchestration_bot_runs__bot_run_id__get",
         "security": [
           {
@@ -4278,7 +4397,7 @@
           "Bot Orchestration"
         ],
         "summary": "Get Bot Run Stats",
-        "description": "Get statistics about bot runs.\n\nArgs:\n    db_manager: Database manager dependency\n    \nReturns:\n    Bot run statistics",
+        "description": "Get statistics about bot runs.\n\nArgs:\n    db_manager: Database manager dependency\n\nReturns:\n    Bot run statistics",
         "operationId": "get_bot_run_stats_bot_orchestration_bot_runs_stats_get",
         "responses": {
           "200": {
@@ -4372,58 +4491,13 @@
         }
       }
     },
-    "/bot-orchestration/deploy-v2-script": {
-      "post": {
-        "tags": [
-          "Bot Orchestration"
-        ],
-        "summary": "Deploy V2 Script",
-        "description": "Creates and autostart a v2 script with a configuration if present.\n\nArgs:\n    config: Configuration for the new Hummingbot instance\n    docker_manager: Docker service dependency\n    db_manager: Database manager dependency\n    \nReturns:\n    Dictionary with creation response and instance details",
-        "operationId": "deploy_v2_script_bot_orchestration_deploy_v2_script_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/V2ScriptDeployment"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBasic": []
-          }
-        ]
-      }
-    },
     "/bot-orchestration/deploy-v2-controllers": {
       "post": {
         "tags": [
           "Bot Orchestration"
         ],
         "summary": "Deploy V2 Controllers",
-        "description": "Deploy a V2 strategy with controllers by generating the script config and creating the instance.\nThis endpoint simplifies the deployment process for V2 controller strategies.\n\nArgs:\n    deployment: V2ControllerDeployment configuration\n    docker_manager: Docker service dependency\n    \nReturns:\n    Dictionary with deployment response and generated configuration details\n    \nRaises:\n    HTTPException: 500 if deployment fails",
+        "description": "Deploy a V2 strategy with controllers by generating the script config and creating the instance.\nThis endpoint simplifies the deployment process for V2 controller strategies.\n\nArgs:\n    deployment: V2ControllerDeployment configuration\n    docker_manager: Docker service dependency\n\nReturns:\n    Dictionary with deployment response and generated configuration details\n\nRaises:\n    HTTPException: 500 if deployment fails",
         "operationId": "deploy_v2_controllers_bot_orchestration_deploy_v2_controllers_post",
         "requestBody": {
           "content": {
@@ -4462,13 +4536,58 @@
         ]
       }
     },
+    "/bot-orchestration/deploy-v2-script": {
+      "post": {
+        "tags": [
+          "Bot Orchestration"
+        ],
+        "summary": "Deploy V2 Script",
+        "description": "Deploy a V2 script bot with optional script configuration.\nThis endpoint creates and starts a Hummingbot instance running the specified script.\n\nArgs:\n    deployment: V2ScriptDeployment configuration containing instance name, credentials,\n               optional script name and configuration\n    docker_manager: Docker service dependency\n    db_manager: Database manager dependency\n\nReturns:\n    Dictionary with deployment response including instance details\n\nRaises:\n    HTTPException: 500 if deployment fails",
+        "operationId": "deploy_v2_script_bot_orchestration_deploy_v2_script_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2ScriptDeployment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
     "/controllers": {
       "get": {
         "tags": [
           "Controllers"
         ],
         "summary": "List Controllers",
-        "description": "List all controllers organized by type.\n\nReturns:\n    Dictionary mapping controller types to lists of controller names",
+        "description": "List all controllers organized by type.\n\nDetects both single-file controllers (controller.py) and\npackage-style controllers (controller/controller.py).\n\nReturns:\n    Dictionary mapping controller types to lists of controller names",
         "operationId": "list_controllers_controllers_get",
         "responses": {
           "200": {
@@ -4534,7 +4653,7 @@
           "Controllers"
         ],
         "summary": "Get Controller Config",
-        "description": "Get controller configuration by config name.\n\nArgs:\n    config_name: Name of the configuration file to retrieve\n    \nReturns:\n    Dictionary with controller configuration\n    \nRaises:\n    HTTPException: 404 if configuration not found",
+        "description": "Get controller configuration by config name.\n\nArgs:\n    config_name: Name of the configuration file to retrieve\n\nReturns:\n    Dictionary with controller configuration\n\nRaises:\n    HTTPException: 404 if configuration not found",
         "operationId": "get_controller_config_controllers_configs__config_name__get",
         "security": [
           {
@@ -4582,7 +4701,7 @@
           "Controllers"
         ],
         "summary": "Create Or Update Controller Config",
-        "description": "Create or update controller configuration.\n\nArgs:\n    config_name: Name of the configuration file\n    config: Configuration dictionary to save\n    \nReturns:\n    Success message when configuration is saved\n    \nRaises:\n    HTTPException: 400 if save error occurs",
+        "description": "Create or update controller configuration.\n\nArgs:\n    config_name: Name of the configuration file\n    config: Configuration dictionary to save\n\nReturns:\n    Success message when configuration is saved\n\nRaises:\n    HTTPException: 400 if save error occurs",
         "operationId": "create_or_update_controller_config_controllers_configs__config_name__post",
         "security": [
           {
@@ -4638,7 +4757,7 @@
           "Controllers"
         ],
         "summary": "Delete Controller Config",
-        "description": "Delete controller configuration.\n\nArgs:\n    config_name: Name of the configuration file to delete\n    \nReturns:\n    Success message when configuration is deleted\n    \nRaises:\n    HTTPException: 404 if configuration not found",
+        "description": "Delete controller configuration.\n\nArgs:\n    config_name: Name of the configuration file to delete\n\nReturns:\n    Success message when configuration is deleted\n\nRaises:\n    HTTPException: 404 if configuration not found",
         "operationId": "delete_controller_config_controllers_configs__config_name__delete",
         "security": [
           {
@@ -4684,7 +4803,7 @@
           "Controllers"
         ],
         "summary": "Get Controller",
-        "description": "Get controller content by type and name.\n\nArgs:\n    controller_type: Type of the controller\n    controller_name: Name of the controller\n    \nReturns:\n    Dictionary with controller name, type, and content\n    \nRaises:\n    HTTPException: 404 if controller not found",
+        "description": "Get controller content by type and name.\n\nSupports both single-file controllers (controller.py) and\npackage-style controllers (controller/controller.py).\n\nArgs:\n    controller_type: Type of the controller\n    controller_name: Name of the controller\n\nReturns:\n    Dictionary with controller name, type, and content\n\nRaises:\n    HTTPException: 404 if controller not found",
         "operationId": "get_controller_controllers__controller_type___controller_name__get",
         "security": [
           {
@@ -4742,7 +4861,7 @@
           "Controllers"
         ],
         "summary": "Create Or Update Controller",
-        "description": "Create or update a controller.\n\nArgs:\n    controller_type: Type of controller to create/update\n    controller_name: Name of the controller (from URL path)\n    controller: Controller object with content (and optional type for validation)\n    \nReturns:\n    Success message when controller is saved\n    \nRaises:\n    HTTPException: 400 if controller type mismatch or save error",
+        "description": "Create or update a controller.\n\nIf controller exists as a package (folder), updates the file inside.\nOtherwise creates/updates as a single file.\n\nArgs:\n    controller_type: Type of controller to create/update\n    controller_name: Name of the controller (from URL path)\n    controller: Controller object with content (and optional type for validation)\n\nReturns:\n    Success message when controller is saved\n\nRaises:\n    HTTPException: 400 if controller type mismatch or save error",
         "operationId": "create_or_update_controller_controllers__controller_type___controller_name__post",
         "security": [
           {
@@ -4804,7 +4923,7 @@
           "Controllers"
         ],
         "summary": "Delete Controller",
-        "description": "Delete a controller.\n\nArgs:\n    controller_type: Type of the controller\n    controller_name: Name of the controller to delete\n    \nReturns:\n    Success message when controller is deleted\n    \nRaises:\n    HTTPException: 404 if controller not found",
+        "description": "Delete a controller.\n\nHandles both single-file and package-style controllers.\n\nArgs:\n    controller_type: Type of the controller\n    controller_name: Name of the controller to delete\n\nReturns:\n    Success message when controller is deleted\n\nRaises:\n    HTTPException: 404 if controller not found",
         "operationId": "delete_controller_controllers__controller_type___controller_name__delete",
         "security": [
           {
@@ -4858,7 +4977,7 @@
           "Controllers"
         ],
         "summary": "Get Controller Config Template",
-        "description": "Get controller configuration template with default values.\n\nArgs:\n    controller_type: Type of the controller\n    controller_name: Name of the controller\n    \nReturns:\n    Dictionary with configuration template and default values\n    \nRaises:\n    HTTPException: 404 if controller configuration class not found",
+        "description": "Get controller configuration template with default values.\n\nArgs:\n    controller_type: Type of the controller\n    controller_name: Name of the controller\n\nReturns:\n    Dictionary with configuration template and default values\n\nRaises:\n    HTTPException: 404 if controller configuration class not found",
         "operationId": "get_controller_config_template_controllers__controller_type___controller_name__config_template_get",
         "security": [
           {
@@ -4978,7 +5097,7 @@
           "Controllers"
         ],
         "summary": "Get Bot Controller Configs",
-        "description": "Get all controller configurations for a specific bot.\n\nArgs:\n    bot_name: Name of the bot to get configurations for\n    \nReturns:\n    List of controller configurations for the bot\n    \nRaises:\n    HTTPException: 404 if bot not found",
+        "description": "Get all controller configurations for a specific bot.\n\nArgs:\n    bot_name: Name of the bot to get configurations for\n\nReturns:\n    List of controller configurations for the bot\n\nRaises:\n    HTTPException: 404 if bot not found",
         "operationId": "get_bot_controller_configs_controllers_bots__bot_name__configs_get",
         "security": [
           {
@@ -5031,7 +5150,7 @@
           "Controllers"
         ],
         "summary": "Update Bot Controller Config",
-        "description": "Update controller configuration for a specific bot.\n\nArgs:\n    bot_name: Name of the bot\n    controller_name: Name of the controller to update\n    config: Configuration dictionary to update with\n    \nReturns:\n    Success message when configuration is updated\n    \nRaises:\n    HTTPException: 404 if bot or controller not found, 400 if update error",
+        "description": "Update controller configuration for a specific bot.\n\nArgs:\n    bot_name: Name of the bot\n    controller_name: Name of the controller to update\n    config: Configuration dictionary to update with\n\nReturns:\n    Success message when configuration is updated\n\nRaises:\n    HTTPException: 404 if bot or controller not found, 400 if update error",
         "operationId": "update_bot_controller_config_controllers_bots__bot_name___controller_name__config_post",
         "security": [
           {
@@ -5511,7 +5630,7 @@
           "Market Data"
         ],
         "summary": "Get Candles",
-        "description": "Get real-time candles data for a specific trading pair.\n\nThis endpoint uses the MarketDataProvider to get or create a candles feed that will\nautomatically start and maintain real-time updates. Subsequent requests with the same\nconfiguration will reuse the existing feed for up-to-date data.\n\nArgs:\n    request: FastAPI request object\n    candles_config: Configuration for the candles including connector, trading_pair, interval, and max_records\n    \nReturns:\n    Real-time candles data or error message",
+        "description": "Get real-time candles data for a specific trading pair.\n\nThis endpoint uses the MarketDataProvider to get or create a candles feed that will\nautomatically start and maintain real-time updates. Subsequent requests with the same\nconfiguration will reuse the existing feed for up-to-date data.\n\nArgs:\n    request: FastAPI request object\n    candles_config: Configuration for the candles including connector, trading_pair, interval, and max_records\n\nReturns:\n    Real-time candles data or error message",
         "operationId": "get_candles_market_data_candles_post",
         "requestBody": {
           "content": {
@@ -5556,7 +5675,7 @@
           "Market Data"
         ],
         "summary": "Get Historical Candles",
-        "description": "Get historical candles data for a specific trading pair.\n\nArgs:\n    config: Configuration for historical candles including connector, trading pair, interval, start and end time\n    \nReturns:\n    Historical candles data or error message",
+        "description": "Get historical candles data for a specific trading pair.\n\nArgs:\n    config: Configuration for historical candles including connector, trading pair, interval, start and end time\n\nReturns:\n    Historical candles data or error message",
         "operationId": "get_historical_candles_market_data_historical_candles_post",
         "requestBody": {
           "content": {
@@ -6044,6 +6163,210 @@
             "HTTPBasic": []
           }
         ]
+      }
+    },
+    "/market-data/trading-pair/add": {
+      "post": {
+        "tags": [
+          "Market Data"
+        ],
+        "summary": "Add Trading Pair",
+        "description": "Initialize order book for a trading pair.\n\nThis endpoint dynamically adds a trading pair to a connector's order book tracker.\nIt uses the best available connector (trading connectors are preferred over data connectors).\n\nArgs:\n    request: Request with connector name, trading pair, optional account name, and timeout\n\nReturns:\n    TradingPairResponse with success status and message\n\nRaises:\n    HTTPException: 500 if initialization fails",
+        "operationId": "add_trading_pair_market_data_trading_pair_add_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddTradingPairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradingPairResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/market-data/trading-pair/remove": {
+      "post": {
+        "tags": [
+          "Market Data"
+        ],
+        "summary": "Remove Trading Pair",
+        "description": "Remove a trading pair from order book tracking.\n\nThis endpoint removes a trading pair from a connector's order book tracker,\ncleaning up resources for pairs that are no longer needed.\n\nArgs:\n    request: Request with connector name, trading pair, and optional account name\n\nReturns:\n    TradingPairResponse with success status and message\n\nRaises:\n    HTTPException: 500 if removal fails",
+        "operationId": "remove_trading_pair_market_data_trading_pair_remove_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveTradingPairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradingPairResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/market-data/order-book/diagnostics/{connector_name}": {
+      "get": {
+        "tags": [
+          "Market Data"
+        ],
+        "summary": "Get Order Book Diagnostics",
+        "description": "Get diagnostics for a connector's order book tracker.\n\nReturns detailed information about the order book tracker status including:\n- Task status (running/crashed)\n- WebSocket connection status\n- Metrics (messages processed, latency, etc.)\n- Current order book state\n\nArgs:\n    connector_name: The connector to diagnose (e.g., \"binance\")\n    account_name: Optional account name for trading connectors\n\nReturns:\n    Diagnostic information dictionary",
+        "operationId": "get_order_book_diagnostics_market_data_order_book_diagnostics__connector_name__get",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connector_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connector Name"
+            }
+          },
+          {
+            "name": "account_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Account Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/market-data/order-book/restart/{connector_name}": {
+      "post": {
+        "tags": [
+          "Market Data"
+        ],
+        "summary": "Restart Order Book Tracker",
+        "description": "Restart the order book tracker for a connector.\n\nUse this endpoint when the order book is stale (WebSocket disconnected).\nThis will:\n1. Stop the existing order book tracker\n2. Restart it with the same trading pairs\n3. Wait for the WebSocket to reconnect\n\nArgs:\n    connector_name: The connector to restart (e.g., \"binance\")\n    account_name: Optional account name for trading connectors\n\nReturns:\n    Restart status with success/failure and trading pairs",
+        "operationId": "restart_order_book_tracker_market_data_order_book_restart__connector_name__post",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connector_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connector Name"
+            }
+          },
+          {
+            "name": "account_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Account Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/rate-oracle/sources": {
@@ -6851,14 +7174,135 @@
         }
       }
     },
-    "/gateway-proxy/{path}": {
-      "patch": {
+    "/executors/": {
+      "post": {
         "tags": [
-          "Gateway Proxy"
+          "Executors"
         ],
-        "summary": "Forward To Gateway",
-        "description": "Forward request to Gateway server unchanged.\n\nThis catch-all route forwards any request to /api/gateway-proxy/* to the Gateway server.\nThe request body, headers, and query parameters are passed through unchanged.\nThe response from Gateway is returned unchanged.\n\nExamples:\n    GET /api/gateway-proxy/wallet -> GET localhost:15888/wallet\n    POST /api/gateway-proxy/wallet/add -> POST localhost:15888/wallet/add\n    GET /api/gateway-proxy/config -> GET localhost:15888/config",
-        "operationId": "forward_to_gateway_gateway_proxy__path__patch",
+        "summary": "Create Executor",
+        "description": "Create and start a new executor.\n\nSupported executor types:\n- **position_executor**: Single position with triple barrier (stop loss, take profit, time limit)\n- **grid_executor**: Grid trading with multiple levels\n- **dca_executor**: Dollar-cost averaging with multiple entry points\n- **twap_executor**: Time-weighted average price execution\n- **arbitrage_executor**: Cross-exchange arbitrage\n- **xemm_executor**: Cross-exchange market making\n- **order_executor**: Simple order execution\n- **lp_executor**: Liquidity provider position on CLMM DEXs (Meteora, Raydium, etc.)\n\nThe `executor_config` must include:\n- `type`: One of the executor types above\n- `connector_name`: Exchange connector (e.g., \"binance\", \"binance_perpetual\")\n- `trading_pair`: Trading pair (e.g., \"BTC-USDT\")\n- Additional type-specific configuration (see /executors/types/{type}/config for details)\n\nReturns the created executor ID and initial status.",
+        "operationId": "create_executor_executors__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExecutorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateExecutorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/executors/search": {
+      "post": {
+        "tags": [
+          "Executors"
+        ],
+        "summary": "List Executors",
+        "description": "Get list of executors with optional filtering.\n\nReturns active executors from memory combined with completed executors from database.\n\nFilters:\n- `account_names`: Filter by specific accounts\n- `connector_names`: Filter by connectors\n- `trading_pairs`: Filter by trading pairs\n- `executor_types`: Filter by executor types\n- `status`: Filter by status (RUNNING, TERMINATED, etc.)\n\nReturns paginated list of executor summaries.",
+        "operationId": "list_executors_executors_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutorFilterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/executors/summary": {
+      "get": {
+        "tags": [
+          "Executors"
+        ],
+        "summary": "Get Executors Summary",
+        "description": "Get summary statistics for all executors.\n\nReturns aggregate information including:\n- Total active/completed executor counts\n- Total PnL and volume\n- Breakdown by executor type, connector, and status",
+        "operationId": "get_executors_summary_executors_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutorsSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/executors/{executor_id}/logs": {
+      "get": {
+        "tags": [
+          "Executors"
+        ],
+        "summary": "Get Executor Logs",
+        "description": "Get captured log entries for a specific executor.\n\nReturns log entries from the in-memory ring buffer. Only available for\nactive executors - logs are cleared when the executor completes.\n\nQuery parameters:\n- **level**: Filter by log level (ERROR, WARNING, INFO, DEBUG)\n- **limit**: Maximum entries to return (default 50)",
+        "operationId": "get_executor_logs_executors__executor_id__logs_get",
         "security": [
           {
             "HTTPBasic": []
@@ -6866,12 +7310,38 @@
         ],
         "parameters": [
           {
-            "name": "path",
+            "name": "executor_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Path"
+              "title": "Executor Id"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Level"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
             }
           }
         ],
@@ -6880,7 +7350,234 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutorLogsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/executors/types/available": {
+      "get": {
+        "tags": [
+          "Executors"
+        ],
+        "summary": "Get Available Executor Types",
+        "description": "Get list of available executor types with descriptions.\n\nReturns information about each supported executor type.",
+        "operationId": "get_available_executor_types_executors_types_available_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/executors/{executor_id}": {
+      "get": {
+        "tags": [
+          "Executors"
+        ],
+        "summary": "Get Executor",
+        "description": "Get detailed information about a specific executor.\n\nChecks active executors in memory first, then falls back to database for completed executors.\n\nReturns full executor information including:\n- Current status and PnL\n- Full configuration\n- Executor-specific custom information",
+        "operationId": "get_executor_executors__executor_id__get",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "executor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Executor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutorDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/executors/{executor_id}/stop": {
+      "post": {
+        "tags": [
+          "Executors"
+        ],
+        "summary": "Stop Executor",
+        "description": "Stop an active executor.\n\nOptions:\n- `keep_position`: If true, keeps any open position (for position executors).\n  If false, the executor will attempt to close all positions before stopping.\n\nReturns confirmation of the stop action.",
+        "operationId": "stop_executor_executors__executor_id__stop_post",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "executor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Executor Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopExecutorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopExecutorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/executors/positions/summary": {
+      "get": {
+        "tags": [
+          "Executors"
+        ],
+        "summary": "Get Positions Summary",
+        "description": "Get summary of all held positions from executors stopped with keep_position=True.\n\nReturns aggregate information including:\n- Total number of active position holds\n- Total realized PnL across all positions\n- Total unrealized PnL (when market rates are available)\n- List of all positions with breakeven prices and PnL",
+        "operationId": "get_positions_summary_executors_positions_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionsSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/executors/positions/{connector_name}/{trading_pair}": {
+      "get": {
+        "tags": [
+          "Executors"
+        ],
+        "summary": "Get Position Held",
+        "description": "Get held position for a specific connector/trading pair.\n\nReturns the aggregated position from executors stopped with keep_position=True,\nincluding breakeven prices, matched/unmatched volume, realized PnL, and unrealized PnL.",
+        "operationId": "get_position_held_executors_positions__connector_name___trading_pair__get",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connector_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connector Name"
+            }
+          },
+          {
+            "name": "trading_pair",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trading Pair"
+            }
+          },
+          {
+            "name": "account_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "master_account",
+              "title": "Account Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionHoldResponse"
+                }
               }
             }
           },
@@ -6898,11 +7595,11 @@
       },
       "delete": {
         "tags": [
-          "Gateway Proxy"
+          "Executors"
         ],
-        "summary": "Forward To Gateway",
-        "description": "Forward request to Gateway server unchanged.\n\nThis catch-all route forwards any request to /api/gateway-proxy/* to the Gateway server.\nThe request body, headers, and query parameters are passed through unchanged.\nThe response from Gateway is returned unchanged.\n\nExamples:\n    GET /api/gateway-proxy/wallet -> GET localhost:15888/wallet\n    POST /api/gateway-proxy/wallet/add -> POST localhost:15888/wallet/add\n    GET /api/gateway-proxy/config -> GET localhost:15888/config",
-        "operationId": "forward_to_gateway_gateway_proxy__path__patch",
+        "summary": "Clear Position Held",
+        "description": "Clear a held position (after manual close or full exit).\n\nThis removes the position from tracking but preserves historical data\nin completed executors.",
+        "operationId": "clear_position_held_executors_positions__connector_name___trading_pair__delete",
         "security": [
           {
             "HTTPBasic": []
@@ -6910,12 +7607,31 @@
         ],
         "parameters": [
           {
-            "name": "path",
+            "name": "connector_name",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Path"
+              "title": "Connector Name"
+            }
+          },
+          {
+            "name": "trading_pair",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trading Pair"
+            }
+          },
+          {
+            "name": "account_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "master_account",
+              "title": "Account Name"
             }
           }
         ],
@@ -6939,14 +7655,62 @@
             }
           }
         }
-      },
-      "put": {
+      }
+    },
+    "/executors/types/{executor_type}/config": {
+      "get": {
+        "tags": [
+          "Executors"
+        ],
+        "summary": "Get Executor Config Schema",
+        "description": "Get configuration schema for a specific executor type.\n\nReturns detailed information about each configuration field including:\n- **name**: Field name\n- **type**: Data type (str, int, Decimal, enum, etc.)\n- **description**: Field description\n- **required**: Whether the field is required\n- **default**: Default value if any\n- **constraints**: Validation constraints (min, max, pattern, etc.)\n- **enum_values**: Possible values for enum types\n\nAlso returns nested type definitions for complex fields.",
+        "operationId": "get_executor_config_schema_executors_types__executor_type__config_get",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "executor_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Executor Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gateway-proxy/{path}": {
+      "get": {
         "tags": [
           "Gateway Proxy"
         ],
-        "summary": "Forward To Gateway",
-        "description": "Forward request to Gateway server unchanged.\n\nThis catch-all route forwards any request to /api/gateway-proxy/* to the Gateway server.\nThe request body, headers, and query parameters are passed through unchanged.\nThe response from Gateway is returned unchanged.\n\nExamples:\n    GET /api/gateway-proxy/wallet -> GET localhost:15888/wallet\n    POST /api/gateway-proxy/wallet/add -> POST localhost:15888/wallet/add\n    GET /api/gateway-proxy/config -> GET localhost:15888/config",
-        "operationId": "forward_to_gateway_gateway_proxy__path__patch",
+        "summary": "Gateway Proxy Get",
+        "description": "GET request to Gateway. Example: GET /gateway-proxy/wallet",
+        "operationId": "gateway_proxy_get",
         "security": [
           {
             "HTTPBasic": []
@@ -6988,9 +7752,9 @@
         "tags": [
           "Gateway Proxy"
         ],
-        "summary": "Forward To Gateway",
-        "description": "Forward request to Gateway server unchanged.\n\nThis catch-all route forwards any request to /api/gateway-proxy/* to the Gateway server.\nThe request body, headers, and query parameters are passed through unchanged.\nThe response from Gateway is returned unchanged.\n\nExamples:\n    GET /api/gateway-proxy/wallet -> GET localhost:15888/wallet\n    POST /api/gateway-proxy/wallet/add -> POST localhost:15888/wallet/add\n    GET /api/gateway-proxy/config -> GET localhost:15888/config",
-        "operationId": "forward_to_gateway_gateway_proxy__path__patch",
+        "summary": "Gateway Proxy Post",
+        "description": "POST request to Gateway. Example: POST /gateway-proxy/wallet/add",
+        "operationId": "gateway_proxy_post",
         "security": [
           {
             "HTTPBasic": []
@@ -7028,13 +7792,101 @@
           }
         }
       },
-      "get": {
+      "put": {
         "tags": [
           "Gateway Proxy"
         ],
-        "summary": "Forward To Gateway",
-        "description": "Forward request to Gateway server unchanged.\n\nThis catch-all route forwards any request to /api/gateway-proxy/* to the Gateway server.\nThe request body, headers, and query parameters are passed through unchanged.\nThe response from Gateway is returned unchanged.\n\nExamples:\n    GET /api/gateway-proxy/wallet -> GET localhost:15888/wallet\n    POST /api/gateway-proxy/wallet/add -> POST localhost:15888/wallet/add\n    GET /api/gateway-proxy/config -> GET localhost:15888/config",
-        "operationId": "forward_to_gateway_gateway_proxy__path__patch",
+        "summary": "Gateway Proxy Put",
+        "description": "PUT request to Gateway.",
+        "operationId": "gateway_proxy_put",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Gateway Proxy"
+        ],
+        "summary": "Gateway Proxy Delete",
+        "description": "DELETE request to Gateway.",
+        "operationId": "gateway_proxy_delete",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Gateway Proxy"
+        ],
+        "summary": "Gateway Proxy Patch",
+        "description": "PATCH request to Gateway.",
+        "operationId": "gateway_proxy_patch",
         "security": [
           {
             "HTTPBasic": []
@@ -7118,43 +7970,6 @@
   },
   "components": {
     "schemas": {
-      "AccountsDistributionFilterRequest": {
-        "properties": {
-          "account_names": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Account Names",
-            "description": "List of account names to filter by"
-          },
-          "connector_names": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Connector Names",
-            "description": "List of connector names to filter by"
-          }
-        },
-        "type": "object",
-        "title": "AccountsDistributionFilterRequest",
-        "description": "Request model for filtering accounts distribution"
-      },
       "ActiveOrderFilterRequest": {
         "properties": {
           "limit": {
@@ -7335,6 +8150,47 @@
         "title": "AddTokenRequest",
         "description": "Request to add a custom token to Gateway"
       },
+      "AddTradingPairRequest": {
+        "properties": {
+          "connector_name": {
+            "type": "string",
+            "title": "Connector Name",
+            "description": "Name of the connector (e.g., 'binance', 'binance_perpetual')"
+          },
+          "trading_pair": {
+            "type": "string",
+            "title": "Trading Pair",
+            "description": "Trading pair to add (e.g., 'BTC-USDT')"
+          },
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name",
+            "description": "Optional account name for trading connector preference"
+          },
+          "timeout": {
+            "type": "number",
+            "maximum": 120,
+            "minimum": 1,
+            "title": "Timeout",
+            "description": "Timeout in seconds for order book initialization",
+            "default": 30
+          }
+        },
+        "type": "object",
+        "required": [
+          "connector_name",
+          "trading_pair"
+        ],
+        "title": "AddTradingPairRequest",
+        "description": "Request model for adding a trading pair to order book tracking"
+      },
       "BacktestingConfig": {
         "properties": {
           "start_time": {
@@ -7375,6 +8231,94 @@
           "config"
         ],
         "title": "BacktestingConfig"
+      },
+      "CLMMAddLiquidityRequest": {
+        "properties": {
+          "connector": {
+            "type": "string",
+            "title": "Connector",
+            "description": "CLMM connector (e.g., 'meteora', 'raydium', 'uniswap')"
+          },
+          "network": {
+            "type": "string",
+            "title": "Network",
+            "description": "Network ID in 'chain-network' format (e.g., 'solana-mainnet-beta')"
+          },
+          "position_address": {
+            "type": "string",
+            "title": "Position Address",
+            "description": "Existing position address to add liquidity to"
+          },
+          "base_token_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Token Amount",
+            "description": "Amount of base token to add"
+          },
+          "quote_token_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Token Amount",
+            "description": "Amount of quote token to add"
+          },
+          "slippage_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slippage Pct",
+            "description": "Maximum slippage percentage (default: 1.0)",
+            "default": 1
+          },
+          "wallet_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wallet Address",
+            "description": "Wallet address (optional, uses default if not provided)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connector",
+          "network",
+          "position_address"
+        ],
+        "title": "CLMMAddLiquidityRequest",
+        "description": "Request to add MORE liquidity to an EXISTING CLMM position"
       },
       "CLMMClosePositionRequest": {
         "properties": {
@@ -8436,6 +9380,59 @@
         "title": "CLMMPositionsOwnedRequest",
         "description": "Request to get all CLMM positions owned by a wallet for a specific pool"
       },
+      "CLMMRemoveLiquidityRequest": {
+        "properties": {
+          "connector": {
+            "type": "string",
+            "title": "Connector",
+            "description": "CLMM connector (e.g., 'meteora', 'raydium', 'uniswap')"
+          },
+          "network": {
+            "type": "string",
+            "title": "Network",
+            "description": "Network ID in 'chain-network' format (e.g., 'solana-mainnet-beta')"
+          },
+          "position_address": {
+            "type": "string",
+            "title": "Position Address",
+            "description": "Position address to remove liquidity from"
+          },
+          "percentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Percentage",
+            "description": "Percentage of liquidity to remove (0-100)"
+          },
+          "wallet_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wallet Address",
+            "description": "Wallet address (optional, uses default if not provided)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connector",
+          "network",
+          "position_address",
+          "percentage"
+        ],
+        "title": "CLMMRemoveLiquidityRequest",
+        "description": "Request to remove SOME liquidity from a CLMM position (partial removal)"
+      },
       "CandlesConfigRequest": {
         "properties": {
           "connector_name": {
@@ -8501,6 +9498,123 @@
         "title": "ControllerType",
         "description": "Types of controllers available"
       },
+      "CreateExecutorRequest": {
+        "properties": {
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name",
+            "description": "Account name to use (defaults to master_account)"
+          },
+          "executor_config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Executor Config",
+            "description": "Executor configuration. Must include 'type' field and executor-specific parameters."
+          }
+        },
+        "type": "object",
+        "required": [
+          "executor_config"
+        ],
+        "title": "CreateExecutorRequest",
+        "description": "Request to create a new executor.",
+        "examples": [
+          {
+            "description": "Create a position executor with triple barrier",
+            "summary": "Position Executor",
+            "value": {
+              "account_name": "master_account",
+              "executor_config": {
+                "amount": "0.01",
+                "connector_name": "binance_perpetual",
+                "leverage": 10,
+                "side": "BUY",
+                "trading_pair": "BTC-USDT",
+                "triple_barrier_config": {
+                  "stop_loss": "0.02",
+                  "take_profit": "0.04",
+                  "time_limit": 3600
+                },
+                "type": "position_executor"
+              }
+            }
+          },
+          {
+            "description": "Create an LP position on a CLMM DEX",
+            "summary": "LP Executor",
+            "value": {
+              "account_name": "master_account",
+              "executor_config": {
+                "base_amount": "0",
+                "connector_name": "solana-mainnet-beta",
+                "extra_params": {
+                  "strategyType": 0
+                },
+                "keep_position": false,
+                "lower_price": "80",
+                "lp_provider": "meteora/clmm",
+                "pool_address": "HTvjzsfX3yU6BUodCjZ5vZkUrAxMDTrBs3CJaq43ashR",
+                "quote_amount": "10.0",
+                "side": 1,
+                "type": "lp_executor",
+                "upper_price": "100"
+              }
+            }
+          }
+        ]
+      },
+      "CreateExecutorResponse": {
+        "properties": {
+          "executor_id": {
+            "type": "string",
+            "title": "Executor Id",
+            "description": "Unique executor identifier"
+          },
+          "executor_type": {
+            "type": "string",
+            "title": "Executor Type",
+            "description": "Type of executor created"
+          },
+          "connector_name": {
+            "type": "string",
+            "title": "Connector Name",
+            "description": "Connector name"
+          },
+          "trading_pair": {
+            "type": "string",
+            "title": "Trading Pair",
+            "description": "Trading pair"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Initial status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "description": "Creation timestamp (ISO format)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "executor_id",
+          "executor_type",
+          "connector_name",
+          "trading_pair",
+          "status",
+          "created_at"
+        ],
+        "title": "CreateExecutorResponse",
+        "description": "Response after creating an executor."
+      },
       "CreateWalletRequest": {
         "properties": {
           "chain": {
@@ -8535,6 +9649,496 @@
           "image_name"
         ],
         "title": "DockerImage"
+      },
+      "ExecutorDetailResponse": {
+        "properties": {
+          "executor_id": {
+            "type": "string",
+            "title": "Executor Id",
+            "description": "Unique executor identifier"
+          },
+          "executor_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executor Type",
+            "description": "Type of executor"
+          },
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name",
+            "description": "Account name"
+          },
+          "connector_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Name",
+            "description": "Connector name"
+          },
+          "trading_pair": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trading Pair",
+            "description": "Trading pair"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side",
+            "description": "Trade side (BUY/SELL) if applicable"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Current status (RUNNING, TERMINATED, etc.)"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "description": "Whether the executor is active"
+          },
+          "is_trading": {
+            "type": "boolean",
+            "title": "Is Trading",
+            "description": "Whether the executor has open trades"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp",
+            "description": "Creation timestamp (Unix)"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "Creation timestamp (ISO format)"
+          },
+          "close_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close Type",
+            "description": "How the executor was closed (if applicable)"
+          },
+          "close_timestamp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close Timestamp",
+            "description": "Close timestamp (Unix)"
+          },
+          "controller_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controller Id",
+            "description": "ID of the controller that spawned this executor"
+          },
+          "net_pnl_quote": {
+            "type": "number",
+            "title": "Net Pnl Quote",
+            "description": "Net PnL in quote currency"
+          },
+          "net_pnl_pct": {
+            "type": "number",
+            "title": "Net Pnl Pct",
+            "description": "Net PnL percentage"
+          },
+          "cum_fees_quote": {
+            "type": "number",
+            "title": "Cum Fees Quote",
+            "description": "Cumulative fees in quote currency"
+          },
+          "filled_amount_quote": {
+            "type": "number",
+            "title": "Filled Amount Quote",
+            "description": "Total filled amount in quote currency"
+          },
+          "error_count": {
+            "type": "integer",
+            "title": "Error Count",
+            "description": "Number of ERROR-level log entries captured",
+            "default": 0
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error",
+            "description": "Most recent error message, if any"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config",
+            "description": "Full executor configuration"
+          },
+          "custom_info": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Info",
+            "description": "Executor-specific custom information"
+          }
+        },
+        "type": "object",
+        "required": [
+          "executor_id",
+          "executor_type",
+          "account_name",
+          "connector_name",
+          "trading_pair",
+          "status",
+          "is_active",
+          "is_trading",
+          "net_pnl_quote",
+          "net_pnl_pct",
+          "cum_fees_quote",
+          "filled_amount_quote"
+        ],
+        "title": "ExecutorDetailResponse",
+        "description": "Detailed response for a single executor.",
+        "example": {
+          "account_name": "master_account",
+          "connector_name": "binance_perpetual",
+          "created_at": "2024-01-15T10:30:00Z",
+          "cum_fees_quote": 1.25,
+          "executor_id": "abc123...",
+          "executor_type": "position_executor",
+          "filled_amount_quote": 5000,
+          "is_active": true,
+          "is_trading": true,
+          "net_pnl_pct": 2.5,
+          "net_pnl_quote": 125.5,
+          "side": "BUY",
+          "status": "RUNNING",
+          "timestamp": 1705315800,
+          "trading_pair": "BTC-USDT"
+        }
+      },
+      "ExecutorFilterRequest": {
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "maximum": 1000,
+            "minimum": 1,
+            "title": "Limit",
+            "description": "Number of items per page",
+            "default": 100
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cursor",
+            "description": "Cursor for next page"
+          },
+          "account_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Names",
+            "description": "Filter by account names"
+          },
+          "connector_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Names",
+            "description": "Filter by connector names"
+          },
+          "trading_pairs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trading Pairs",
+            "description": "Filter by trading pairs"
+          },
+          "executor_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "position_executor",
+                    "grid_executor",
+                    "dca_executor",
+                    "arbitrage_executor",
+                    "twap_executor",
+                    "xemm_executor",
+                    "order_executor",
+                    "lp_executor"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executor Types",
+            "description": "Filter by executor types"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Filter by status (RUNNING, TERMINATED, etc.)"
+          }
+        },
+        "type": "object",
+        "title": "ExecutorFilterRequest",
+        "description": "Request to filter and list executors."
+      },
+      "ExecutorLogEntry": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "ISO-format timestamp"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level",
+            "description": "Log level (DEBUG, INFO, WARNING, ERROR)"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Log message"
+          },
+          "exc_info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exc Info",
+            "description": "Exception traceback if present"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp",
+          "level",
+          "message"
+        ],
+        "title": "ExecutorLogEntry",
+        "description": "A single log entry from an executor."
+      },
+      "ExecutorLogsResponse": {
+        "properties": {
+          "executor_id": {
+            "type": "string",
+            "title": "Executor Id",
+            "description": "Executor identifier"
+          },
+          "logs": {
+            "items": {
+              "$ref": "#/components/schemas/ExecutorLogEntry"
+            },
+            "type": "array",
+            "title": "Logs",
+            "description": "Log entries"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count",
+            "description": "Total number of log entries (before limit)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "executor_id",
+          "logs",
+          "total_count"
+        ],
+        "title": "ExecutorLogsResponse",
+        "description": "Response for executor log entries."
+      },
+      "ExecutorsSummaryResponse": {
+        "properties": {
+          "total_active": {
+            "type": "integer",
+            "title": "Total Active",
+            "description": "Number of active executors"
+          },
+          "total_pnl_quote": {
+            "type": "number",
+            "title": "Total Pnl Quote",
+            "description": "Total PnL across active executors"
+          },
+          "total_volume_quote": {
+            "type": "number",
+            "title": "Total Volume Quote",
+            "description": "Total volume across active executors"
+          },
+          "by_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Type",
+            "description": "Executor count by type"
+          },
+          "by_connector": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Connector",
+            "description": "Executor count by connector"
+          },
+          "by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Status",
+            "description": "Executor count by status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_active",
+          "total_pnl_quote",
+          "total_volume_quote",
+          "by_type",
+          "by_connector",
+          "by_status"
+        ],
+        "title": "ExecutorsSummaryResponse",
+        "description": "Summary of active executors.",
+        "example": {
+          "by_connector": {
+            "binance": 1,
+            "binance_perpetual": 4
+          },
+          "by_status": {
+            "RUNNING": 5
+          },
+          "by_type": {
+            "grid_executor": 2,
+            "position_executor": 3
+          },
+          "total_active": 5,
+          "total_pnl_quote": 1234.56,
+          "total_volume_quote": 50000
+        }
       },
       "FundingInfoRequest": {
         "properties": {
@@ -8825,17 +10429,11 @@
             "title": "Private Key",
             "description": "Wallet private key"
           },
-          "network": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Network",
-            "description": "Network to use (defaults to chain's default)"
+          "set_default": {
+            "type": "boolean",
+            "title": "Set Default",
+            "description": "Set as default wallet for this chain",
+            "default": true
           }
         },
         "type": "object",
@@ -8844,7 +10442,7 @@
           "private_key"
         ],
         "title": "GatewayWalletCredential",
-        "description": "Credentials for connecting a Gateway wallet"
+        "description": "Credentials for adding an existing wallet to Gateway"
       },
       "GlobalTokenConfig": {
         "properties": {
@@ -9500,6 +11098,142 @@
         "title": "PositionFilterRequest",
         "description": "Request model for filtering positions"
       },
+      "PositionHoldResponse": {
+        "properties": {
+          "trading_pair": {
+            "type": "string",
+            "title": "Trading Pair"
+          },
+          "connector_name": {
+            "type": "string",
+            "title": "Connector Name"
+          },
+          "account_name": {
+            "type": "string",
+            "title": "Account Name"
+          },
+          "buy_amount_base": {
+            "type": "number",
+            "title": "Buy Amount Base"
+          },
+          "buy_amount_quote": {
+            "type": "number",
+            "title": "Buy Amount Quote"
+          },
+          "sell_amount_base": {
+            "type": "number",
+            "title": "Sell Amount Base"
+          },
+          "sell_amount_quote": {
+            "type": "number",
+            "title": "Sell Amount Quote"
+          },
+          "net_amount_base": {
+            "type": "number",
+            "title": "Net Amount Base"
+          },
+          "buy_breakeven_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buy Breakeven Price"
+          },
+          "sell_breakeven_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sell Breakeven Price"
+          },
+          "matched_amount_base": {
+            "type": "number",
+            "title": "Matched Amount Base"
+          },
+          "unmatched_amount_base": {
+            "type": "number",
+            "title": "Unmatched Amount Base"
+          },
+          "position_side": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Side"
+          },
+          "realized_pnl_quote": {
+            "type": "number",
+            "title": "Realized Pnl Quote"
+          },
+          "unrealized_pnl_quote": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealized Pnl Quote"
+          },
+          "executor_count": {
+            "type": "integer",
+            "title": "Executor Count"
+          },
+          "executor_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Executor Ids"
+          },
+          "last_updated": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trading_pair",
+          "connector_name",
+          "account_name",
+          "buy_amount_base",
+          "buy_amount_quote",
+          "sell_amount_base",
+          "sell_amount_quote",
+          "net_amount_base",
+          "buy_breakeven_price",
+          "sell_breakeven_price",
+          "matched_amount_base",
+          "unmatched_amount_base",
+          "position_side",
+          "realized_pnl_quote",
+          "executor_count",
+          "executor_ids",
+          "last_updated"
+        ],
+        "title": "PositionHoldResponse",
+        "description": "API response model for PositionHold."
+      },
       "PositionModeRequest": {
         "properties": {
           "position_mode": {
@@ -9514,6 +11248,48 @@
         ],
         "title": "PositionModeRequest",
         "description": "Request model for setting position mode on perpetual connectors"
+      },
+      "PositionsSummaryResponse": {
+        "properties": {
+          "total_positions": {
+            "type": "integer",
+            "title": "Total Positions",
+            "description": "Number of active position holds"
+          },
+          "total_realized_pnl": {
+            "type": "number",
+            "title": "Total Realized Pnl",
+            "description": "Total realized PnL across all positions"
+          },
+          "total_unrealized_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Unrealized Pnl",
+            "description": "Total unrealized PnL (None if no rates available)"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PositionHoldResponse"
+            },
+            "type": "array",
+            "title": "Positions",
+            "description": "List of position holds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_positions",
+          "total_realized_pnl",
+          "positions"
+        ],
+        "title": "PositionsSummaryResponse",
+        "description": "Summary of all held positions."
       },
       "PriceForQuoteVolumeRequest": {
         "properties": {
@@ -9853,6 +11629,39 @@
         "title": "RateResponse",
         "description": "Response containing rates for trading pairs."
       },
+      "RemoveTradingPairRequest": {
+        "properties": {
+          "connector_name": {
+            "type": "string",
+            "title": "Connector Name",
+            "description": "Name of the connector"
+          },
+          "trading_pair": {
+            "type": "string",
+            "title": "Trading Pair",
+            "description": "Trading pair to remove"
+          },
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name",
+            "description": "Optional account name for trading connector preference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connector_name",
+          "trading_pair"
+        ],
+        "title": "RemoveTradingPairRequest",
+        "description": "Request model for removing a trading pair from order book tracking"
+      },
       "Script": {
         "properties": {
           "content": {
@@ -9906,6 +11715,27 @@
         ],
         "title": "SendTransactionRequest",
         "description": "Request to send a native token transaction"
+      },
+      "SetDefaultWalletRequest": {
+        "properties": {
+          "chain": {
+            "type": "string",
+            "title": "Chain",
+            "description": "Blockchain chain (e.g., 'solana', 'ethereum')"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "description": "Wallet address to set as default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chain",
+          "address"
+        ],
+        "title": "SetDefaultWalletRequest",
+        "description": "Request to set the default wallet for a chain"
       },
       "ShowPrivateKeyRequest": {
         "properties": {
@@ -10057,6 +11887,46 @@
         ],
         "title": "StopBotAction",
         "description": "Action to stop a bot"
+      },
+      "StopExecutorRequest": {
+        "properties": {
+          "keep_position": {
+            "type": "boolean",
+            "title": "Keep Position",
+            "description": "Whether to keep the position open (for position executors)",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "StopExecutorRequest",
+        "description": "Request to stop an executor."
+      },
+      "StopExecutorResponse": {
+        "properties": {
+          "executor_id": {
+            "type": "string",
+            "title": "Executor Id",
+            "description": "Executor identifier"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "New status (usually 'stopping')"
+          },
+          "keep_position": {
+            "type": "boolean",
+            "title": "Keep Position",
+            "description": "Whether position was kept open"
+          }
+        },
+        "type": "object",
+        "required": [
+          "executor_id",
+          "status",
+          "keep_position"
+        ],
+        "title": "StopExecutorResponse",
+        "description": "Response after stopping an executor."
       },
       "SwapExecuteRequest": {
         "properties": {
@@ -10689,6 +12559,39 @@
         "title": "TradeResponse",
         "description": "Response model for trade execution"
       },
+      "TradingPairResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "Whether the operation succeeded"
+          },
+          "connector_name": {
+            "type": "string",
+            "title": "Connector Name",
+            "description": "Name of the connector"
+          },
+          "trading_pair": {
+            "type": "string",
+            "title": "Trading Pair",
+            "description": "Trading pair that was added/removed"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Status message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "connector_name",
+          "trading_pair",
+          "message"
+        ],
+        "title": "TradingPairResponse",
+        "description": "Response model for trading pair management operations"
+      },
       "V2ControllerDeployment": {
         "properties": {
           "instance_name": {
@@ -10739,6 +12642,18 @@
             "description": "Docker image for the Hummingbot instance",
             "default": "hummingbot/hummingbot:latest"
           },
+          "script_config": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Script Config",
+            "description": "Generated script configuration file name"
+          },
           "headless": {
             "type": "boolean",
             "title": "Headless",
@@ -10783,7 +12698,7 @@
               }
             ],
             "title": "Script",
-            "description": "Name of the script to run (without .py extension)"
+            "description": "Script name to run (without .py extension)"
           },
           "script_config": {
             "anyOf": [
@@ -10795,7 +12710,7 @@
               }
             ],
             "title": "Script Config",
-            "description": "Name of the script configuration file (without .yml extension)"
+            "description": "Script configuration file name (without .yml extension)"
           },
           "headless": {
             "type": "boolean",
@@ -10868,6 +12783,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
