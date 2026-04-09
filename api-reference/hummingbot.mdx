@@ -1,0 +1,135 @@
+---
+title: "Hummingbot"
+description: "The open source, institutional-grade crypto trading framework"
+---
+
+**Hummingbot** is an open source trading framework used by thousands of individual and institutional traders worldwide. Hummingbot API uses the Hummingbot Python library for exchange connectivity, and bots are Docker containers running Hummingbot instances.
+
+## Why Trust Hummingbot?
+
+### Security
+
+- **Battle-tested**: Running in production since 2019
+- **Open source**: All code is auditable on GitHub
+- **Self-hosted**: Your keys never leave your infrastructure
+- **No custody**: Direct exchange API connections, no intermediaries
+
+### Reliability
+
+- **50+ exchange connectors** actively maintained
+- **Standardized interfaces** across all exchanges
+- **Automatic reconnection** on network failures
+- **Order tracking** with fill reconciliation
+
+### Scalability
+
+- **Multi-instance**: Run hundreds of bots on one server
+- **Docker isolation**: Each bot in its own container
+- **Shared infrastructure**: Bots share market data connections
+- **Enterprise-ready**: Used by trading firms and funds
+
+### Open Source
+
+- **Apache 2.0 license**: Use commercially without restrictions
+- **Active community**: 10,000+ Discord members
+- **Regular updates**: Monthly releases with new features
+- **Extensible**: Add custom connectors and strategies
+
+## How Hummingbot API Uses It
+
+Hummingbot API wraps the Hummingbot Python library to provide:
+
+### Exchange Connectors
+
+The Hummingbot library provides standardized connectors to exchanges:
+
+```python
+# Hummingbot API uses these connectors internally
+from hummingbot.connector.exchange.binance import BinanceExchange
+from hummingbot.connector.exchange.hyperliquid import HyperliquidExchange
+```
+
+**Supported exchange types:**
+- **Spot**: Binance, Coinbase, Kraken, KuCoin, Gate.io, etc.
+- **Perpetual**: Binance Futures, Bybit, OKX, Hyperliquid, dYdX
+- **AMM/DEX**: Via Gateway (Uniswap, Jupiter, Raydium)
+
+### Bot Containers
+
+Bots are Docker containers running Hummingbot instances:
+
+```bash
+# Hummingbot API deploys bots as containers
+docker run -d \
+  --name hummingbot-mm-bot \
+  hummingbot/hummingbot:latest \
+  --config-file mm_strategy.yml
+```
+
+Each bot:
+- Runs in isolated container
+- Has its own configuration
+- Streams logs to API
+- Can be started/stopped remotely
+
+### Executors
+
+Executors use Hummingbot's order management:
+
+```python
+# Position Executor uses Hummingbot's order tracking
+executor = PositionExecutor(
+    connector=binance_connector,
+    trading_pair="SOL-USDT",
+    side=TradeType.BUY,
+    entry_price=150.0,
+    amount=10
+)
+```
+
+## Connector Coverage
+
+### CEX Spot
+
+| Exchange | Status |
+|----------|--------|
+| Binance | Active |
+| Coinbase | Active |
+| Kraken | Active |
+| KuCoin | Active |
+| Gate.io | Active |
+| OKX | Active |
+| Bybit | Active |
+| MEXC | Active |
+
+### CEX Perpetual
+
+| Exchange | Status |
+|----------|--------|
+| Binance Futures | Active |
+| Bybit Perpetual | Active |
+| OKX Perpetual | Active |
+| Hyperliquid | Active |
+| dYdX | Active |
+| Gate.io Perpetual | Active |
+
+### DEX (via Gateway)
+
+| Protocol | Chains |
+|----------|--------|
+| Uniswap | Ethereum, Arbitrum, Base, Polygon |
+| Jupiter | Solana |
+| Raydium | Solana |
+| PancakeSwap | BSC |
+| Orca | Solana |
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Hummingbot Docs" icon="book" href="https://hummingbot.org/docs">
+    Full Hummingbot documentation
+  </Card>
+  <Card title="GitHub" icon="github" href="https://github.com/hummingbot/hummingbot">
+    Hummingbot source code
+  </Card>
+</CardGroup>

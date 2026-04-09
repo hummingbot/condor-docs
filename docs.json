@@ -90,7 +90,10 @@
           {
             "group": "Overview",
             "pages": [
-              "api-reference"
+              "api-reference",
+              "api-reference/architecture",
+              "api-reference/hummingbot",
+              "api-reference/gateway"
             ]
           }
         ],
