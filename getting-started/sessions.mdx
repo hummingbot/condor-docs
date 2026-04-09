@@ -1,0 +1,182 @@
+---
+title: "Managing Agent Sessions"
+description: "Monitor, inspect, and control running agents"
+---
+
+Each time you start a Trading Agent, it creates a **session** that tracks all activity, decisions, and state changes. Here's how to manage them.
+
+## View Active Sessions
+
+```
+/agent → Select agent → View Sessions
+
+📂 SOL Scalper Sessions
+
+Active:
+• session_3 (running) - Started 2h ago, 120 ticks
+
+Completed:
+• session_2 - 6h, 360 ticks, +$45.20
+• session_1 - 4h, 240 ticks, +$12.50
+```
+
+## Monitor a Running Session
+
+```
+/agent → SOL Scalper → View Status
+
+🤖 SOL Scalper - Session 3
+Status: Running
+Tick: 121
+Uptime: 2h 1m
+
+Portfolio:
+- Exposure: $75.00 / $100.00 limit
+- Session P&L: +$23.40
+- Active Executors: 3
+
+Last Decision (Tick 121):
+"Price consolidating at $156.20. EMAs still bullish.
+ Holding current positions, waiting for breakout."
+```
+
+## View Session Journal
+
+The journal contains the agent's complete decision history:
+
+```
+/agent → SOL Scalper → Journal
+
+📓 Session 3 Journal
+
+## Summary
+- Started: 2024-03-27 14:00 UTC
+- Current Tick: 121
+- Session P&L: +$23.40
+
+## Recent Decisions
+
+### Tick 121 - 16:01 UTC
+Decision: Hold
+Reasoning: Price consolidating, waiting for breakout
+
+### Tick 120 - 16:00 UTC
+Decision: Take partial profit
+Reasoning: Position #2 hit 1.5% gain, scaling out 50%
+Action: Closed 5 SOL @ $157.80
+
+### Tick 115 - 15:55 UTC
+Decision: Open long
+Reasoning: Price bounced off S1 ($154.50), EMAs aligned
+Action: Created Position Executor - LONG 10 SOL @ $155.20
+```
+
+## View Snapshots
+
+Snapshots capture the complete state of each tick for debugging:
+
+```
+/agent → SOL Scalper → Snapshots → Tick 115
+
+📸 Snapshot - Tick 115
+
+Prompt:
+[Full system prompt sent to LLM]
+
+Response:
+"Analyzing SOL-USDT... Price at $155.20, bounced from
+ support at $154.50. EMAs: 7 > 25 > 99 (bullish).
+ Opening long position with 1% stop, 2% take profit."
+
+Tool Calls:
+1. run_routine("technical_analysis") → {trend: "bullish"...}
+2. manage_executors("create", "position_executor") → {id: "exec_115"}
+
+Risk State:
+- Exposure: $50.00
+- Daily P&L: +$18.20
+- Is Blocked: false
+```
+
+## Inject Directives
+
+Send real-time instructions to a running agent:
+
+```
+/agent → SOL Scalper → Inject Directive
+
+Enter directive:
+"Reduce exposure - high volatility expected in 10 minutes"
+
+✓ Directive injected. Will appear in next tick.
+```
+
+The agent sees your directive and responds:
+
+```
+Tick 122 Decision:
+"Received user directive about high volatility.
+ Closing position #3 to reduce exposure from $75 to $50."
+```
+
+## Pause and Resume
+
+**Pause** an agent without losing state:
+
+```
+/agent → SOL Scalper → Pause
+
+⏸️ Agent paused. Executors remain active.
+Resume anytime with /agent → Resume.
+```
+
+**Resume** continues from where it left off:
+
+```
+/agent → SOL Scalper → Resume
+
+▶️ Agent resumed. Next tick in 45 seconds.
+```
+
+## View Learnings
+
+Learnings persist across sessions:
+
+```
+/agent → SOL Scalper → Learnings
+
+📚 SOL Scalper Learnings
+
+## Active Insights
+
+1. SOL tends to respect round numbers ($150, $155, $160)
+2. Avoid entries during funding rate settlement (every 8h)
+3. Wider stops (1.5%) work better in high volatility
+4. EMAs lag during sharp moves - confirm with volume
+
+## Session Notes
+
+- Session 3: Consolidation day, fewer setups
+- Session 2: Strong trend, 4/5 winners
+```
+
+## Stop and Archive
+
+**Stop** ends the session:
+
+```
+/agent → SOL Scalper → Stop
+
+🛑 Agent stopped.
+Session 3 complete: 121 ticks, +$23.40
+
+Open positions remain active. Manage manually or start new session.
+```
+
+Sessions are automatically archived and can be reviewed anytime.
+
+## Next Step
+
+<Card title="Adding Custom Routines" icon="arrow-right" href="/getting-started/routines">
+  Extend agents with deterministic Python code
+</Card>

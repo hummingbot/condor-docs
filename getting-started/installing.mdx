@@ -1,0 +1,92 @@
+---
+title: "Installing Condor and Hummingbot API"
+description: "Deploy the two-server architecture"
+---
+
+Condor uses a [two-server architecture](/motivation): the **Condor Server** (agentic layer) and the **Hummingbot API Server** (execution layer). This guide installs both.
+
+## Quick Install
+
+Clone the repository and run the install script:
+
+```bash
+git clone https://github.com/hummingbot/condor.git
+cd condor
+
+make install     # Interactive setup + dependencies + AI CLI tools
+make run         # Start the bot
+```
+
+The install script will prompt for:
+- **Telegram Bot Token**: Create one via [@BotFather](https://t.me/botfather)
+- **Telegram User ID**: Get yours via [@userinfobot](https://t.me/userinfobot)
+
+## Create a Telegram Bot
+
+1. Open [@BotFather](https://t.me/botfather) in Telegram
+2. Send `/newbot` and follow the prompts to name your bot
+3. Copy the bot token (format: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+
+## Get Your User ID
+
+1. Open [@userinfobot](https://t.me/userinfobot) in Telegram
+2. Send `/start` to receive your user ID
+
+## Verify Installation
+
+1. Open your Telegram bot and send `/start`
+2. You should see the main menu with commands like `/portfolio`, `/trade`, `/agent`
+
+```
+Welcome to Condor! 🦅
+
+Commands:
+/portfolio - View balances
+/trade - Place orders
+/agent - Trading Agents
+/keys - Manage credentials
+/config - Settings
+```
+
+## Access Points
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Telegram | Your bot | Primary interface |
+| API | `http://localhost:8000` | REST API |
+| Swagger | `http://localhost:8000/docs` | API documentation |
+| Web Dashboard | Run `/web` in Telegram | Browser interface |
+
+## Managing Services
+
+```bash
+# Start Condor
+make run
+
+# Stop Condor
+make stop
+
+# View logs
+make logs
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Bot not responding">
+    1. Check that Condor is running: `make logs`
+    2. Verify your bot token is correct
+    3. Ensure your user ID is in the allowed list
+  </Accordion>
+  <Accordion title="API connection failed">
+    1. Check Hummingbot API is running: `docker ps`
+    2. Verify port 8000 is accessible
+    3. Check credentials in config
+  </Accordion>
+</AccordionGroup>
+
+## Next Step
+
+<Card title="Adding Credentials" icon="arrow-right" href="/getting-started/credentials">
+  Connect your exchange accounts
+</Card>

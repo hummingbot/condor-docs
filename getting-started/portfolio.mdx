@@ -1,0 +1,92 @@
+---
+title: "Seeing Your Portfolio"
+description: "View balances and positions across all exchanges"
+---
+
+Once you've added credentials, you can view your unified portfolio across all connected exchanges.
+
+## View Portfolio
+
+Send `/portfolio` in Telegram to see:
+
+```
+📊 Portfolio Overview
+
+Total Value: $15,234.56
+24h Change: +$234.12 (+1.56%)
+
+Holdings:
+• USDT: $10,000.00
+• BTC: $3,250.00 (0.05 @ $65,000)
+• ETH: $1,750.00 (0.5 @ $3,500)
+• SOL: $234.56 (1.5 @ $156.37)
+
+By Exchange:
+• Binance: $12,000.00
+• Hyperliquid: $3,234.56
+```
+
+## Conversational Queries
+
+Ask Condor about your portfolio in natural language:
+
+```
+You: What's my total balance?
+Condor: Your total portfolio value is $15,234.56 across 2 exchanges.
+
+You: How much BTC do I have?
+Condor: You have 0.05 BTC worth $3,250.00 on Binance.
+
+You: What are my open positions?
+Condor: You have 2 open perpetual positions:
+- SOL-USDT Long: 10 SOL @ $155.20 (P&L: +$11.70)
+- ETH-USDT Short: 0.5 ETH @ $3,520 (P&L: -$10.00)
+```
+
+## Web Dashboard
+
+For a visual view, open the web dashboard:
+
+1. Send `/web` in Telegram
+2. Click the login link
+3. View the Portfolio tab
+
+The dashboard shows:
+- Portfolio value over time
+- Asset distribution charts
+- Position details with P&L
+- Historical performance
+
+## Filtering
+
+### By Exchange
+
+```
+You: What's my Binance balance?
+Condor: Your Binance balance:
+- USDT: 5,000.00
+- BTC: 0.05
+```
+
+### By Asset Type
+
+```
+You: Show my perpetual positions
+Condor: Perpetual positions on Hyperliquid:
+- SOL-USDT Long: 10 @ $155.20
+- ETH-USDT Short: 0.5 @ $3,520
+```
+
+## Refresh
+
+Portfolio data is fetched in real-time from exchanges. The data refreshes automatically when you query.
+
+<Note>
+Some exchanges have rate limits. If you see stale data, wait a few seconds and query again.
+</Note>
+
+## Next Step
+
+<Card title="Build Your First Agent" icon="arrow-right" href="/getting-started/first-agent">
+  Create an autonomous Trading Agent
+</Card>

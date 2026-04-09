@@ -1,0 +1,194 @@
+---
+title: "Adding Custom Routines"
+description: "Extend agents with deterministic Python code"
+---
+
+**Routines** are deterministic Python functions that agents call for data processing. They reduce token usage and make agent behavior reproducible.
+
+## Why Routines?
+
+Without routines, agents spend tokens computing indicators every tick. With routines:
+- **Session time drops** from 2 minutes to under 1 minute
+- **Token usage reduced** by moving computation to Python
+- **Results are reproducible** - same input, same output
+
+## Built-in Routines
+
+Condor includes common routines:
+
+| Routine | Description |
+|---------|-------------|
+| `technical_analysis` | EMA, RSI, support/resistance |
+| `funding_rates` | Fetch perpetual funding rates |
+| `volume_analysis` | Volume profile and VWAP |
+
+## Using Routines
+
+Agents call routines via MCP tools:
+
+```
+Agent: "Let me analyze SOL-USDT..."
+→ Calls run_routine("technical_analysis", {pair: "SOL-USDT"})
+→ Returns: {trend: "bullish", ema_7: 156.2, support: [154.5, 152.0]...}
+Agent: "Trend is bullish with support at $154.50..."
+```
+
+## Create a Custom Routine
+
+### 1. Create the File
+
+In your agent's `routines/` folder:
+
+```python
+# trading_agents/sol_scalper/routines/momentum_scanner.py
+
+async def scan_momentum(
+    connector_name: str = "binance_perpetual",
+    trading_pair: str = "SOL-USDT",
+    lookback: int = 20
+) -> dict:
+    """
+    Scan for momentum breakouts.
+
+    Args:
+        connector_name: Exchange connector
+        trading_pair: Market to analyze
+        lookback: Number of candles
+
+    Returns:
+        Momentum analysis with signal
+    """
+    from hummingbot_api_client import get_candles
+
+    candles = await get_candles(connector_name, trading_pair, lookback)
+
+    # Calculate momentum
+    closes = [c.close for c in candles]
+    momentum = (closes[-1] - closes[0]) / closes[0] * 100
+
+    # Volume confirmation
+    volumes = [c.volume for c in candles]
+    avg_volume = sum(volumes) / len(volumes)
+    volume_surge = volumes[-1] > avg_volume * 1.5
+
+    # Generate signal
+    if momentum > 2 and volume_surge:
+        signal = "strong_bullish"
+    elif momentum > 1:
+        signal = "bullish"
+    elif momentum < -2 and volume_surge:
+        signal = "strong_bearish"
+    elif momentum < -1:
+        signal = "bearish"
+    else:
+        signal = "neutral"
+
+    return {
+        "momentum_pct": round(momentum, 2),
+        "volume_surge": volume_surge,
+        "signal": signal,
+        "price": closes[-1]
+    }
+```
+
+### 2. Register the Routine
+
+Add to your agent's config or the routine will be auto-discovered.
+
+### 3. Use in Agent
+
+Update your `agent.md`:
+
+```markdown
+## Entry Rules
+
+1. Run momentum_scanner routine
+2. If signal is "strong_bullish" → Open long
+3. If signal is "strong_bearish" → Open short
+4. Otherwise → Wait
+```
+
+### 4. Test
+
+Run a dry run to verify:
+
+```
+/agent → SOL Scalper → Dry Run
+
+Dry Run Result:
+- Ran momentum_scanner
+- Result: {signal: "strong_bullish", momentum: 2.5%}
+- Decision: Would open LONG
+```
+
+## Routine Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep routines deterministic">
+    Same input should always produce same output. Avoid randomness or time-based logic.
+  </Accordion>
+  <Accordion title="Return structured data">
+    Return dictionaries with clear field names. The agent will interpret the results.
+  </Accordion>
+  <Accordion title="Handle errors gracefully">
+    Return error states rather than raising exceptions:
+    ```python
+    if not candles:
+        return {"error": "No candle data available"}
+    ```
+  </Accordion>
+  <Accordion title="Add docstrings">
+    The agent reads docstrings to understand what the routine does.
+  </Accordion>
+</AccordionGroup>
+
+## Global vs Agent-Specific
+
+| Location | Scope |
+|----------|-------|
+| `~/condor/routines/` | Available to all agents |
+| `trading_agents/{slug}/routines/` | Specific to one agent |
+
+Agent-specific routines override global ones with the same name.
+
+## View Available Routines
+
+```
+You: What routines are available?
+
+Condor: Available routines for SOL Scalper:
+
+Agent-specific:
+- momentum_scanner: Scan for momentum breakouts
+
+Global:
+- technical_analysis: EMA, RSI, support/resistance
+- funding_rates: Fetch perpetual funding rates
+- volume_analysis: Volume profile and VWAP
+```
+
+## What's Next?
+
+You've completed the Getting Started guide! You now know how to:
+
+- ✓ Install Condor and Hummingbot API
+- ✓ Add exchange credentials
+- ✓ View your portfolio
+- ✓ Build a Trading Agent
+- ✓ Manage agent sessions
+- ✓ Create custom routines
+
+<CardGroup cols={2}>
+  <Card title="Trading Agents" icon="robot" href="/trading-agents/overview">
+    Deep dive into agent architecture
+  </Card>
+  <Card title="Executors" icon="bolt" href="/trading-agents/executors">
+    Learn about executor types
+  </Card>
+  <Card title="MCP Tools" icon="wrench" href="/trading-agents/mcp-tools">
+    Explore all available tools
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference">
+    Full API documentation
+  </Card>
+</CardGroup>

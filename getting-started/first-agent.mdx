@@ -1,0 +1,178 @@
+---
+title: "Build Your First Agent"
+description: "Create and deploy an autonomous Trading Agent"
+---
+
+Now let's create your first Trading Agent—an autonomous system that observes markets, reasons about strategy, and executes trades.
+
+## Start Agent Builder
+
+1. Send `/agent` in Telegram
+2. Select **Agent Builder** mode
+3. Follow the guided flow
+
+## Phase 1: Strategy Design
+
+Tell the Agent Builder what you want to trade:
+
+```
+You: I want to create a scalping strategy for SOL-USDT on Binance perpetual.
+     Use support/resistance levels with EMAs for trend confirmation.
+     Take profit at 2%, stop loss at 1%.
+
+Agent Builder: Great! I'll create a SOL perp scalper with:
+- Market: Binance Perpetual SOL-USDT
+- Entry: Support levels + EMA alignment
+- Exit: 2% TP / 1% SL
+- Position size: $25 per trade
+
+Shall I proceed with strategy design?
+```
+
+## Phase 2: Market Data
+
+The builder selects or creates routines for market analysis:
+
+```
+Agent Builder: I'll create a routine to analyze SOL-USDT with:
+- 1-minute candles
+- EMA(7), EMA(25), EMA(99) for trend
+- Support/resistance detection
+
+Running analysis now...
+
+Analysis Result:
+- Price: $156.20
+- Trend: Bullish (EMAs aligned)
+- Support: $154.50, $152.00
+- Resistance: $158.00, $160.50
+
+Does this look correct?
+```
+
+## Phase 3: Strategy Logic
+
+The builder creates your `agent.md` file:
+
+```yaml
+---
+name: SOL Scalper
+tick_interval: 60
+connectors:
+  - binance_perpetual
+
+configs:
+  trading_pair: SOL-USDT
+  position_size: 25
+
+limits:
+  max_position_size_quote: 100
+  max_single_order_quote: 25
+  max_open_executors: 3
+  max_drawdown_pct: 5
+---
+
+## Goal
+Scalp SOL-USDT on Binance perpetual using support/resistance with EMA confirmation.
+
+## Entry Rules
+1. Run technical analysis routine
+2. If trend is bullish AND price near support → Long
+3. If trend is bearish AND price near resistance → Short
+
+## Exit Rules
+- Take profit: 2%
+- Stop loss: 1%
+- Keep position on stop (to recover)
+
+## Constraints
+- Max 3 concurrent positions
+- Never exceed $100 total exposure
+```
+
+## Phase 4: Dry Run
+
+Test the agent's reasoning without real trades:
+
+```
+Agent Builder: Starting dry run...
+
+Dry Run Result:
+- Analyzed SOL-USDT
+- Trend: Bullish
+- Price near support ($154.50)
+- Decision: Would open LONG
+- Reasoning: "EMAs aligned bullish, price 1.1% from S1"
+
+No trades executed (dry run mode).
+Ready for live test?
+```
+
+## Phase 5: Run Once
+
+Test with a single real trade:
+
+```
+Agent Builder: Running once with live trading...
+
+Run Once Result:
+- Created Position Executor
+- Side: LONG
+- Entry: $155.80
+- Take Profit: $158.92 (2%)
+- Stop Loss: $154.24 (1%)
+
+Position is now active. Monitor with /agent.
+```
+
+## Phase 6: Deploy Live
+
+Start the agent in loop mode:
+
+```
+You: Deploy live with 60 second frequency
+
+Agent Builder: Agent deployed! 🚀
+
+SOL Scalper is now running:
+- Frequency: Every 60 seconds
+- Mode: Loop
+- Risk limits active
+
+Monitor with /agent → SOL Scalper → View Status
+```
+
+## Monitor Your Agent
+
+Once deployed, monitor via Telegram:
+
+```
+/agent → SOL Scalper → View Status
+
+🤖 SOL Scalper
+Status: Running
+Session: session_1
+Tick: 47
+
+Active Executors:
+- Position #1: LONG 10 SOL @ $155.80 (+$4.20)
+
+Recent Decisions:
+- Tick 47: Monitoring, no action
+- Tick 46: Opened long position
+- Tick 45: Waiting for setup
+```
+
+## Stop or Pause
+
+```
+/agent → SOL Scalper → Stop Agent
+```
+
+The agent stops cleanly, keeping any open positions for you to manage manually or resume later.
+
+## Next Step
+
+<Card title="Managing Agent Sessions" icon="arrow-right" href="/getting-started/sessions">
+  Learn to monitor, debug, and control agents
+</Card>

@@ -22,15 +22,26 @@
         "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting Started",
+            "group": "Introduction",
             "pages": [
               "introduction",
               "motivation",
-              "quickstart",
               "installation",
               "llm-integration",
               "telegram",
               "web-dashboard"
+            ]
+          },
+          {
+            "group": "Getting Started",
+            "pages": [
+              "getting-started/overview",
+              "getting-started/installing",
+              "getting-started/credentials",
+              "getting-started/portfolio",
+              "getting-started/first-agent",
+              "getting-started/sessions",
+              "getting-started/routines"
             ]
           },
           {
