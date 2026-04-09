@@ -72,7 +72,7 @@
         ]
       },
       {
-        "tab": "API Reference",
+        "tab": "Hummingbot API Reference",
         "groups": [
           {
             "group": "Overview",
@@ -92,8 +92,8 @@
   "navbar": {
     "links": [
       {
-        "label": "Hummingbot",
-        "href": "https://hummingbot.org"
+        "label": "About us",
+        "href": "https://hummingbot.org/about/"
       }
     ],
     "primary": {
@@ -104,9 +104,10 @@
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/hummingbot",
-      "github": "https://github.com/hummingbot",
-      "discord": "https://discord.gg/hummingbot"
+      "x": "https://x.com/_hummingbot",
+      "discord": "https://discord.gg/hummingbot",
+      "youtube": "https://youtube.com/@hummingbot",
+      "github": "https://github.com/hummingbot/condor"
     }
   }
 }
