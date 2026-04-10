@@ -3,9 +3,9 @@
   "theme": "mint",
   "name": "Condor",
   "colors": {
-    "primary": "#00B1BB",
-    "light": "#5FFFD7",
-    "dark": "#15803D"
+    "primary": "#b8860b",
+    "light": "#fcc603",
+    "dark": "#ed6c24"
   },
   "favicon": "/logo/condor-logo-square.png",
   "metadata": {
