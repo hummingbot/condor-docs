@@ -22,12 +22,11 @@
         "tab": "Documentation",
         "groups": [
           {
-            "group": "Introduction",
+            "group": "Condor",
             "pages": [
               "introduction",
               "motivation",
               "installation",
-              "llm-integration",
               "telegram",
               "web-dashboard"
             ]
@@ -37,6 +36,7 @@
             "pages": [
               "getting-started/overview",
               "getting-started/installing",
+              "llm-integration",
               "getting-started/credentials",
               "getting-started/portfolio",
               "getting-started/first-agent",
