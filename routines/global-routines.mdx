@@ -7,162 +7,128 @@ Global routines in `~/condor/routines/` are available to all agents. Condor incl
 
 ## Built-in Routines
 
-| Routine | Description |
-|---------|-------------|
-| `technical_analysis` | EMA, RSI, support/resistance levels |
-| `funding_rates` | Fetch perpetual funding rates |
-| `volume_analysis` | Volume profile and VWAP |
+| Routine | Type | Description |
+|---------|------|-------------|
+| `hello_world` | One-shot | Simple example routine for testing |
+| `market_scanner` | One-shot | Scan markets for trading opportunities |
+| `bot_report` | One-shot | Generate performance reports for running bots |
+| `arb_check` | One-shot | Check for arbitrage opportunities across exchanges |
+| `price_monitor` | Continuous | Monitor price and alert on threshold changes |
 
 ## Directory Structure
 
 ```
 ~/condor/routines/
-├── indicators/
-│   ├── vwap.py
-│   ├── bollinger.py
-│   └── rsi.py
-├── webhooks/
-│   ├── tradingview.py
-│   └── custom.py
-├── reports/
-│   ├── daily_performance.py
-│   └── weekly_summary.py
-└── alerts/
-    ├── price_alerts.py
-    ├── volume_alerts.py
-    └── funding_alerts.py
+├── __init__.py
+├── base.py              # Routine discovery and base classes
+├── hello_world.py       # Simple example routine
+├── market_scanner.py    # Market scanning routine
+├── bot_report.py        # Bot performance reports
+├── arb_check.py         # Arbitrage checking
+└── price_monitor.py     # Continuous price monitoring
 ```
 
-## Use Cases
+## Hello World Example
 
-### Custom Indicators
-
-Define technical indicators not built into exchanges:
+The simplest routine to understand the structure:
 
 ```python
-# routines/indicators/vwap.py
-async def calculate_vwap(connector: str, trading_pair: str, periods: int = 20):
-    """Calculate Volume-Weighted Average Price."""
-    candles = await get_candles(connector, trading_pair, periods)
-    total_volume = sum(c.volume for c in candles)
-    vwap = sum(c.close * c.volume for c in candles) / total_volume
-    return {
-        "vwap": vwap,
-        "periods": periods,
-        "total_volume": total_volume
-    }
+# routines/hello_world.py
+from pydantic import BaseModel, Field
+from telegram.ext import ContextTypes
+
+
+class Config(BaseModel):
+    """Simple hello world example routine."""
+
+    name: str = Field(default="World", description="Name to greet")
+    repeat: int = Field(default=1, description="Number of times to repeat")
+    uppercase: bool = Field(default=False, description="Use uppercase")
+
+
+async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Execute the routine."""
+    greeting = f"Hello, {config.name}!"
+
+    if config.uppercase:
+        greeting = greeting.upper()
+
+    return "\n".join([greeting] * config.repeat)
 ```
+
+Run it from Telegram:
+
+```
+/routines → hello_world → Run
+
+Output: Hello, World!
+```
+
+## Price Monitor (Continuous)
+
+A continuous routine that monitors price and sends alerts:
 
 ```python
-# routines/indicators/bollinger.py
-async def calculate_bollinger_bands(connector: str, trading_pair: str, periods: int = 20, std_dev: float = 2.0):
-    """Calculate Bollinger Bands."""
-    candles = await get_candles(connector, trading_pair, periods)
-    closes = [c.close for c in candles]
+# routines/price_monitor.py
+from pydantic import BaseModel, Field
+from telegram.ext import ContextTypes
 
-    sma = sum(closes) / len(closes)
-    variance = sum((c - sma) ** 2 for c in closes) / len(closes)
-    std = variance ** 0.5
+# Mark as continuous routine
+CONTINUOUS = True
 
-    return {
-        "upper": sma + (std_dev * std),
-        "middle": sma,
-        "lower": sma - (std_dev * std),
-        "std": std
-    }
+
+class Config(BaseModel):
+    """Live price monitor with configurable alerts."""
+
+    connector: str = Field(default="binance", description="CEX connector name")
+    trading_pair: str = Field(default="BTC-USDT", description="Trading pair to monitor")
+    threshold_pct: float = Field(default=1.0, description="Alert threshold in %")
+    interval_sec: int = Field(default=10, description="Check interval in seconds")
+
+
+async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Monitor price continuously until cancelled."""
+    chat_id = context._chat_id
+    client = await get_client(chat_id, context=context)
+
+    initial_price = None
+    last_price = None
+
+    try:
+        while True:
+            prices = await client.market_data.get_prices(
+                connector_name=config.connector,
+                trading_pairs=config.trading_pair
+            )
+            current_price = prices["prices"].get(config.trading_pair)
+
+            if initial_price is None:
+                initial_price = current_price
+                last_price = current_price
+
+            # Check threshold and alert if triggered
+            change = ((current_price - last_price) / last_price) * 100
+            if abs(change) >= config.threshold_pct:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"{'📈' if change > 0 else '📉'} {config.trading_pair}: ${current_price:,.2f} ({change:+.2f}%)"
+                )
+                last_price = current_price
+
+            await asyncio.sleep(config.interval_sec)
+
+    except asyncio.CancelledError:
+        return "Monitor stopped"
 ```
 
-### TradingView Webhooks
+## Creating Custom Global Routines
 
-Receive alerts from TradingView and trigger agent actions:
+Add your own routines to `~/condor/routines/`:
 
-```python
-# routines/webhooks/tradingview.py
-async def handle_tradingview_alert(request: Request):
-    """Process TradingView webhook alerts."""
-    payload = await request.json()
+1. Create a Python file with `Config` class and `run` function
+2. The routine is auto-discovered on next Condor start
+3. Access via `/routines` in Telegram
 
-    alert = {
-        "symbol": payload.get("ticker"),
-        "action": payload.get("action"),  # "buy" or "sell"
-        "price": float(payload.get("price", 0)),
-        "message": payload.get("message"),
-    }
-
-    # Route to appropriate agent
-    agent_id = get_agent_for_symbol(alert["symbol"])
-    await notify_agent(agent_id, alert)
-
-    return {"status": "received", "alert": alert}
-```
-
-### Daily Reports
-
-Generate scheduled reports aggregating performance data:
-
-```python
-# routines/reports/daily_performance.py
-async def generate_daily_report(agent_id: str):
-    """Generate daily performance report for an agent."""
-    from datetime import datetime, timedelta
-
-    cutoff = datetime.utcnow() - timedelta(days=1)
-    executors = await get_executors(controller_id=agent_id, since=cutoff)
-
-    return {
-        "agent_id": agent_id,
-        "period": "24h",
-        "generated_at": datetime.utcnow().isoformat(),
-        "summary": {
-            "total_executors": len(executors),
-            "win_rate": calculate_win_rate(executors),
-            "net_pnl_quote": sum(e.net_pnl_quote for e in executors),
-            "volume_quote": sum(e.volume_quote for e in executors),
-        }
-    }
-```
-
-### Custom Alerts
-
-Monitor conditions and trigger notifications:
-
-```python
-# routines/alerts/funding_rate.py
-async def check_funding_rates(threshold: float = 0.01):
-    """Alert when funding rate exceeds threshold."""
-    alerts = []
-
-    for connector in perpetual_connectors:
-        rates = await get_funding_rates(connector)
-        for pair, rate in rates.items():
-            if abs(rate) > threshold:
-                alerts.append({
-                    "type": "funding_rate",
-                    "connector": connector,
-                    "pair": pair,
-                    "rate": rate,
-                    "direction": "long_paying" if rate > 0 else "short_paying"
-                })
-
-    return alerts
-```
-
-## Scheduling Routines
-
-Configure scheduled execution in `config.yml`:
-
-```yaml
-routines:
-  daily_report:
-    module: routines.reports.daily_performance
-    function: generate_daily_report
-    schedule: "0 0 * * *"  # Midnight UTC daily
-    notify: ["telegram"]
-
-  funding_check:
-    module: routines.alerts.funding_rate
-    function: check_funding_rates
-    schedule: "*/15 * * * *"  # Every 15 minutes
-    params:
-      threshold: 0.005
-```
+<Note>
+Global routines are shared across all agents. For agent-specific routines, place them in the agent's `routines/` folder instead.
+</Note>

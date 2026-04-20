@@ -5,18 +5,28 @@ description: "Create and configure Trading Agents via Telegram or manually"
 
 Trading Agents can be created using the `/agent` command in Telegram or by manually creating the required files.
 
-## 5-Phase Development Flow
+## Why Use Agent Builder?
 
-The recommended flow for building Trading Agents:
+The Agent Builder guides you through a structured process that:
+
+1. **Defines your strategy** in a structured way so the agent has context
+2. **Creates market data routines** so analysis is deterministic and reproducible
+3. **Builds decision logic** in `agent.md` with rules and constraints
+4. **Tests reasoning first** before risking real money
+5. **Deploys with confidence** after verifying behavior
+
+This flow exists because agents that work well require iteration. You want to verify the agent's reasoning before letting it trade.
+
+## 5-Phase Development Flow
 
 | Phase | Description |
 |-------|-------------|
 | **1. Strategy Design** | Define your edge, timeframe, and instruments |
-| **2. Market Data Selection** | Choose which data providers and routines to use |
-| **3. Strategy Logic** | Write `agent.md` with rules and constraints |
-| **4. Test in Dry-Run** | One tick, no trading—verify reasoning |
-| **5. Test in Run-Once** | One tick with real trading—controlled test |
-| **6. Deploy Live** | Loop mode with frequency and risk limits |
+| **2. Market Data Routine** | Create a Python routine to fetch and process market data |
+| **3. Strategy Logic** | Write `agent.md` with decision rules and constraints |
+| **4. Dry Run** | Test reasoning without trading capability |
+| **5. Run Once** | Test with real trading—one tick only |
+| **6. Loop** | Deploy live with frequency and risk limits |
 
 ### Run Modes
 
@@ -32,119 +42,243 @@ These modes exist for debugging—you don't want to put an agent to trade withou
 
 ## Via Telegram
 
-Use the `/agent` command to access the Agent Builder:
+Use `/agent` → **Switch Mode** → **Agent Builder** to start the guided flow:
 
-1. **Create Agent**: Start a new Trading Agent with guided setup
-2. **Select LLM**: Choose your LLM provider (Claude, Gemini, GPT)
-3. **Configure Strategy**: Set trading parameters and risk limits
-4. **Select Run Mode**: Choose dry_run, run_once, or loop
-5. **Start Session**: Begin the agent's OODA loop
+### Phase 1: Strategy Design
+
+The Agent Builder asks questions to understand your goals:
+
+```
+Agent Builder: I need to understand your goals. What kind of strategy?
+
+1. Grid strategy
+2. DCA
+3. Trend following
+4. Mean reversion
+5. Other (describe)
+```
+
+You'll answer questions about:
+- Strategy type (grid, DCA, momentum, etc.)
+- Direction (long only, short only, or both)
+- Budget allocation
+- Timeframe (scalping, intraday, swing)
+- Risk tolerance
+
+### Phase 2: Market Data Routine
+
+The Agent Builder creates a Python routine to fetch and analyze market data:
+
+```
+You: Create a local routine for the agent to analyze where to place grids
+
+Agent Builder: Creating market data routine...
+```
+
+The routine fetches candles, order book data, and calculates indicators. This routine runs **deterministically**—same input always produces same output. The agent doesn't spend tokens computing indicators at runtime.
+
+### Phase 3: Strategy Logic
+
+The Agent Builder generates `agent.md` with your decision rules. You can review and refine:
+
+```
+You: I'm seeing that the agent created two grids below the current price
+     and they were closed by take profit immediately. Can you fix that?
+
+Agent Builder: I see the issue. Let me update the agent.md to ensure
+              grid prices straddle the current price...
+```
+
+### Phase 4: Dry Run
+
+Test reasoning without real trading:
+
+```
+/agent → Select Agent → Dry Run
+```
+
+The dry run shows:
+- What data the agent received
+- How it reasoned about the data
+- What decision it *would* make
+
+Review the dry run in the web dashboard under **Agents → [Agent] → Sessions**.
+
+### Phase 5: Deploy
+
+When confident, start a live session:
+
+```
+/agent → Select Agent → Start Session
+```
 
 ## Manual Creation
 
 Create a new agent directory with the required files:
 
 ```bash
-mkdir -p ~/condor/trading_agents/my-strategy/trading_sessions
+mkdir -p ~/condor/trading_agents/my-strategy/{sessions,dry_runs,routines}
 ```
 
-### Required Files
+### Directory Structure
 
-#### agent.md
+```
+trading_agents/my-strategy/
+├── agent.md          # Strategy definition
+├── learnings.md      # Agent-populated insights
+├── routines/         # Agent-specific routines
+├── sessions/         # Live trading session data
+└── dry_runs/         # Dry run session data
+```
+
+### agent.md
 
 The strategy definition with YAML frontmatter and Markdown instructions:
 
 ```yaml
 ---
-name: My Trading Strategy
-tick_interval: 60
-connectors:
-  - binance_perpetual
-
-configs:
+id: abc123def456
+name: Grid Scalper SOL-USDT
+description: Grid scalping on SOL-USDT perpetual
+agent_key: claude-code
+skills: []
+default_config:
+  connector_name: binance_perpetual
   trading_pair: SOL-USDT
-  position_size: 100
-
-limits:
-  max_position_size_quote: 500
-  max_single_order_quote: 100
-  max_daily_loss_quote: 50
-  max_open_executors: 5
-  max_drawdown_pct: 10
+  total_amount_quote: 300
+  leverage: 5
+  frequency_sec: 60
+  risk_limits:
+    max_loss_per_tick_quote: 30
+    max_total_drawdown_quote: 90
+default_trading_context: ''
+created_by: 123456789
+created_at: '2026-04-10T17:59:33.147107+00:00'
 ---
 
-## Goal
+# Grid Scalper — SOL-USDT
 
-Describe what this agent should accomplish.
+## Objective
+Grid scalping on SOL-USDT (binance_perpetual). Deploy ONE grid at a time.
+Total budget: $300.
 
-## Strategy Rules
+## Step 1 — Run Analysis
+Call the `spread_analyzer` routine with default config. It returns:
+- mid_price, best_bid, best_ask
+- volatility_1h, avg_candle_range_pct
+- recommended_spread_pct, grid_upper, grid_lower
+- signal (bullish_bias / bearish_bias / neutral)
 
-1. Rule one
-2. Rule two
-3. Rule three
+## Step 2 — Decision Logic
+Based on the spread_analyzer output:
 
-## Constraints
+### Choose Direction by Signal
+- bullish_bias → deploy LONG grid (side=1)
+- bearish_bias → deploy SHORT grid (side=2)
+- neutral → deploy LONG grid (default)
 
-- List any constraints or special considerations
+### Skip Tick Conditions
+- If recommended_spread_pct < 0.08 (market too calm)
+- If there is already a running grid executor for this pair
+
+### Replace Grid
+If mid_price has moved more than 1.0x the original spread from grid center,
+stop the existing grid and deploy a new one.
+
+## Step 3 — Execute
+Deploy grid executor with appropriate config...
+
+## Risk Rules
+- Max $300 total deployed at any time
+- Only ONE grid executor running at a time
+- If unrealized PnL drops below -$30 (10%), stop grid immediately
+- Log every decision with reasoning in the journal
 ```
 
-#### config.yml
+### learnings.md
 
-Runtime configuration that can be modified without editing agent.md:
-
-```yaml
-# Override configs from agent.md
-trading_pair: ETH-USDT
-position_size: 50
-
-# Risk limits
-risk_limits:
-  max_position_size_quote: 500.0
-  max_single_order_quote: 100.0
-  max_open_executors: 5
-```
-
-#### learnings.md
-
-Start with an empty learnings file:
+Start with an empty learnings file—the agent populates it as it learns:
 
 ```markdown
 # Learnings
 
 ## Active Insights
 
-(Agent will populate this as it learns)
+(Agent will add observations here)
 ```
 
-## Connecting to an LLM
+When the agent discovers something valuable—like "price below EMA 7 while EMA 7 > EMA 25 indicates weakness"—it writes it to this file. Learnings persist across sessions.
 
-After creating the agent files, connect to an LLM via ACP:
+## Inspecting Agent Sessions
 
-### Claude (Anthropic)
+View agent sessions in the web dashboard:
 
-```bash
-# Ensure Claude Code or Claude CLI is installed
-claude --agent ~/condor/trading_agents/my-strategy
+```
+/web → Agents → [Agent Name] → Sessions
 ```
 
-### Gemini (Google)
+For each session you can see:
 
-```bash
-# Ensure Gemini CLI is installed
-gemini --agent ~/condor/trading_agents/my-strategy
+- **Snapshots**: Every tick's system prompt, agent response, and actions taken
+- **Dry Runs**: Test sessions without real trading
+- **Executors**: All executors created by the agent with P&L
+- **Learnings**: Insights the agent has accumulated
+
+### Analyzing Snapshots
+
+Each snapshot shows:
+- **System Prompt**: Everything the agent received (strategy, configs, market data)
+- **Agent Response**: The agent's reasoning and decision
+- **Actions**: Executors created, routines called
+
+This lets you understand exactly why the agent made each decision.
+
+## Common Patterns
+
+### Grid Scalping
+
+Deploy grids that straddle current price with tight take-profits:
+
+```
+Signal: bullish_bias
+→ Deploy LONG grid from (mid_price - spread) to (mid_price + spread)
+→ Take profit: 0.05%
+→ Limit price: start_price * 0.998 (safety stop)
 ```
 
-## Agent Templates
+### Dynamic Grid Replacement
 
-Common strategy templates to start from:
+Replace grids when price moves significantly:
 
-| Template | Description |
-|----------|-------------|
-| **Grid Maker** | Provide liquidity across price levels |
-| **Momentum** | Trade breakouts and trends |
-| **Mean Reversion** | Fade extreme moves |
-| **Arbitrage** | Capture cross-exchange spreads |
+```
+If mid_price moved > 1x original spread from grid center:
+→ Stop existing grid
+→ Deploy new grid centered on current price
+```
 
-<Info>
-Templates will be available in a future release. For now, create agents manually using the structure above.
-</Info>
+### One Position Constraint
+
+Many exchanges (like Hyperliquid) only allow one position per pair:
+
+```
+## CRITICAL: One Position Only
+Before deploying, check for existing running executors.
+If one exists, do NOT deploy another.
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Start with dry runs">
+    Always test reasoning before real trading. The dry run shows exactly what the agent would do without risking money.
+  </Accordion>
+  <Accordion title="Use routines for market data">
+    Move indicator calculations into routines. The agent shouldn't spend tokens computing EMAs—that should be deterministic code.
+  </Accordion>
+  <Accordion title="Write clear decision logic">
+    Structure agent.md with explicit steps: 1) Run analysis, 2) Make decision, 3) Execute. This makes the agent's reasoning predictable.
+  </Accordion>
+  <Accordion title="Review learnings">
+    The agent writes observations to learnings.md. Review these to understand what the agent is learning and refine accordingly.
+  </Accordion>
+</AccordionGroup>

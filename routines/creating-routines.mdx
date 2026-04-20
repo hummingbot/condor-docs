@@ -5,6 +5,14 @@ description: "Build custom routines for your trading agents"
 
 Create custom routines to extend agent capabilities with deterministic Python code.
 
+## Routine Requirements
+
+Every routine module needs:
+
+1. **Config** - A Pydantic BaseModel with parameters (docstring becomes the description)
+2. **run(config, context)** - Async function that executes the routine and returns a string
+3. **CONTINUOUS = True** (optional) - Mark as continuous routine with internal loop
+
 ## Create a Custom Routine
 
 ### 1. Create the File
@@ -13,54 +21,64 @@ In your agent's `routines/` folder:
 
 ```python
 # trading_agents/sol_scalper/routines/momentum_scanner.py
+from pydantic import BaseModel, Field
+from telegram.ext import ContextTypes
 
-async def scan_momentum(
-    connector_name: str = "binance_perpetual",
-    trading_pair: str = "SOL-USDT",
-    lookback: int = 20
-) -> dict:
-    """
-    Scan for momentum breakouts.
+from config_manager import get_client
 
-    Args:
-        connector_name: Exchange connector
-        trading_pair: Market to analyze
-        lookback: Number of candles
 
-    Returns:
-        Momentum analysis with signal
-    """
-    from hummingbot_api_client import get_candles
+class Config(BaseModel):
+    """Scan for momentum breakouts on a trading pair."""
 
-    candles = await get_candles(connector_name, trading_pair, lookback)
+    connector_name: str = Field(default="binance_perpetual", description="Exchange connector")
+    trading_pair: str = Field(default="SOL-USDT", description="Market to analyze")
+    lookback: int = Field(default=20, description="Number of candles")
+
+
+async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Scan for momentum breakouts."""
+    chat_id = context._chat_id if hasattr(context, "_chat_id") else None
+    client = await get_client(chat_id, context=context)
+
+    if not client:
+        return "No server available"
+
+    # Get candles via Hummingbot API
+    candles = await client.market_data.get_candles(
+        connector_name=config.connector_name,
+        trading_pair=config.trading_pair,
+        interval="1m",
+        limit=config.lookback
+    )
 
     # Calculate momentum
-    closes = [c.close for c in candles]
+    closes = [c["close"] for c in candles["candles"]]
     momentum = (closes[-1] - closes[0]) / closes[0] * 100
 
     # Volume confirmation
-    volumes = [c.volume for c in candles]
+    volumes = [c["volume"] for c in candles["candles"]]
     avg_volume = sum(volumes) / len(volumes)
     volume_surge = volumes[-1] > avg_volume * 1.5
 
     # Generate signal
     if momentum > 2 and volume_surge:
-        signal = "strong_bullish"
+        signal = "🟢 STRONG BULLISH"
     elif momentum > 1:
-        signal = "bullish"
+        signal = "🟡 Bullish"
     elif momentum < -2 and volume_surge:
-        signal = "strong_bearish"
+        signal = "🔴 STRONG BEARISH"
     elif momentum < -1:
-        signal = "bearish"
+        signal = "🟠 Bearish"
     else:
-        signal = "neutral"
+        signal = "⚪ Neutral"
 
-    return {
-        "momentum_pct": round(momentum, 2),
-        "volume_surge": volume_surge,
-        "signal": signal,
-        "price": closes[-1]
-    }
+    return (
+        f"**Momentum Scanner** - {config.trading_pair}\n"
+        f"Signal: {signal}\n"
+        f"Momentum: {momentum:+.2f}%\n"
+        f"Volume surge: {'Yes' if volume_surge else 'No'}\n"
+        f"Price: ${closes[-1]:,.2f}"
+    )
 ```
 
 ### 2. Register the Routine
@@ -93,73 +111,100 @@ Dry Run Result:
 - Decision: Would open LONG
 ```
 
-## Creating with Agent Builder
+## Creating with Condor
 
-When you create an agent via `/agent` → Agent Builder, the system can generate custom routines for your strategy. For example, if you specify:
+You can ask Condor to create routines for you via natural language:
 
-> "I want to use one-minute candles and look for support and resistance levels plus EMAs of 7, 25, and 99"
+```
+You: Create a routine that analyzes support and resistance levels
+     using EMAs of 7, 25, and 99 on 1-minute candles.
+```
 
-The Agent Builder creates a routine like:
+Condor generates the routine:
 
 ```python
 # routines/support_resistance_ema_levels.py
-async def analyze_levels(
-    trading_pair: str,
-    connector_name: str,
-    candle_count: int = 100,
-    lookback: int = 20,
-    tolerance: float = 0.02
-):
+from pydantic import BaseModel, Field
+from telegram.ext import ContextTypes
+
+from config_manager import get_client
+
+
+class Config(BaseModel):
+    """Analyze support/resistance levels and EMA alignment."""
+
+    connector_name: str = Field(default="binance_perpetual", description="Exchange connector")
+    trading_pair: str = Field(default="BTC-USDT", description="Trading pair")
+    candle_count: int = Field(default=100, description="Number of candles to analyze")
+    lookback: int = Field(default=20, description="Lookback for S/R detection")
+
+
+async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
     """Identify support/resistance levels and EMA alignment."""
-    candles = await get_candles(connector_name, trading_pair, candle_count)
+    chat_id = context._chat_id if hasattr(context, "_chat_id") else None
+    client = await get_client(chat_id, context=context)
+
+    candles = await client.market_data.get_candles(
+        connector_name=config.connector_name,
+        trading_pair=config.trading_pair,
+        interval="1m",
+        limit=config.candle_count
+    )
+
+    closes = [c["close"] for c in candles["candles"]]
 
     # Calculate EMAs
-    ema_7 = calculate_ema(candles, 7)
-    ema_25 = calculate_ema(candles, 25)
-    ema_99 = calculate_ema(candles, 99)
+    ema_7 = calculate_ema(closes, 7)
+    ema_25 = calculate_ema(closes, 25)
+    ema_99 = calculate_ema(closes, 99)
 
     # Determine trend from EMA alignment
     if ema_7 > ema_25 > ema_99:
-        trend = "bullish"
+        trend = "🟢 Bullish"
     elif ema_7 < ema_25 < ema_99:
-        trend = "bearish"
+        trend = "🔴 Bearish"
     else:
-        trend = "mixed"
+        trend = "🟡 Mixed"
 
     # Find support/resistance levels
-    supports, resistances = find_sr_levels(candles, lookback, tolerance)
+    supports, resistances = find_sr_levels(closes, config.lookback)
 
-    return {
-        "price": candles[-1].close,
-        "trend": trend,
-        "ema_7": ema_7,
-        "ema_25": ema_25,
-        "ema_99": ema_99,
-        "supports": supports,
-        "resistances": resistances
-    }
+    return (
+        f"**EMA Analysis** - {config.trading_pair}\n"
+        f"Trend: {trend}\n"
+        f"EMA 7: ${ema_7:,.2f}\n"
+        f"EMA 25: ${ema_25:,.2f}\n"
+        f"EMA 99: ${ema_99:,.2f}\n"
+        f"Support: ${supports[0]:,.2f}\n"
+        f"Resistance: ${resistances[0]:,.2f}"
+    )
 ```
 
-The routine is configurable—you can adjust parameters without modifying code.
+The routine is auto-discovered and immediately available via `/routines`.
 
 ## Routine Best Practices
 
 <AccordionGroup>
   <Accordion title="Keep routines deterministic">
-    Same input should always produce same output. Avoid randomness or time-based logic.
+    Same input should always produce same output. Avoid randomness or time-based logic that would make results unpredictable.
   </Accordion>
-  <Accordion title="Return structured data">
-    Return dictionaries with clear field names. The agent will interpret the results.
+  <Accordion title="Return formatted strings">
+    Return human-readable strings for Telegram display. Use markdown formatting for clarity.
   </Accordion>
   <Accordion title="Handle errors gracefully">
-    Return error states rather than raising exceptions:
+    Return error messages rather than raising exceptions:
     ```python
+    if not client:
+        return "No server available"
     if not candles:
-        return {"error": "No candle data available"}
+        return "No candle data available"
     ```
   </Accordion>
-  <Accordion title="Add docstrings">
-    The agent reads docstrings to understand what the routine does.
+  <Accordion title="Use Config docstrings">
+    The Config class docstring becomes the routine description in the UI. Use `Field(description=...)` to document each parameter.
+  </Accordion>
+  <Accordion title="Handle cancellation in continuous routines">
+    Continuous routines must catch `asyncio.CancelledError` to clean up gracefully when stopped.
   </Accordion>
 </AccordionGroup>
 
