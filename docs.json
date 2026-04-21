@@ -26,9 +26,7 @@
             "pages": [
               "introduction",
               "motivation",
-              "installation",
-              "telegram",
-              "web-dashboard"
+              "installation"
             ]
           },
           {
@@ -36,6 +34,8 @@
             "pages": [
               "getting-started/overview",
               "getting-started/installing",
+              "getting-started/telegram",
+              "getting-started/web-dashboard",
               "llm-integration",
               "getting-started/credentials",
               "getting-started/portfolio",
