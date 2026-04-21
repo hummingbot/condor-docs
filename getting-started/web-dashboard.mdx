@@ -1,6 +1,6 @@
 ---
-title: "Using Web Dashboard"
-description: "Access and navigate the browser-based interface for managing trading"
+title: "Web Dashboard"
+description: "Browser-based interface for managing Condor"
 ---
 
 The Web Interface provides a browser-based dashboard for managing trading bots, agents, and portfolio.
@@ -24,7 +24,9 @@ Click the link to open the dashboard. The token authenticates you automaticallyâ
 The link is tied to your Telegram session. You can access the dashboard from any device by opening the link.
 </Info>
 
-## Dashboard Features
+![Web Dashboard](/images/web-dashboard.png)
+
+## Features
 
 ### Portfolio
 
@@ -34,21 +36,13 @@ View your unified portfolio across all connected exchanges:
 - Asset distribution visualization
 - 24-hour P&L tracking
 
-### Executors
+### Trade
 
-Create and manage trading executors directly from the browser:
-- Grid, DCA, TWAP, Position executors
-- Visual configuration interface
-- Live performance metrics
-- One-click start/stop controls
-
-### Trading Agents
-
-Monitor your autonomous Trading Agent sessions:
-- View conversation history
-- Track agent learnings and memory
-- Review snapshots and decisions
-- Switch between multiple agent sessions
+Place orders and monitor markets:
+- TradingView charts
+- Order book depth
+- Recent trades
+- Multiple exchanges
 
 ### Bots
 
@@ -58,13 +52,13 @@ Deploy and manage bot instances:
 - Monitor performance
 - View logs and metrics
 
-### Market Data
+### Executors
 
-Access real-time market information:
-- TradingView charts
-- Order book depth
-- Recent trades
-- Multiple exchanges
+Create and manage trading executors directly from the browser:
+- Grid, DCA, TWAP, Position executors
+- Visual configuration interface
+- Live performance metrics
+- One-click start/stop controls
 
 ### Positions
 
@@ -74,6 +68,22 @@ Track open positions across all exchanges:
 - Entry and mark prices
 - Quick access to close positions
 
+### Agents
+
+Monitor your autonomous Trading Agent sessions:
+- View conversation history
+- Track agent learnings and memory
+- Review snapshots and decisions
+- Switch between multiple agent sessions
+
+### Market
+
+Access real-time market information:
+- Price charts and indicators
+- Order book visualization
+- Trade history
+- Cross-exchange comparison
+
 ## Web + Telegram Sync
 
 The web dashboard shares state with Telegram:
@@ -82,18 +92,6 @@ The web dashboard shares state with Telegram:
 - Deploy an executor in the dashboard â†’ get notifications on mobile
 - Portfolio updates appear everywhere instantly
 - Same session, same data, seamless switching
-
-## Navigation Tips
-
-**Desktop View**
-- Sidebar navigation on the left
-- Main content in the center
-- Real-time updates via WebSocket
-
-**Mobile View**
-- Bottom navigation bar
-- Swipe gestures for navigation
-- Optimized touch targets
 
 ## Custom Server Setup
 
@@ -122,6 +120,15 @@ Login tokens expire after 5 minutes but your session remains active once authent
 1. Run `/web` in Telegram again
 2. Click the new login link
 3. Your previous state is preserved
+
+## Tech Stack
+
+| Technology | Purpose |
+|------------|---------|
+| Vite + React 19 | Framework |
+| TypeScript | Type safety |
+| Tailwind CSS v4 | Styling |
+| shadcn/ui + Radix UI | Components |
 
 ## Next Step
 
