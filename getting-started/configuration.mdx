@@ -81,6 +81,18 @@ history depth or context size needs a different answer.
   is history that is gone for good.
 </Warning>
 
+## Storage locations
+
+Where Condor keeps agents and runtime data. Each defaults to a folder inside your Condor install. See [Architecture](/trading-agents/architecture#where-condor-looks-for-agents) for how the two agent folders are merged.
+
+| Variable | Default | What it does |
+|----------|---------|--------------|
+| `CONDOR_RUNTIME_ROOT` | `<condor>/.condor` | Everything Condor accumulates while running: local agents, sessions, memory, conversations |
+| `CONDOR_AGENTS_ROOT` | `<condor>/.condor/agents` | Your own agents, and every change Condor makes to an agent |
+| `CONDOR_STOCK_AGENTS_ROOT` | `<condor>/agents` | The agents that ship with Condor. Updates replace this folder |
+| `CONDOR_DATA_DIR` | `<condor>/data` | Operational data: preferences, notifications, update records |
+| `CONDOR_REPORTS_DIR` | `<condor>/reports` | Routine reports |
+
 ## Advanced
 
 Rarely set, and listed so a value you find in someone's `.env` is not a mystery.
