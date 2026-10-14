@@ -1,25 +1,86 @@
 ---
 title: "Routines"
-description: "Deterministic Python on schedules and triggers — yours and your agents'"
+description: "Run, schedule and browse the reports of your routines and your agents' routines"
 ---
 
-The **Routines** page lists every routine on the install: deterministic Python scripts that fetch data, compute indicators, emit alerts, and build reports — no LLM cost per run. Both the ones you wrote and the ones your agents authored for themselves.
+The **Routines** page lists every routine on the install, Condor's and your agents', and shows the reports they produce. A [routine](/routines/overview) is a Python script that runs without an LLM, so a run costs no tokens.
 
 <Frame>
-  <img src="/images/webui/routines.jpg" alt="The Routines page: all routines with type, category, and run history" />
+  <img src="/images/webui/routines.jpg" alt="The Routines page with the market scanner routine selected: the library sidebar on the left with search, scope chips and routine cards, and the Market Scanner report on the right showing a NATR versus volume scatter chart and a table of pairs" />
 </Frame>
 
-## Navigating the list
+## The library sidebar
 
-- **Filter chips** — **All**, **Routines** (yours, from the `routines/` folder), **Agents** (routines belonging to agents), then one chip per agent to see just its toolkit. An agent-owned routine carries its agent's badge in the name column.
-- **Columns** — **Type** (`One-shot` runs once or on a schedule; `Continuous` runs until stopped), **Category**, **Reports** it has produced, **Last executed**, and **Last modified**. Sort by the column headers.
+- **Search** filters the list by name, description or category.
+- **Scope chips** choose whose routines you see:
+  - **All**: everything.
+  - **Condor**: the general and shared routines.
+  - **Agents**: every agent's own routines.
+  - **One chip per agent**: only that agent's routines.
+- **Routine cards** show the name, the latest report's title, how long ago it ran, up to two tags, and the number of reports. An agent's routine carries the agent's badge. A green dot means it's running or scheduled.
+- **Runs** lists the runs Condor still holds in memory, newest first, with their status and schedule. Hover over a running or scheduled run and click **Stop** to end it. Runs that saved no report, including failed ones, appear here too.
 
-Clicking a routine opens it: its typed configuration (a pydantic model, rendered as a form), a **Run** button, scheduling (interval or daily), and the reports it has generated. Multiple instances of one routine can run with different configs.
+The arrow at the top collapses the sidebar to a narrow rail.
+
+## Running a routine
+
+Select a routine and use the buttons in the header:
+
+| Button | What it does |
+|---|---|
+| **Source** | Shows the routine's Python code |
+| **Config** | Opens the routine's settings as a form. Your edits are remembered in this browser. |
+| **Notify** | Sends the report to Telegram chats after each run. Add chat IDs, choose **On success only**, **Always (success or error)** or **On error only**, then **Save**. |
+| **Run** | Runs the routine with the current config |
+| **Schedule** | Runs it on a repeating interval: every 1m, 5m, 15m, 30m, 1h, 6h, 1d or 1w. Not shown for continuous routines. |
+| **Run All** | Runs every routine in the current list, one after another, with default configs |
+
+**Report** and **Output** switch between the routine's saved reports and the text or table its last run returned.
+
+A continuous routine keeps running after you click **Run**. Stop it from the **Runs** list.
+
+<Note>
+Dashboard schedules are kept in memory, so they end when Condor restarts. Telegram schedules are restored when Condor starts. For daily runs at a fixed time, use Telegram.
+</Note>
+
+## Reading reports
+
+The routine's newest report opens on the right.
+
+- Step through older reports with the previous and next buttons, the time strip above the report, or the **←** and **→** keys.
+- **↑** and **↓** move to the previous or next routine. **Esc** closes an open panel.
+- The download button saves the report as a standalone HTML file.
+- The delete button removes the report after you confirm.
+
+There is no separate Reports page; `/reports` redirects here. See [Reports](/routines/reports) to build your own.
+
+## Links
+
+Other pages link straight into this one with URL parameters:
+
+| Parameter | Effect |
+|---|---|
+| `?agent=<slug>` | Opens with that agent's chip selected |
+| `?routine=<name>` | Opens on that routine |
+| `?report=<id>` | Opens that report |
+| `?run=<instance_id>` | Opens that run |
+
+For example, `/routines?routine=market_scanner` opens the market scanner and its latest report.
 
 ## Using Telegram
 
-**`/routines`** lists the same library: pick a routine, fill its typed config field by field, run it once or schedule it (interval or daily), and stop continuous ones — **⏹ Stop All** included. **🔄 Reload** re-discovers scripts after you drop a new file into `routines/`. Reports a routine produces are delivered straight into the chat.
+`/routines` lists the general and shared routines. Agents' own routines aren't listed there.
+
+1. Pick a routine. Its config is shown as `key=value` lines. Send new `key=value` lines to change it.
+2. For a one-shot routine, tap **▶️ Run**, **🔄 Background**, or **⏱️ Schedule**. For a continuous routine, tap **▶️ Start**.
+3. **⏱️ Schedule** offers every 30s, 1m, 5m, 15m, 30m or 1h, or **📅 Daily...** at 06:00, 09:00, 12:00, 18:00, 21:00 or any time you send as `HH:MM`. Daily times are in UTC.
+4. **⏹ Stop All** stops a routine's running instances. **📋 Running** lists everything that's running.
+
+When a run saves a report, **📤 Share Report** sends it to the chat as an HTML file. **🔄 Reload** reloads every routine file, which retries files that failed to load.
 
 ## Learn more
 
-- [Routines Overview](/routines/overview) · [Creating Routines](/routines/creating-routines) · [Reports](/routines/reports) · [Global Routines](/routines/global-routines)
+- [Routines Overview](/routines/overview)
+- [Creating Routines](/routines/creating-routines)
+- [Built-in Routines](/routines/global-routines)
+- [Reports](/routines/reports)

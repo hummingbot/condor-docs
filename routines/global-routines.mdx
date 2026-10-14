@@ -1,134 +1,91 @@
 ---
-title: "Global Routines"
-description: "Built-in routines available to all agents"
+title: "Built-in Routines"
+description: "The routines that ship with Condor, who can run each one, and where to add your own"
 ---
 
-Global routines in `~/condor/routines/` are available to all agents. Condor includes several built-in routines for common trading tasks.
+Condor ships with routines in three places. Which place a routine is in decides who can run it. See [Where routines live](/routines/overview#where-routines-live) for the full rules.
 
-## Built-in Routines
-
-| Routine | Type | Description |
-|---------|------|-------------|
-| `hello_world` | One-shot | Simple example routine for testing |
-| `market_scanner` | One-shot | Scan markets for trading opportunities |
-| `bot_report` | One-shot | Generate performance reports for running bots |
-| `arb_check` | One-shot | Check for arbitrage opportunities across exchanges |
-| `price_monitor` | Continuous | Monitor price and alert on threshold changes |
-
-## Directory Structure
-
-```
-~/condor/routines/
-├── __init__.py
-├── base.py              # Routine discovery and base classes
-├── hello_world.py       # Simple example routine
-├── market_scanner.py    # Market scanning routine
-├── bot_report.py        # Bot performance reports
-├── arb_check.py         # Arbitrage checking
-└── price_monitor.py     # Continuous price monitoring
+```text
+<condor>/
+  routines/                  # Condor chat, Routines page, Telegram. Not agents.
+    base.py                  # discovery code, not a routine
+    arb_check.py
+    market_scanner.py
+    price_monitor.py
+    ...
+  agents/
+    _shared/routines/        # Condor chat and every agent
+      archived_analyzer.py
+      backtest_chart.py
+      backtest_compare.py
+    <slug>/routines/         # that agent only
+  .condor/agents/
+    _shared/routines/        # yours: Condor chat and every agent
+    <slug>/routines/         # yours: that agent only
 ```
 
-## Hello World Example
+## Condor's general routines
 
-The simplest routine to understand the structure:
+These live in the top-level `routines/` folder. The Condor chat assistant, the [Routines page](/webui/routines) and Telegram `/routines` can run them. Agents can't.
 
-```python
-# routines/hello_world.py
-from pydantic import BaseModel, Field
-from telegram.ext import ContextTypes
+| Routine | Type | Category | What it does |
+|---|---|---|---|
+| `arb_check` | One-shot | Arbitrage | Compares order books across several CEX exchanges to find arbitrage opportunities |
+| `error_test` | One-shot | Uncategorized | Fails on purpose, to test how errors show in the dashboard |
+| `logs_summary` | One-shot | Bot Analysis | Summarizes errors and warnings across active bots: counts, last failure, top patterns |
+| `market_scanner` | One-shot | Market Data | Scans top perpetual markets for volume and volatility, and classifies them as mature or degen |
+| `mcap_comparison` | One-shot | Market Data | Compares market cap and fee/revenue of DEX tokens over time. Default: ORCA, MET, RAY |
+| `mean_reversion_research` | One-shot | Analysis | Cross-timeframe mean reversion research: return stats, RSI, Bollinger, Z-score, Hurst, autocorrelation |
+| `mean_reversion_scanner` | One-shot | Market Data | Scans top perpetual markets for mean reversion upside: ATH and VWAP vs current price |
+| `price_monitor` | Continuous | Monitoring | Watches one price, alerts when it moves past a threshold, and keeps a live report |
+| `report_component_gallery` | One-shot | Developer Tools | Builds a report showing every `ReportBuilder` component, using simulated trading data |
+| `solana_pool_scanner` | One-shot | Market Data | Scans top Solana CLMM pools on Orca, Raydium and Meteora via GeckoTerminal |
+| `technical_analysis` | One-shot | Analysis | Analyzes trend, volatility and support/resistance, and suggests a grid direction with a chart |
 
+Every one-shot routine above except `error_test` builds an HTML [report](/routines/reports) when it runs.
 
-class Config(BaseModel):
-    """Simple hello world example routine."""
+## Shared routines
 
-    name: str = Field(default="World", description="Name to greet")
-    repeat: int = Field(default=1, description="Number of times to repeat")
-    uppercase: bool = Field(default=False, description="Use uppercase")
+These live in `agents/_shared/routines/`. The Condor chat and **every agent** can run them. They appear under the **Condor** chip on the Routines page.
 
+| Routine | Category | What it does |
+|---|---|---|
+| `archived_analyzer` | Bot Analysis | Analyzes archived bot databases: list, summarize, or deep-dive into past bot performance |
+| `backtest_chart` | Bot Analysis | Runs a backtest and charts entries, exits and the PnL curve |
+| `backtest_compare` | Bot Analysis | Compares saved backtests with overlaid PnL curves and a ranked metrics table |
 
-async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Execute the routine."""
-    greeting = f"Hello, {config.name}!"
+## Agent routines
 
-    if config.uppercase:
-        greeting = greeting.upper()
+The [shipped agents](/examples/overview) carry their own routines in `agents/<slug>/routines/`. Only that agent can run them, and they appear under the agent's chip on the Routines page.
 
-    return "\n".join([greeting] * config.repeat)
-```
+| Agent | Routines |
+|---|---|
+| Adaptive Grid Trader | `baseline_7d`, `hourly_mtf_check`, `position_mode_check` |
+| Directional Trader | `ema_research_charts` |
+| Fundamental Analyst | `defi_protocol_snapshot`, `peer_comparison`, `traditional_company_snapshot` |
+| Market Making Expert | `hip3_market_scanner`, `market_analyzer`, `mm_dashboard` |
+| Solana DEX LP Expert | `lp_scanner` |
 
-Run it from Telegram:
+## How `price_monitor` works
 
-```
-/routines → hello_world → Run
+`price_monitor` is the shipped example of a continuous routine:
 
-Output: Hello, World!
-```
+- Its config is `connector` (default `binance`), `trading_pair` (default `BTC-USDT`), `threshold_pct` (default `1.0`) and `interval_sec` (default `10`).
+- It tries to send a Telegram message when it starts, then checks the price every `interval_sec` seconds.
+- When the price moves `threshold_pct` or more since the previous check, it sends an alert.
+- On every check it rewrites one [live report](/routines/reports#live-reports) with the current price, high, low, total change, runtime, alert count and the last 50 checks.
+- When you stop it, it sends a summary of how long it ran, how many checks it made and how many alerts it sent.
 
-## Price Monitor (Continuous)
+## Adding your own
 
-A continuous routine that monitors price and sends alerts:
+| You want the routine available to | Put the file in |
+|---|---|
+| Condor chat and every agent | `.condor/agents/_shared/routines/` |
+| One agent | `.condor/agents/<slug>/routines/` |
+| Condor chat only | `routines/` |
 
-```python
-# routines/price_monitor.py
-from pydantic import BaseModel, Field
-from telegram.ext import ContextTypes
-
-# Mark as continuous routine
-CONTINUOUS = True
-
-
-class Config(BaseModel):
-    """Live price monitor with configurable alerts."""
-
-    connector: str = Field(default="binance", description="CEX connector name")
-    trading_pair: str = Field(default="BTC-USDT", description="Trading pair to monitor")
-    threshold_pct: float = Field(default=1.0, description="Alert threshold in %")
-    interval_sec: int = Field(default=10, description="Check interval in seconds")
-
-
-async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Monitor price continuously until cancelled."""
-    chat_id = context._chat_id
-    client = await get_client(chat_id, context=context)
-
-    initial_price = None
-    last_price = None
-
-    try:
-        while True:
-            prices = await client.market_data.get_prices(
-                connector_name=config.connector,
-                trading_pairs=config.trading_pair
-            )
-            current_price = prices["prices"].get(config.trading_pair)
-
-            if initial_price is None:
-                initial_price = current_price
-                last_price = current_price
-
-            # Check threshold and alert if triggered
-            change = ((current_price - last_price) / last_price) * 100
-            if abs(change) >= config.threshold_pct:
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=f"{'📈' if change > 0 else '📉'} {config.trading_pair}: ${current_price:,.2f} ({change:+.2f}%)"
-                )
-                last_price = current_price
-
-            await asyncio.sleep(config.interval_sec)
-
-    except asyncio.CancelledError:
-        return "Monitor stopped"
-```
-
-## Creating Custom Global Routines
-
-Add your own routines to `~/condor/routines/`:
-
-1. Create a Python file with `Config` class and `run` function
-2. The routine is auto-discovered on next Condor start
-3. Access via `/routines` in Telegram
+You don't need to restart Condor. New and edited files are picked up the next time routines are listed. See [Creating Routines](/routines/creating-routines).
 
 <Note>
-Global routines are shared across all agents. For agent-specific routines, place them in the agent's `routines/` folder instead.
+Don't edit the shipped files in `routines/` or `agents/`. They are tracked by git and belong to Condor, so keep your changes in `.condor/`. To change a shipped shared or agent routine, copy it to the same name under `.condor/agents/`, where your copy takes precedence.
 </Note>

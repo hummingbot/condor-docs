@@ -1,262 +1,158 @@
 ---
 title: "Routines Overview"
-description: "Deterministic Python workflows that reduce token usage and improve reproducibility"
+description: "Deterministic Python scripts that you, Condor and your agents can run, schedule and turn into reports"
 ---
 
-**Routines** are deterministic Python workflows that process data consistently. Unlike skills which load instructions into context for the LLM to interpret, routines are lightweight Python files that execute directly and return results—no tokens spent on interpretation.
-
-## Why Routines Matter
-
-When testing agents, we found they waste enormous amounts of tokens processing data and computing indicators during runtime. An agent might get candles, then write Python code to compute EMAs and support/resistance—spending tokens on computation that should be deterministic.
-
-By moving this into routines:
-- **Session time dropped from 2 minutes to under 1 minute**
-- **Token usage reduced significantly**
-- **Results became reproducible and debuggable**
-
-If Python code can be created by the agent, it should be encapsulated in a routine so it can be reused without spending tokens.
-
-## Routines vs Skills
-
-Skills and routines serve different purposes:
-
-| Aspect | Skills | Routines |
-|--------|--------|----------|
-| Format | Markdown instructions + scripts | Python file with config class |
-| Execution | LLM interprets and follows instructions | Python code runs directly |
-| Loading | Loaded into system prompt when detected | Never loaded into memory—just executed |
-| Use case | Teaching agent general capabilities | Specific, repeatable tasks |
-| Token cost | Tokens spent interpreting instructions | Zero tokens for execution |
-| Output | Variable (LLM interpretation) | Deterministic (same input → same output) |
-
-**When to use routines:** Specific tasks you want done reliably every time—fetching market data, running technical analysis, generating reports, monitoring conditions.
-
-**When to use skills:** Teaching an agent how to approach a category of problems where interpretation and judgment are needed.
-
-## Routines vs LLM Reasoning
-
-| Aspect | LLM Reasoning | Routines |
-|--------|---------------|----------|
-| Execution | Probabilistic | Deterministic |
-| Purpose | Strategy decisions | Data processing and automation |
-| Variability | May produce different outputs | Same input → same output |
-| Cost | LLM tokens | None |
-| Speed | Seconds | Milliseconds |
-
-## Routine Structure
-
-Every routine is a Python file with two components:
-
-1. **Config class** - A Pydantic BaseModel defining the arguments/parameters
-2. **Async run method** - The entry point that executes the routine
-
-```python
-# routines/hello_world.py
-from pydantic import BaseModel, Field
-from telegram.ext import ContextTypes
-
-
-class Config(BaseModel):
-    """Simple hello world example routine."""
-
-    name: str = Field(default="World", description="Name to greet")
-    repeat: int = Field(default=1, description="Number of times to repeat")
-    uppercase: bool = Field(default=False, description="Use uppercase")
-
-
-async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Execute the routine."""
-    greeting = f"Hello, {config.name}!"
-
-    if config.uppercase:
-        greeting = greeting.upper()
-
-    return "\n".join([greeting] * config.repeat)
-```
-
-<Note>
-The `Config` class docstring becomes the routine's description in the UI. Use `Field(description=...)` to document each parameter.
-</Note>
-
-## Execution Modes
-
-### One-Shot Routines
-
-Execute once and return a result. Can be scheduled to run at regular intervals.
-
-```python
-# routines/top_movers.py
-from pydantic import BaseModel, Field
-from telegram.ext import ContextTypes
-
-
-class Config(BaseModel):
-    """Fetch top movers from exchange."""
-
-    top_n: int = Field(default=10, description="Number of top movers")
-    include_volume: bool = Field(default=True, description="Include volume data")
-    include_losers: bool = Field(default=True, description="Include top losers")
-
-
-async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
-    # Fetch and process exchange data
-    async with aiohttp.ClientSession() as session:
-        # ... fetch top movers
-        pass
-    return f"Top {config.top_n} gainers: ..."
-```
-
-### Continuous Routines
-
-Run indefinitely with a while loop until stopped. Useful for monitoring and alerting. Mark with `CONTINUOUS = True`.
-
-```python
-# routines/price_monitor.py
-from pydantic import BaseModel, Field
-from telegram.ext import ContextTypes
-
-# Mark as continuous routine - has internal loop
-CONTINUOUS = True
-
-
-class Config(BaseModel):
-    """Live price monitor with configurable alerts."""
-
-    connector: str = Field(default="binance", description="CEX connector name")
-    trading_pair: str = Field(default="BTC-USDT", description="Trading pair to monitor")
-    threshold_pct: float = Field(default=1.0, description="Alert threshold in %")
-    interval_sec: int = Field(default=10, description="Check interval in seconds")
-
-
-async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Monitor price continuously until cancelled."""
-    chat_id = context._chat_id
-
-    while True:
-        try:
-            # Get current price and check threshold
-            # Send alert via context.bot.send_message() if triggered
-            await asyncio.sleep(config.interval_sec)
-        except asyncio.CancelledError:
-            return "Monitor stopped"
-```
-
-<Warning>
-Continuous routines must handle `asyncio.CancelledError` to clean up gracefully when stopped.
-</Warning>
-
-## Running Routines
-
-### From Telegram
-
-Access routines through the Condor menu:
-
-```
-/routines → Select routine → Configure → Run
-```
-
-Options when running:
-- **Run once** - Execute immediately in the current chat
-- **Run in background** - Execute and send output to chat when complete
-- **Schedule** - Run at regular intervals (e.g., every 30 seconds, hourly)
-
-To stop a running or scheduled routine:
-```
-/routines → Running → Select routine → Stop
-```
-
-### From Agent Sessions
-
-Agents can invoke routines as part of their decision process—see [Calling Routines](#calling-routines) below.
-
-## Types of Routines
-
-### Global Routines
-
-Routines in `~/condor/routines/` are available to all agents. These include built-in routines for common tasks like technical analysis, funding rates, and volume analysis.
-
-### Agent-Specific Routines
-
-Routines in an agent's `routines/` folder are specific to that agent:
-
-```
-trading_agents/my_scalper/
-└── routines/
-    ├── support_resistance_ema_levels.py
-    └── process_news.py
-```
-
-This design lets you share an agent folder with someone else—they get everything needed to run it.
-
-<Note>
-Agent-specific routines override global ones with the same name.
-</Note>
-
-## Calling Routines
-
-Agents invoke routines via MCP tools:
-
-```python
-# From within an agent's decision process
-vwap = await mcp_tools.run_routine(
-    routine="indicators.vwap",
-    params={
-        "connector": "binance",
-        "trading_pair": "BTC-USDT",
-        "periods": 50
-    }
-)
-
-if current_price < vwap["vwap"] * 0.98:
-    # Price 2% below VWAP - consider buying
-    pass
-```
-
-## View Available Routines
-
-Ask Condor what routines are available:
-
-```
-You: What routines are available?
-
-Condor: Available routines for SOL Scalper:
-
-Agent-specific:
-- momentum_scanner: Scan for momentum breakouts
-
-Global:
-- technical_analysis: EMA, RSI, support/resistance
-- funding_rates: Fetch perpetual funding rates
-- volume_analysis: Volume profile and VWAP
-```
-
-## Built-in Routines
-
-Condor includes several built-in routines in `~/condor/routines/`:
-
-| Routine | Type | Description |
-|---------|------|-------------|
-| `hello_world` | One-shot | Simple example routine |
-| `market_scanner` | One-shot | Scan markets for trading opportunities |
-| `bot_report` | One-shot | Generate performance reports for running bots |
-| `arb_check` | One-shot | Check for arbitrage opportunities |
-| `price_monitor` | Continuous | Monitor price and alert on threshold changes |
-
-## Creating Routines with Condor
-
-Condor can write routines for you. Simply describe what you want:
-
-```
-You: Create a routine that monitors funding rates on Binance perpetuals
-     and alerts me when any rate exceeds 0.01%
-```
-
-Condor generates the Python file, and you can immediately run or schedule it. This is particularly powerful because:
-
-- **Zero coding required** - Describe what you want in natural language
-- **Instant feedback** - Run the routine and see results immediately
-- **Iterative refinement** - Ask Condor to modify the routine based on output
+A **routine** is a Python file with a `Config` class and an async `run` function. Condor runs it directly: it fetches data, computes what you asked for and returns a result or saves a report. No LLM reads the code or interprets the output while it runs, so the same input gives the same output and a run costs no tokens.
+
+Use a routine for work you want done the same way every time: scans, indicators, price checks, bot summaries, backtest charts. Use a [skill](/trading-agents/architecture#skill-md) when the work needs judgment.
+
+## Routines and skills
+
+| | Skills | Routines |
+|---|---|---|
+| Format | `SKILL.md` instructions | Python file with `Config` and `run` |
+| How it runs | The LLM reads it and decides what to do | Condor calls `run()` |
+| Output | Varies with the model's reasoning | Same input, same output |
+| Token cost | Tokens to read and follow it | None for the run itself |
+| Good for | Approach, judgment, playbooks | Data work, indicators, reports, monitors |
+
+## Where routines live
+
+Who can run a routine depends on which folder it's in. `<condor>` is the folder you installed Condor into.
+
+| Folder | Who can run it | Who writes it |
+|---|---|---|
+| `<condor>/routines/` | The Condor chat assistant, the Routines page and Telegram `/routines`. **Agents can't.** | Shipped with Condor. Condor's chat writes new routines here by default. |
+| `<condor>/.condor/agents/_shared/routines/` | Condor chat **and every agent** | You, or Condor's chat when it publishes a routine as shared |
+| `<condor>/agents/_shared/routines/` | Condor chat and every agent | Shipped with Condor |
+| `<condor>/.condor/agents/<slug>/routines/` | That agent only | You, or the agent itself |
+| `<condor>/agents/<slug>/routines/` | That agent only | Shipped with Condor |
 
 <Tip>
-You can create routines from your phone via Telegram. Describe what you need, have Condor write the code, schedule it, and receive reports—all without touching a keyboard.
+To give a routine to every agent, put it in `.condor/agents/_shared/routines/`. The `.condor/` folder is ignored by git, so `git pull` and `/update` leave it alone.
 </Tip>
+
+When two folders hold a routine with the same name, the more specific one wins:
+
+- An agent's own routine shadows a shared routine with the same name.
+- For the chat, a routine in the top-level `routines/` shadows a shared one.
+- A routine in `.condor/agents/` shadows the shipped copy in `agents/`.
+
+To change a shared routine for one agent only, create a routine with the same name in that agent's `routines/` folder. See [Architecture](/trading-agents/architecture) for how agent folders work.
+
+## A minimal routine
+
+```python
+from pydantic import BaseModel, Field
+from telegram.ext import ContextTypes
+
+from config_manager import get_client
+
+
+class Config(BaseModel):
+    """Show the current price of a few pairs."""
+
+    connector: str = Field(default="binance", description="Exchange connector")
+    pairs: list[str] = Field(
+        default=["BTC-USDT", "ETH-USDT"], description="Trading pairs"
+    )
+
+
+async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
+    chat_id = getattr(context, "_chat_id", None)
+    client = await get_client(chat_id, context=context)
+    if not client:
+        return "No server available"
+
+    result = await client.market_data.get_prices(
+        connector_name=config.connector, trading_pairs=config.pairs
+    )
+    prices = result["prices"]
+    lines = [f"{pair}: {price:,.2f}" for pair, price in prices.items()]
+    return "\n".join(lines)
+```
+
+- **The file name is the routine's name.** Save this as `price_check.py` and it appears as `price_check`.
+- **The first line of the `Config` docstring is the routine's description.** It shows on the routine's card and in the list agents see.
+- **Each `Field(description=...)` labels a setting** in the dashboard config form and in Telegram.
+- **`get_client(chat_id, context=context)`** returns a Hummingbot API client for the server the run was started on.
+
+<Warning>
+Never put an API key, password or private key in a `Config` default. Routine definitions are visible to every user of the install, and Condor refuses to load a routine whose defaults look like a credential. Read secrets inside `run()` from the environment instead.
+</Warning>
+
+## What `run` returns
+
+`run(config, context)` can return either:
+
+- **A string.** Shown in Telegram and in the dashboard's **Output** view.
+- **A `RoutineResult`.** It has a `text` field for Telegram and optional fields the dashboard renders: `table_data` and `table_columns`, a `chart_image` (PNG bytes) and `sections`.
+
+```python
+from routines.base import RoutineResult
+```
+
+A routine can also save an HTML report with charts and tables. See [Reports](/routines/reports).
+
+## One-shot and continuous routines
+
+- **One-shot** routines run once and return. You can run them on demand or on a schedule.
+- **Continuous** routines set `CONTINUOUS = True` at module level. They loop until you stop them, and they handle their own timing with `asyncio.sleep`. When stopped, Condor cancels the task, so catch `asyncio.CancelledError` and return a closing message. Continuous routines can't be scheduled.
+
+The shipped `price_monitor` routine is continuous. It keeps a [live report](/routines/reports#live-reports) up to date while it runs. [Creating Routines](/routines/creating-routines#continuous-routines) has a full example.
+
+## Optional module attributes
+
+| Attribute | What it does |
+|---|---|
+| `CONTINUOUS = True` | Marks the routine as continuous |
+| `CATEGORY = "Market Data"` | Category label. Defaults to `Uncategorized` for general routines and to the agent's name for an agent's routines. |
+| `handle_callback(update, context, action, params)` | Telegram only. Async handler for inline buttons whose callback data is `routines:<routine_name>:<action>:...` |
+| `MESSAGE_STATES` and `handle_message(update, context)` | Telegram only. When the chat's `routines_state` is one of the listed states, typed replies go to `handle_message` |
+| `cleanup(context, instance_id, chat_id)` | Telegram only. Async hook called when you stop an instance from `/routines` |
+
+## Running routines
+
+| Where | How |
+|---|---|
+| **Dashboard** | The [Routines page](/webui/routines): pick a routine, set its config, then **Run** or **Schedule** |
+| **Telegram** | `/routines`: pick a routine, edit its config, then **Run**, **Background**, **Schedule** or **Start** |
+| **Chat** | Ask Condor to run it, for example *"run market_scanner with top_n=50"* |
+| **Agents** | An agent calls `manage_routines(action="run", name=..., config={...})` on its tick |
+
+When an agent runs a loop, its prompt lists every routine it can run, with each routine's description. A **Dry Run** refuses routine runs, because a routine can run any Python. Listing routines and reading their source still work.
+
+## No restart needed
+
+Condor checks the routine folders each time it lists routines, and reloads only files whose modification time changed. A new or edited file shows up the next time you open the Routines page, open `/routines` in Telegram, or an agent lists its routines.
+
+Telegram's **🔄 Reload** button forces a full reload. Use it to retry a file that failed to load.
+
+## Let Condor write routines
+
+You can describe a routine in the chat and Condor writes it, loads it and runs it to test it:
+
+```text
+Create a routine that checks funding rates on binance_perpetual for the
+top 20 pairs by volume and lists any rate above 0.01%.
+```
+
+Condor saves routines it writes to the top-level `routines/` folder. To make one available to every agent, ask Condor to publish it as **shared**, which saves it to `.condor/agents/_shared/routines/`. An agent that writes a routine saves it to its own `routines/` folder.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Creating Routines" icon="code" href="/routines/creating-routines">
+    Write, test and use your own routines
+  </Card>
+  <Card title="Built-in Routines" icon="box" href="/routines/global-routines">
+    The routines that ship with Condor
+  </Card>
+  <Card title="Reports" icon="chart-line" href="/routines/reports">
+    Save HTML reports with charts and tables
+  </Card>
+  <Card title="Routines page" icon="window-maximize" href="/webui/routines">
+    Run, schedule and browse reports in the dashboard
+  </Card>
+</CardGroup>
