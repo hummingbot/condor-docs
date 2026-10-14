@@ -1,73 +1,72 @@
 #!/bin/bash
-# Generate and update OpenAPI spec from Hummingbot API
+# Generate the API Reference spec from a running Hummingbot API server
 #
 # Usage: ./scripts/generate-openapi.sh
+#        HBAPI_URL=http://192.168.1.10:8000 ./scripts/generate-openapi.sh
+#
+# Prerequisite: a running Hummingbot API. From your hummingbot-api checkout:
+#   make setup     # first time only: writes .env with your credentials
+#   make deploy    # starts the API, PostgreSQL and EMQX in Docker
 #
 # This script:
-# 1. Fetches fresh OpenAPI spec from the Hummingbot API server
-# 2. Adds servers field for Mintlify API playground base URL
-# 3. Saves to api-reference/openapi.json
+# 1. Fetches the OpenAPI spec from $HBAPI_URL/openapi.json (no credentials
+#    needed: the API serves /openapi.json without authentication)
+# 2. Saves the raw copy to openapi-sources/hummingbot-api.json
+# 3. Adds the `servers` entry Mintlify's playground uses as its base URL and
+#    saves the result to api-reference/openapi.json
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 SOURCE_DIR="$ROOT_DIR/openapi-sources"
+RAW_SPEC="$SOURCE_DIR/hummingbot-api.json"
+DOCS_SPEC="$ROOT_DIR/api-reference/openapi.json"
 
-# Repository path
-HUMMINGBOT_API_DIR="$HOME/hummingbot-api"
+# Server to fetch from. Override with HBAPI_URL.
+API_URL="${HBAPI_URL:-http://localhost:8000}"
 
-# Server URL
-API_URL="http://localhost:8000"
+# The playground base URL written into the published spec. Keep in sync with
+# scripts/update-openapi.sh.
+SERVERS_JQ='. + {servers: [{url: "http://localhost:8000", description: "Local development server"}]}'
 
-# Create source directory
+for cmd in curl jq; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Error: '$cmd' is required but not installed." >&2
+        exit 1
+    fi
+done
+
 mkdir -p "$SOURCE_DIR"
 
-# Function to check if a server is running
-check_server() {
-    local url=$1
-    curl -s -o /dev/null -w "%{http_code}" "$url" 2>/dev/null | grep -q "200\|401\|403"
-}
+echo "=== Generating Hummingbot API OpenAPI spec ==="
+echo "Fetching $API_URL/openapi.json..."
 
-# Generate Hummingbot API spec
-generate_api_spec() {
-    echo ""
-    echo "=== Generating Hummingbot API OpenAPI spec ==="
+TMP_SPEC="$(mktemp)"
+trap 'rm -f "$TMP_SPEC"' EXIT
 
-    # Check if server is running
-    if ! check_server "$API_URL"; then
-        echo "Hummingbot API server not running at $API_URL"
-        echo "Please start it with: cd $HUMMINGBOT_API_DIR && make run"
-        return 1
-    fi
+if ! curl -sSf --connect-timeout 5 --max-time 60 "$API_URL/openapi.json" -o "$TMP_SPEC"; then
+    echo "Error: could not fetch $API_URL/openapi.json" >&2
+    echo "Start the Hummingbot API first. From your hummingbot-api checkout:" >&2
+    echo "  make setup    # first time only" >&2
+    echo "  make deploy" >&2
+    echo "Or point this script at another server: HBAPI_URL=http://host:8000 $0" >&2
+    exit 1
+fi
 
-    # Fetch OpenAPI spec
-    echo "Fetching OpenAPI spec from $API_URL/openapi.json..."
-    curl -s -u admin:admin "$API_URL/openapi.json" > "$SOURCE_DIR/hummingbot-api.json"
+if ! jq -e '.openapi and .paths' "$TMP_SPEC" >/dev/null 2>&1; then
+    echo "Error: $API_URL/openapi.json did not return an OpenAPI document" >&2
+    exit 1
+fi
 
-    # Validate JSON
-    if ! jq empty "$SOURCE_DIR/hummingbot-api.json" 2>/dev/null; then
-        echo "Error: Failed to fetch valid JSON from Hummingbot API"
-        cat "$SOURCE_DIR/hummingbot-api.json"
-        return 1
-    fi
+jq . "$TMP_SPEC" > "$RAW_SPEC"
+jq "$SERVERS_JQ" "$RAW_SPEC" > "$DOCS_SPEC"
 
-    # Add servers field for Mintlify (required for API playground base URL)
-    jq '. + {servers: [{url: "http://localhost:8000", description: "Local development server"}]}' \
-        "$SOURCE_DIR/hummingbot-api.json" > "$ROOT_DIR/api-reference/openapi.json"
-
-    # Show info
-    VERSION=$(jq -r '.info.version // "unknown"' "$SOURCE_DIR/hummingbot-api.json")
-    PATHS=$(jq '.paths | keys | length' "$SOURCE_DIR/hummingbot-api.json")
-    echo "  Version: $VERSION"
-    echo "  Endpoints: $PATHS"
-    echo "  Saved to: api-reference/openapi.json"
-}
-
-echo "OpenAPI Spec Generator"
-echo "======================"
-
-generate_api_spec || echo "Warning: Failed to generate Hummingbot API spec"
-
+VERSION=$(jq -r '.info.version // "unknown"' "$RAW_SPEC")
+PATHS=$(jq '.paths | keys | length' "$RAW_SPEC")
+echo "  Version: $VERSION"
+echo "  Paths: $PATHS"
+echo "  Raw copy: openapi-sources/hummingbot-api.json"
+echo "  Docs spec: api-reference/openapi.json"
 echo ""
-echo "Done! Run 'mintlify dev' to preview changes."
+echo "Done. Run 'npx mint@latest dev' to preview the changes."
