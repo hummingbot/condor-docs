@@ -8,8 +8,10 @@
     "dark": "#fcc603"
   },
   "favicon": "/logo/condor-logo-square.png",
-  "metadata": {
-    "og:site_name": "Condor"
+  "seo": {
+    "metatags": {
+      "og:site_name": "Condor"
+    }
   },
   "api": {
     "playground": {
@@ -163,7 +165,6 @@
           {
             "group": "The Bot Pod",
             "pages": [
-              "videos/ep13",
               "videos/ep12",
               "videos/ep11",
               "videos/ep10",
@@ -263,6 +264,10 @@
     {
       "source": "/webui/executors",
       "destination": "/webui/bots"
+    },
+    {
+      "source": "/installation",
+      "destination": "/getting-started/installing"
     }
   ]
 }
