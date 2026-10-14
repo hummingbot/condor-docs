@@ -1,41 +1,140 @@
 ---
 title: "Agents"
-description: "The chat workspace: talk to Condor, delegate to expert agents, and run sessions"
+description: "The chat workspace: talk to Condor and its expert agents, approve their actions, and see what they run"
 ---
 
-The **Agents** page is where you land when you open the dashboard — a chat workspace where you drive Condor in natural language, and where its expert agents do their work.
+**Agents** is the dashboard's home page (`/`). You talk to Condor or one of its expert agents in a chat. Panels next to the chat show the agent's setup, your portfolio and what is running.
 
 <Frame>
-  <img src="/images/webui/agents.jpg" alt="The Agents page: agent rail on the left, chat pane in the center" />
+  <img src="/images/webui/agents.jpg" alt="The Agents page: the conversation rail on the left, a Condor chat in the middle, the Agent panel open with its Brain tab, and the right rail with Agent, Portfolio, Execution, Loops, Tasks and Routines tiles" />
 </Frame>
 
 ## The top bar
 
-Every page shares the same chrome. Left to right: the seven page tabs (**Agents · Portfolio · Trade · DEX · Bots · Executors · Routines**), then the **server selector** (which Hummingbot API instance you are driving — the green dot is its health), the **quote currency** the UI prices things in, the **notification bell**, the **Report an issue** button, the **Settings** gear, and the **theme toggle**, which cycles dark → light → a color-blind-friendly mode.
+Every page shares the same top bar. On the left are the page tabs: **Agents · Portfolio · Trade · DEX · Bots · Routines · Settings**. On the right:
 
-## The agent rail
+- **Server selector**: the Hummingbot API server every page reads from. It lists online and offline servers.
+- **Currency**: the currency the dashboard shows values in.
+- **Notification bell**: Condor's notifications. Click **Mark all as read** to clear the count.
+- **Report an issue**: opens a pre-filled GitHub issue draft. You review it and submit it yourself on GitHub.
+- **Theme**: switches between dark, light and a color-blind mode.
 
-The left rail lists who you can talk to:
+## The conversation rail
 
-- **Condor** — the main assistant. It answers questions about your portfolio, prices, trades, and bot status, and delegates specialist work to the expert agents below it.
-- **Expert agents** — domain specialists (market making, grid trading, LP strategies, funding rates, and any agent you build with [Agent Builder](/condor-agent/agent-builder)). Open one to chat with it directly, or let Condor delegate to it.
+The left rail lists who you can talk to and what you already said.
 
-Below the agents, **Conversations** keeps your chat history grouped by day. **+ New chat** starts a fresh conversation; the status dot on a conversation means an agent is still working in it.
+- **Live strip.** The line at the top shows what is looping. It reads **Nothing looping**, **\<agent\> live** or **N live**, plus the number of running background tasks. Click it to open the running agent's page, or the Execution panel when nothing is looping.
+- **Agents.** **Condor** is the general trading assistant. Below it are the expert agents, such as the Market Making Expert, plus any agent you build (see [Agent Builder](/condor-agent/agent-builder)). A green dot means the agent has a loop running. Click an agent to talk to it, or click **+** on its row to start a new chat with it.
+- **Conversations.** Your chat history, grouped by **Today**, **Yesterday** and **Earlier**. Each row shows the agent, the last message and a **Telegram** tag if the chat started in Telegram. Hover a row to rename, share or delete it.
 
-## The chat pane
+Click the collapse icon to shrink the rail to icons. On a narrow screen, the rail opens from a button above the chat.
 
-Each open conversation is a tab across the top of the pane, so an agent can keep working in one tab while you talk in another. On the right of the tab strip: the **model picker** (which LLM this conversation thinks with — see [LLM Integration](/llm-integration)), the server badge, and **Knowledge** (documents the agent can draw on).
+## Chat tabs
 
-In the conversation itself, every agent reply carries its **Thought** and **Used N tools** disclosures — expand them to see exactly what the agent reasoned and which API calls it made before acting. Trades proposed by an agent arrive as a summary table with an explicit confirm step.
+Each live session has a tab above the chat. An agent can keep answering in one tab while you work in another. A tab's dot shows its state, such as **Answering** or **Waiting for your approval**. **+** starts a new chat, and the tab's close button ends that session.
 
-The message box at the bottom takes text or voice — the microphone transcribes locally with Whisper (configure it under [Settings → Voice & AI](/webui/settings#voice--ai)).
+## The chat
+
+Before you send anything, the page shows **Ask Condor** (or the agent's name) with a model picker and a few suggested questions.
+
+Each agent reply has **Thought** and **Used N tools** sections. Expand them to see the agent's reasoning and the tool calls it made.
+
+The message box takes text, up to four images per message (PNG, JPEG, GIF or WebP, 5 MB each), and voice. Voice is transcribed by Whisper on the machine running Condor. You choose the Whisper model in [Settings → Voice & AI](/webui/settings#voice-and-ai).
+
+- **Enter** sends. **Shift+Enter** adds a new line.
+- **Escape** stops a reply while it is streaming. So does the stop button.
+- **Share** (the icon at the left of the message box) shares this conversation with the Condor project. See [Sharing a conversation](#sharing-a-conversation).
+
+Above the messages, a line shows what the conversation has used so far: total tokens, how much of the model's context window the last answer filled, and an estimated API cost. The cost is hidden when Condor can't price the model, such as a local model.
+
+### Approving actions
+
+When an agent wants to run a tool that changes something, such as placing an order, the chat pauses and an approval card appears above the message box.
+
+<Frame>
+  <img src="/images/webui/chat-approval.jpg" alt="An approval card reading Paused — waiting for your approval, showing the create_order_executor call and its arguments, with Allow and Deny buttons and a countdown" />
+</Frame>
+
+The card shows the tool and its arguments. Click **Allow** to run it or **Deny** to refuse it.
+
+- The countdown shows how long you have. When it reaches zero, the call is denied automatically. The default is 120 seconds. You can change it with `CONDOR_TIMEOUT_CONFIRMATION`.
+- **Replying in the chat is not an answer.** If you send a message while a call is waiting, the call is cancelled. Typing "confirm" does not approve it.
+
+### Sharing a conversation
+
+**Share** opens a preview of the transcript Condor would send. Keys, wallet addresses, server names, account names and file paths are replaced before it leaves. Amounts and prices are kept. You can **Share**, **Download instead** or cancel. A shared chat can be unshared later. Your sharing choice and the list of shared chats are in [Settings → Privacy](/webui/settings#privacy).
+
+## The right rail
+
+The strip on the far right opens panels next to the chat. Its tiles come in three groups.
+
+| Tile | What it opens |
+|---|---|
+| **Agent** | The Agent panel for the agent in this chat |
+| **Portfolio** | What you hold on this chat's server, by asset and by venue, with the 24-hour change |
+| **Execution** | Every deployed controller with its PnL, volume and live executors. You can pause or start a controller here. |
+| **Loops** | Every running or paused agent loop on this server |
+| **Tasks** | Work this conversation handed to other agents. Switch to **All** for every agent, or **History** for finished tasks. You can stop a running task. |
+| **Routines** | Routine runs for this agent, and the routine library |
+
+Portfolio, Execution and Loops read the chat's own server. If you haven't started a chat yet, they read the server in the top bar.
+
+## The Agent panel
+
+The Agent panel shows what the agent is made of. Its tabs are:
+
+| Tab | What it shows |
+|---|---|
+| **Brain** | The agent's `AGENT.md`, its identity and domain knowledge. Click **Edit** to change it. |
+| **Skills** | The agent's skills. You can switch a skill off for this agent. |
+| **Memories** | What the agent has remembered |
+| **Tools** | The tools mounted for this agent, and whether `AGENT.md` limits them with an allowlist. You can switch a tool off. |
+| **Loops** | The agent's loops. Click one to open it next to the chat. |
+| **Routines** | The routines the agent can run. You can switch a routine off. |
+| **Controllers** | The controllers the agent carries. This tab only appears when it has some. |
+| **Activity** | The background tasks the agent has run |
+
+When a skill, tool or routine is switched off, the tab count shows it, for example `7/9`.
+
+The panel's top bar has three controls:
+
+- **Workspace** opens the agent's own page at `/agents/<slug>`.
+- **Model** picks the LLM for this conversation. See [LLM Integration](/llm-integration).
+- **Server** picks the Hummingbot API server for this conversation. If the agent pins a server, the picker shows a lock and you change it on the agent's page.
+
+You can't switch the model or server while the agent is answering.
+
+For how agents, loops, skills and routines fit together, see [Agent architecture](/trading-agents/architecture).
+
+## The agent page
+
+Each agent has its own page at `/agents/<slug>`, opened from **Workspace** in the Agent panel or from the live strip. That is where you start, watch and stop the agent's loops and read each run.
+
+<Frame>
+  <img src="/images/webui/agent-page.jpg" alt="The Market Making Expert's agent page with a loop selected and the Now, Runs, Fleet and Playbook tabs" />
+</Frame>
+
+See [Managing Agent Sessions](/getting-started/sessions) for how to use it, and [Run the Market Making Expert](/examples/market-making-expert) for a full example.
+
+## Quick chat on other pages
+
+On every page except **Agents**, a chat button sits in the bottom-right corner. It opens a small chat that knows which page you are on, so you can ask about what you're looking at. On an agent's page it talks to that agent. Otherwise it talks to Condor. The expand button moves the conversation to the full Agents page.
+
+Press **⌘K** (Mac) or **Ctrl+K** (Windows and Linux) on any page to go to the Agents page.
 
 ## Using Telegram
 
-**`/agent`** opens the same assistant in a private chat — after that you just talk, and every message goes to Condor. The menu switches the model, **`/stop`** ends the running session, **`/delegations`** lists background tasks the agent is working through, **`/memory`** reviews what it has [remembered about you](/condor-agent/overview#memory--what-it-knows-about-you), and **`/web`** hands you a time-limited login link to this dashboard.
+`/agent` opens the same assistant in a private Telegram chat. `/agent <name>` goes straight to a named agent. The `/agent` menu lets you talk to an agent, start a new chat, open past conversations, change the LLM, compact the conversation and end the session.
+
+- `/stop` stops the reply in progress. The session and its context stay.
+- `/delegations` lists background tasks.
+- `/memory` reviews what the assistant has [remembered about you](/condor-agent/overview).
+- `/web` sends you a login link to this dashboard.
+
+See [Telegram](/getting-started/telegram) for the full command list.
 
 ## Learn more
 
-- [Trading Agents](/trading-agents/overview) — what agents are and how they execute
+- [Trading Agents](/trading-agents/overview): what agents are and how they execute
 - [Build Your First Agent](/getting-started/first-agent)
-- [Managing Sessions](/getting-started/sessions) — inspecting and stopping long-running agent sessions
+- [Managing Agent Sessions](/getting-started/sessions)

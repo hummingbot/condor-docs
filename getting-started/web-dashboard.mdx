@@ -1,185 +1,120 @@
 ---
 title: "Web Dashboard"
-description: "Browser-based interface for managing Condor"
+description: "Open Condor's web dashboard, find your way around its pages, and change the address it runs on"
 ---
 
-The Web Interface provides a browser-based dashboard for managing trading bots, agents, and portfolio.
+The web dashboard is Condor's browser interface. You chat with Condor and its agents, check your portfolio, trade, manage bots and routines, and configure the install.
 
-## Accessing the Dashboard
+<Frame>
+  <img src="/images/web-dashboard.png" alt="The Condor dashboard home: the Agents · Portfolio · Trade · DEX · Bots · Routines · Settings tabs across the top and a chat answering How is my portfolio doing?" />
+</Frame>
+
+## Open the dashboard
 
 <Tabs>
   <Tab title="Local mode">
-    There is no login step. Open the dashboard directly on the machine running Condor:
+    Open the dashboard on the machine running Condor:
 
-    ```
+    ```text
     http://localhost:8088
     ```
 
-    You are already signed in as `ADMIN_USER_ID`. Local mode binds `127.0.0.1`, so the dashboard is reachable from that machine only — see [Local](/getting-started/installing#local) before changing that.
+    There is no login step. The dashboard signs you in as `ADMIN_USER_ID`. Local mode only listens on `127.0.0.1`, so you can't reach it from another machine. See [Local](/getting-started/installing#local) for details.
   </Tab>
   <Tab title="Telegram mode">
-    Run `/web` in Telegram to get a time-limited login link — see below.
+    Send `/web` to your Condor bot. It replies with a one-time login link:
+
+    ```text
+    🌐 Web Dashboard
+
+    Open this link in your browser:
+    http://localhost:8088/login?token=<one-time-token>
+
+    Link valid for 5 minutes.
+    ```
+
+    When `WEB_URL` is not a local address, the reply has an **🌐 Open Dashboard** button instead of the link text.
+
+    The link works once, within 5 minutes. Opening it signs you in for **24 hours**. After that, send `/web` again for a new link. Only approved users can sign in.
   </Tab>
 </Tabs>
 
-### Telegram: the `/web` link
+If the server selected in the top bar has no exchange keys yet, every page except Agents, Routines and Settings shows a prompt to connect keys. See [Exchange Credentials](/getting-started/credentials).
 
-Run `/web` in Telegram to get a login link:
+## The pages
 
+The top bar has seven tabs: **Agents · Portfolio · Trade · DEX · Bots · Routines · Settings**. On the right are the server selector, the display currency, the notification bell, **Report an issue** and the theme switch.
+
+| Page | What you do there |
+|---|---|
+| [Agents](/webui/agents) | Chat with Condor and the expert agents, approve their actions, and see what they run. This is the home page. |
+| [Portfolio](/webui/portfolio) | Balances and positions across your connected exchanges and wallets |
+| [Trade](/webui/trade) | Place orders and start executors: **Order**, **Position**, **Grid**, **DCA** and **LP** |
+| [DEX](/webui/dex) | Browse liquidity pools and open a pool to trade or provide liquidity |
+| [Bots](/webui/bots) | Running and terminated bots, controllers and executors; deploy bots and edit controller configs |
+| [Routines](/webui/routines) | Run and schedule routines, and read their reports |
+| [Settings](/webui/settings) | Servers, Gateway, keys and wallets, LLM endpoints, voice, notifications, privacy, users and updates |
+
+Each agent also has its own page at `/agents/<slug>`, where you run and watch its loops. See [Managing Agent Sessions](/getting-started/sessions).
+
+On every page except Agents, a chat button in the bottom-right corner opens a quick chat about the page you're on.
+
+The **theme** switch cycles through dark, light and a color-blind mode. Your browser remembers the choice.
+
+## Keyboard shortcuts
+
+| Keys | Where | What it does |
+|---|---|---|
+| **⌘K** / **Ctrl+K** | Any page | Go to the Agents chat |
+| **Enter** | Message box | Send |
+| **Shift+Enter** | Message box | New line |
+| **Escape** | Chat | Stop the reply that is streaming |
+| **/** | Trade | Open the market browser |
+| **←** / **→** | Report viewer | Previous or next report |
+
+## Telegram and the dashboard
+
+Condor's dashboard and Telegram bot run in the same process and share the same data: servers, agents, conversations, routines and preferences. Conversations started in Telegram appear in the dashboard's conversation list with a **Telegram** tag. `/update` in Telegram and **Settings → Updates** run the same update.
+
+## Change the dashboard address
+
+By default the dashboard runs at `http://localhost:8088`. Two settings in Condor's `.env` control it:
+
+- **`WEB_URL`**: the address Condor puts in `/web` links. **It also sets the port Condor listens on**, and it takes priority over `WEB_PORT`. If `WEB_URL` has no port, Condor listens on port 80 for `http://` or 443 for `https://`.
+- **`WEB_PORT`**: the port, used only when `WEB_URL` is not set.
+
+For example, to reach the dashboard at a server's IP in Telegram mode:
+
+```bash
+WEB_URL=http://your-server-ip:8088
 ```
-🌐 Web Dashboard
 
-Open this link in your browser:
-http://localhost:8088/login?token=XSNKl6bjWKGce-mcCYSWWgcyC5EvgzFrFqgCGIIop0s
-
-Link valid for 5 minutes.
-```
-
-Click the link to open the dashboard. The token authenticates you automatically—no separate login required.
-
-<Info>
-The link is tied to your Telegram session. You can access the dashboard from any device by opening the link.
-</Info>
-
-![Web Dashboard](/images/web-dashboard.png)
-
-## Agent Chat (⌘K)
-
-Press **⌘K** (Mac) or **Ctrl+K** (Windows/Linux) anywhere in the dashboard to open the **Agent** chat panel — the same conversational agent you use in Telegram, docked beside whatever you're working on. Press the shortcut again to hide it.
-
-From the panel you can:
-- Chat with any of your agents, and run multiple sessions on different agents
-- Trigger actions — create or stop executors, deploy bots, place orders (sensitive actions ask for confirmation first)
-- Ask about what you're viewing: when a report is open, the chat knows which report it is, so you can ask things like "explain this report" or "give me the code of this routine"
-
-You can also start a voice message with **⌘+Shift+M** (**Ctrl+Shift+M**).
-
-## Features
-
-### Portfolio
-
-View your unified portfolio across all connected exchanges:
-- Real-time balance updates
-- Portfolio value history charts
-- Asset distribution visualization
-- 24-hour P&L tracking
-
-### Trade
-
-Unified trading interface combining market data and order execution:
-- **Charts**: OHLC candles with executor overlays
-- **Depth**: Order book visualization and live trades
-- **Positions**: Active positions with P&L
-- **Config**: Create and manage executor configurations
-
-### Bots
-
-Deploy and manage bot instances. A bot is one container that can run **multiple controllers** across different markets at once. The Bots page is organized into tabs:
-- **Active**: Running bots with realized, unrealized, and total P&L, volume traded, and uptime. When a bot runs more than one controller, a combined P&L chart aggregates them, with toggle chips to isolate any single controller. You can edit a running bot's controller config and push it live without restarting — only fields the controller marks as updatable are applied.
-- **Runs**: Performance history over time for the bots you've run, built from the controller snapshots the Hummingbot API records every 5 minutes (realized/unrealized P&L and volume).
-- **Editor**: IDE-like editor for controllers and configs (see [Editor](#editor)).
-- **Backtest**: Backtest a V2 controller config against historical data.
-- **Archived**: Stopped bots, kept for later review.
-
-Each bot also exposes full logs with error filtering and start/stop controls.
-
-### Editor
-
-Manage controllers and configurations in an IDE-like interface:
-- **Controllers**: View and edit controller Python code
-- **Configs**: Create, clone, and modify YAML configurations
-- **Upload**: Import controller files or config YAMLs
-- **Templates**: Create new configs from controller templates
-
-### Executors
-
-Create and manage trading executors directly from the browser:
-- Grid, DCA, TWAP, Position executors
-- Visual configuration interface
-- Live performance metrics
-- One-click start/stop controls
-
-### Positions
-
-Track open positions across all exchanges:
-- Real-time P&L updates
-- Position size and leverage
-- Entry and mark prices
-- Quick access to close positions
-
-### Agents
-
-Monitor your autonomous Trading Agent sessions:
-- **Overview**: Strategy summary and current state
-- **Sessions**: Trade history with chart overlays
-- **Strategy & Learnings**: View and edit agent configuration inline
-- Switch between multiple agent sessions
-
-### Routines
-
-Run and monitor routines:
-- **Run**: Execute routines with custom parameters
-- **Schedule**: Set up recurring runs (every minute up to every 6 hours)
-- **Reports**: Browse generated HTML reports with interactive Plotly charts in a full-screen viewer; use the left/right arrow keys to step through a routine's report history
-
-## Settings
-
-- **Servers**: Register multiple Hummingbot API servers (one per client or environment) and switch the active server from the top bar. Add, edit, set a default, or remove servers.
-- **API Keys**: Add exchange credentials directly in the dashboard — pick the exchange, fill in the required fields, and the credential is saved (secret fields are masked).
-- **Gateway**: Check Gateway status, start/stop/restart it, pull a Gateway Docker image (`latest`, `development`, or a custom tag), and view Gateway logs.
-
-## Themes
-
-A theme toggle in the top bar cycles through three modes: **dark**, **light**, and a **color-blind** mode that uses a color-blind-friendly palette for charts and indicators. Your choice is remembered in the browser.
-
-## Web + Telegram Sync
-
-The web dashboard shares state with Telegram:
-
-- Start a Trading Agent on Telegram → monitor in the dashboard
-- Deploy an executor in the dashboard → get notifications on mobile
-- Portfolio updates appear everywhere instantly
-- Same session, same data, seamless switching
-
-## Custom Server Setup
-
-By default, Condor runs the web dashboard on `http://localhost:8088`. To access from other devices:
-
-1. Set `WEB_URL` in your `.env` file:
-   ```bash
-   WEB_URL=http://your-server-ip:8088
-   ```
-
-2. Restart Condor:
-   ```bash
-   make restart
-   ```
-
-3. Run `/web` in Telegram to get a new login link with the updated URL
+Then restart Condor with `make restart` and send `/web` for a link with the new address.
 
 <Warning>
-If exposing the dashboard to the internet, ensure proper firewall rules and consider using a reverse proxy with HTTPS.
+Because `WEB_URL` sets the listening port, you can't point it at a reverse proxy address without a port. For example, `WEB_URL=https://dashboard.example.com` makes Condor itself try to listen on port 443, where the proxy already is. If you use a proxy, either include a port in `WEB_URL` that the proxy also serves on, or accept that `/web` links will show Condor's own address and port.
 </Warning>
 
-## Session Management
+Where the dashboard listens depends on the mode:
 
-Login tokens expire after 5 minutes but your session remains active once authenticated. If your session expires:
+| Mode | Listens on |
+|---|---|
+| Local | `127.0.0.1` only |
+| Telegram | All interfaces (`0.0.0.0`) |
+| Telegram with Tailscale | The machine's tailnet address |
 
-1. Run `/web` in Telegram again
-2. Click the new login link
-3. Your previous state is preserved
+`WEB_HOST` overrides all of these. See [What binds where by default](/getting-started/installing#what-binds-where-by-default).
 
-## Tech Stack
+<Warning>
+Local mode has no login. Don't set `WEB_HOST` to expose a Local mode dashboard to a network.
+</Warning>
 
-| Technology | Purpose |
-|------------|---------|
-| Vite + React 19 | Framework |
-| TypeScript | Type safety |
-| Tailwind CSS v4 | Styling |
-| shadcn/ui + Radix UI | Components |
+## Tech stack
 
-## Next Step
+The dashboard is a React 19 single-page app built with Vite and TypeScript, styled with Tailwind CSS 4. It uses TanStack Query for data, lightweight-charts and Recharts for charts, and CodeMirror for the config editor. Condor serves it from the same process as the Telegram bot.
 
-<Card title="Seeing Your Portfolio" icon="arrow-right" href="/webui/portfolio">
-  View your balances and positions across all exchanges
+## Next step
+
+<Card title="Talk to your agents" icon="arrow-right" href="/webui/agents">
+  Learn the chat workspace, the Agent panel and how approvals work
 </Card>
