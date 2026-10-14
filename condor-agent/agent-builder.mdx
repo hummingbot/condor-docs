@@ -1,284 +1,209 @@
 ---
 title: "Skill: Agent Builder"
-description: "Create and configure Trading Agents via Telegram or manually"
+description: "How Condor's agent_builder skill creates trading agents, from a description or from a folder of your own controllers, configs and notes"
 ---
 
-Trading Agents can be created using the `/agent` command in Telegram or by manually creating the required files.
-
-## Why Use Agent Builder?
-
-The Agent Builder guides you through a structured process that:
-
-1. **Defines your strategy** in a structured way so the agent has context
-2. **Creates market data routines** so analysis is deterministic and reproducible
-3. **Builds decision logic** in `agent.md` with rules and constraints
-4. **Tests reasoning first** before risking real money
-5. **Deploys with confidence** after verifying behavior
-
-This flow exists because agents that work well require iteration. You want to verify the agent's reasoning before letting it trade.
-
-## 5-Phase Development Flow
-
-| Phase | Description |
-|-------|-------------|
-| **1. Strategy Design** | Define your edge, timeframe, and instruments |
-| **2. Market Data Routine** | Create a Python routine to fetch and process market data |
-| **3. Strategy Logic** | Write `agent.md` with decision rules and constraints |
-| **4. Dry Run** | Test reasoning without trading capability |
-| **5. Run Once** | Test with real trading—one tick only |
-| **6. Loop** | Deploy live with frequency and risk limits |
-
-### Run Modes
-
-These modes exist for debugging—you don't want to put an agent to trade without understanding its reasoning first.
-
-| Mode | Behavior |
-|------|----------|
-| `dry_run` | One tick, no trading capability. The agent gets told in its prompt that executor creation is blocked. You see how it gathers data, reasons about it, and what decision it *would* take. |
-| `run_once` | One tick with real trading. Before looping, try it once to see actual outputs. |
-| `loop` | Standard mode. Ticks every `frequency_sec` until stopped or `max_ticks` reached. |
-
-**Recommended flow**: Start with dry_run to verify reasoning, then run_once to test with real money, then loop when confident.
-
-## Via Telegram
-
-Use `/agent` → **Switch Mode** → **Agent Builder** to start the guided flow:
-
-### Phase 1: Strategy Design
-
-The Agent Builder asks questions to understand your goals:
-
-```
-Agent Builder: I need to understand your goals. What kind of strategy?
-
-1. Grid strategy
-2. DCA
-3. Trend following
-4. Mean reversion
-5. Other (describe)
-```
-
-You'll answer questions about:
-- Strategy type (grid, DCA, momentum, etc.)
-- Direction (long only, short only, or both)
-- Budget allocation
-- Timeframe (scalping, intraday, swing)
-- Risk tolerance
-
-### Phase 2: Market Data Routine
-
-The Agent Builder creates a Python routine to fetch and analyze market data:
-
-```
-You: Create a local routine for the agent to analyze where to place grids
-
-Agent Builder: Creating market data routine...
-```
-
-The routine fetches candles, order book data, and calculates indicators. This routine runs **deterministically**—same input always produces same output. The agent doesn't spend tokens computing indicators at runtime.
-
-### Phase 3: Strategy Logic
-
-The Agent Builder generates `agent.md` with your decision rules. You can review and refine:
-
-```
-You: I'm seeing that the agent created two grids below the current price
-     and they were closed by take profit immediately. Can you fix that?
-
-Agent Builder: I see the issue. Let me update the agent.md to ensure
-              grid prices straddle the current price...
-```
-
-### Phase 4: Dry Run
-
-Test reasoning without real trading:
-
-```
-/agent → Select Agent → Dry Run
-```
-
-The dry run shows:
-- What data the agent received
-- How it reasoned about the data
-- What decision it *would* make
-
-Review the dry run in the web dashboard under **Agents → [Agent] → Sessions**.
-
-### Phase 5: Deploy
-
-When confident, start a live session:
-
-```
-/agent → Select Agent → Start Session
-```
-
-## Manual Creation
-
-Create a new agent directory with the required files:
-
-```bash
-mkdir -p ~/condor/trading_agents/my-strategy/{sessions,dry_runs,routines}
-```
-
-### Directory Structure
-
-```
-trading_agents/my-strategy/
-├── agent.md          # Strategy definition
-├── learnings.md      # Agent-populated insights
-├── routines/         # Agent-specific routines
-├── sessions/         # Live trading session data
-└── dry_runs/         # Dry run session data
-```
-
-### agent.md
-
-The strategy definition with YAML frontmatter and Markdown instructions:
-
-```yaml
----
-id: abc123def456
-name: Grid Scalper SOL-USDT
-description: Grid scalping on SOL-USDT perpetual
-agent_key: claude-code
-skills: []
-default_config:
-  connector_name: binance_perpetual
-  trading_pair: SOL-USDT
-  total_amount_quote: 300
-  leverage: 5
-  frequency_sec: 60
-  risk_limits:
-    max_loss_per_tick_quote: 30
-    max_total_drawdown_quote: 90
-default_trading_context: ''
-created_by: 123456789
-created_at: '2026-04-10T17:59:33.147107+00:00'
----
-
-# Grid Scalper — SOL-USDT
-
-## Objective
-Grid scalping on SOL-USDT (binance_perpetual). Deploy ONE grid at a time.
-Total budget: $300.
-
-## Step 1 — Run Analysis
-Call the `spread_analyzer` routine with default config. It returns:
-- mid_price, best_bid, best_ask
-- volatility_1h, avg_candle_range_pct
-- recommended_spread_pct, grid_upper, grid_lower
-- signal (bullish_bias / bearish_bias / neutral)
-
-## Step 2 — Decision Logic
-Based on the spread_analyzer output:
-
-### Choose Direction by Signal
-- bullish_bias → deploy LONG grid (side=1)
-- bearish_bias → deploy SHORT grid (side=2)
-- neutral → deploy LONG grid (default)
-
-### Skip Tick Conditions
-- If recommended_spread_pct < 0.08 (market too calm)
-- If there is already a running grid executor for this pair
-
-### Replace Grid
-If mid_price has moved more than 1.0x the original spread from grid center,
-stop the existing grid and deploy a new one.
-
-## Step 3 — Execute
-Deploy grid executor with appropriate config...
-
-## Risk Rules
-- Max $300 total deployed at any time
-- Only ONE grid executor running at a time
-- If unrealized PnL drops below -$30 (10%), stop grid immediately
-- Log every decision with reasoning in the journal
-```
-
-### learnings.md
-
-Start with an empty learnings file—the agent populates it as it learns:
-
-```markdown
-# Learnings
-
-## Active Insights
-
-(Agent will add observations here)
-```
-
-When the agent discovers something valuable—like "price below EMA 7 while EMA 7 > EMA 25 indicates weakness"—it writes it to this file. Learnings persist across sessions.
-
-## Inspecting Agent Sessions
-
-View agent sessions in the web dashboard:
-
-```
-/web → Agents → [Agent Name] → Sessions
-```
-
-For each session you can see:
-
-- **Snapshots**: Every tick's system prompt, agent response, and actions taken
-- **Dry Runs**: Test sessions without real trading
-- **Executors**: All executors created by the agent with P&L
-- **Learnings**: Insights the agent has accumulated
-
-### Analyzing Snapshots
-
-Each snapshot shows:
-- **System Prompt**: Everything the agent received (strategy, configs, market data)
-- **Agent Response**: The agent's reasoning and decision
-- **Actions**: Executors created, routines called
-
-This lets you understand exactly why the agent made each decision.
-
-## Common Patterns
-
-### Grid Scalping
-
-Deploy grids that straddle current price with tight take-profits:
-
-```
-Signal: bullish_bias
-→ Deploy LONG grid from (mid_price - spread) to (mid_price + spread)
-→ Take profit: 0.05%
-→ Limit price: start_price * 0.998 (safety stop)
-```
-
-### Dynamic Grid Replacement
-
-Replace grids when price moves significantly:
-
-```
-If mid_price moved > 1x original spread from grid center:
-→ Stop existing grid
-→ Deploy new grid centered on current price
-```
-
-### One Position Constraint
-
-Many exchanges (like Hyperliquid) only allow one position per pair:
-
-```
-## CRITICAL: One Position Only
-Before deploying, check for existing running executors.
-If one exists, do NOT deploy another.
-```
-
-## Best Practices
+`agent_builder` is a skill that ships with the Condor assistant. When you ask Condor to create, edit, test, launch, monitor or delete a trading agent, it follows this skill. It works the same in the dashboard chat and in Telegram.
+
+The skill has two paths:
+
+| You bring | Path |
+|---|---|
+| An idea: "I want an agent for X" | **A: Build from a description.** Minimal first, then add pieces. |
+| A folder of instructions, controllers, configs or scripts | **B: Build from a folder.** Inventory, discuss, plan, then build. |
+| One controller for an agent that already exists | Neither. Condor follows the shared `controller_sources` skill. |
+
+Condor labels each message with the step it is on, for example `[B2 — Discuss]`, so you can tell where you are.
+
+For a short walkthrough, see [Build Your First Agent](/getting-started/first-agent).
+
+## What it builds
+
+Every agent the skill creates lives in `.condor/agents/<slug>/` in your Condor install. The slug comes from the name you give the agent: `My Scalper` becomes `my_scalper`.
+
+| Piece | File | Written with |
+|---|---|---|
+| Agent | `AGENT.md` | `manage_agents` |
+| Controllers | `controllers/<name>/<name>.py`, `CONTROLLER.md`, `sample_configs/<style>.yml` | `manage_agent_controllers` |
+| Routines | `routines/<name>.py` | a background Condor worker (`delegate`) |
+| Skills | `skills/<name>/SKILL.md` | `manage_skill` with `agent="<slug>"` |
+| Loop | `loops/<loop>/loop.md` | `manage_loops`, following the shared `loop_builder` skill |
+| Shutdown policy | `shutdown.md` | No tool. Condor tells you what to write. |
+
+[Architecture](/trading-agents/architecture#folder-structure) shows the full folder tree and the format of each file.
+
+The skill always creates the agent first, because controllers, routines, skills and loops all hang off its slug.
+
+### AGENT.md frontmatter
+
+`manage_agents` writes these keys:
+
+| Key | What the skill does with it |
+|---|---|
+| `name`, `description` | Set from the conversation |
+| `when_to_consult` | Set from what you will use the agent for. It is how Condor picks this agent to hand work to; it never blocks anything. The skill writes it as the user's action, such as "When the user wants to deploy, tune, or stop an executor". |
+| `agent_key` | Left out, so the agent inherits the model you are running. The skill never invents a model key; it offers a different one only when you ask or the job calls for it, chosen from the models you actually have. |
+| `tools` | Left empty, which means no restriction |
+| `server_required` | `true` unless you say otherwise |
+| `server_name` | Left empty, so the agent follows the chat's active server. Setting it pins the agent and every loop it deploys to that one server. |
+| `created_by`, `created_at` | Filled in by Condor |
+
+The body of `AGENT.md` is the agent's own system prompt: who it is and what it doesn't handle, what it knows, and how it answers.
+
+## Path A: Build from a description
+
+The skill builds the smallest useful agent first. It doesn't ask about routines, loops or models up front.
+
+<Steps>
+  <Step title="A1 — Create the agent">
+    Condor settles two things with you: the agent's **role or domain**, and **what it is used for**. Then it calls `manage_agents` with `action="create"` and writes the `AGENT.md`.
+  </Step>
+  <Step title="A2 — Ask it something">
+    Condor asks the new agent a real question in its specialty with `delegate` (`action="ask"`) and shows you the answer. If the persona is off, it updates the instructions and asks again. At this point the agent already works as an expert you can hand questions to.
+  </Step>
+  <Step title="A3 — Add routines">
+    One routine at a time. Condor agrees with you on what the routine outputs and why the agent needs it, then hands the job to a background worker (`delegate` with `action="start"`) that writes and tests it. Condor never writes routine code itself. When the routine is ready, Condor runs it with you (`manage_routines` `run`), iterates until the output is useful, and updates `AGENT.md` so the agent knows to call it and how to read it.
+
+    The skill stops here unless you want the agent to act on its own.
+  </Step>
+  <Step title="A4 — Add a loop (optional)">
+    Condor designs the loop with you (see [Designing the loop](#designing-the-loop)) and then follows the `loop_builder` skill to write `loops/<loop>/loop.md`, dry-run it and launch it.
+  </Step>
+</Steps>
+
+<Warning>
+**Check where a new routine landed.** The background worker's instructions tell it to save routines to Condor's general library, which the agent can't run. Open **Routines** in the dashboard and check that the routine is listed under your agent. If it isn't, ask Condor to recreate it in the agent's library (`manage_routines` `create_routine` with `agent="<slug>"`).
+</Warning>
+
+## Path B: Build from a folder
+
+Use this path when you already have strategy notes, Hummingbot controllers, configs or scripts and want an agent that runs them. Give Condor the folder's path. Condor runs on your machine, so any local path it can read works. If you can't give a path (for example from Telegram on a phone), paste the file contents instead.
+
+**Nothing is written until you approve the plan in step B3.**
+
+<Steps>
+  <Step title="B1 — Inventory">
+    Condor lists every file in the folder with its size, then reads the text files (`.md`, `.txt`, `.py`, `.yml`, `.yaml`, `.json`). It sorts each file into one of these buckets and shows you the result as a table, with a **Not imported** list and a reason for each:
+
+    | Found | Recognized by | Becomes |
+    |---|---|---|
+    | Controller | `.py` subclassing `ControllerBase`, `MarketMakingControllerBase` or `DirectionalTradingControllerBase` | `controllers/<name>/<name>.py` |
+    | Controller config | YAML with `controller_name` | a `sample_configs/<style>.yml` of that controller |
+    | Routine-shaped script | `.py` with a Pydantic `Config` class and an async `run` | an agent routine |
+    | Other script | any other Python (analysis, a V1 strategy, a notebook) | a routine rebuilt from it, or out of scope |
+    | Identity or domain knowledge | who trades what, market theory, pair notes | `AGENT.md` |
+    | Procedure | deploy steps, tuning rules, checklists | an agent skill |
+    | Tick behaviour | "every hour check…, if … then …" | the loop |
+    | Risk or exit rules | max size, stop conditions, what to do on a kill | loop risk limits and `shutdown.md` |
+    | Reference data | CSVs, backtest results, charts | read for context, not imported |
+  </Step>
+  <Step title="B2 — Review and discuss">
+    First a mechanical review: each controller's classes, type and config fields, and any import that is missing; each config's `controller_name` and fields; **name collisions** with controllers other agents already own (a controller's server copy is shared by name, so a clash must be renamed now); and whether an existing agent should own this instead.
+
+    Then Condor asks only what the folder doesn't answer, a few questions at a time, each with a proposed default:
+
+    - One agent or several (default: one)
+    - Which configs are real, and the pairs, connector and **capital** for each. Capital always comes from you, never from a sample config's `total_amount_quote`.
+    - How vague rules become measurable ones, such as a volatility threshold computed by a routine
+    - What should run on its own (the loop decision)
+    - Whether to backtest each config or dry-run the loop before going live
+    - Whether the winddown policy should differ from the default
+  </Step>
+  <Step title="B3 — Plan">
+    Condor sends one message with the build plan in order: the agent and its `when_to_consult`, each controller and its styles, each routine and skill, the loop with its frequency, what it may and may never do, its risk limits and winddown, what is not imported, and open questions. It waits for your approval or edits.
+  </Step>
+  <Step title="B4 — Build">
+    In this order, reporting after each step:
+
+    1. **Agent:** creates `AGENT.md` with identity, knowledge from your notes, and a **Controllers** section saying what each controller is for and which style to use when.
+    2. **Prove it's alive:** asks the agent a question about its own strategy.
+    3. **Controllers:** writes each `.py` and each style through `manage_agent_controllers`, writes a `CONTROLLER.md` if your folder has none, checks `status` against the server and syncs missing ones. A server copy that differs from yours is never overwritten without showing you the difference and getting your go-ahead. Only the styles you want are uploaded to the server.
+    4. **Routines:** one background job per routine, starting from your original script.
+    5. **Skills:** procedures from your notes, written to the agent's own library.
+    6. **Loop:** follows `loop_builder` with the design from B3, runs a Dry Run, shows you the result, and goes live only when you say so.
+    7. **Winddown:** if your policy differs from the default, Condor tells you what to put in `.condor/agents/<slug>/shutdown.md`. Its frontmatter key is `on_kill_switch`, set to `flatten_all`, `keep_spot_close_perp` or `keep_all`.
+  </Step>
+  <Step title="B5 — Report">
+    The B1 table again with a **Status** column (created, in sync, uploaded, pending, not imported), then what runs now, what is pending, and how to monitor it.
+  </Step>
+</Steps>
+
+## Designing the loop
+
+An agent can be started without a loop of its own: Condor then creates a generic **Default** loop driven by `AGENT.md` on its first start. A loop of its own makes the agent specific and disciplined. A loop doesn't have to trade. The skill offers the lowest level that fits:
+
+| Level | Each tick it… | Needs |
+|---|---|---|
+| None | Nothing. The agent is consulted on demand. | — |
+| Watch / report | Reads a routine and notifies on a condition or on schedule | A routine |
+| Operator | Watches the bots it deployed, tunes their updatable fields, pauses them, notifies | Controllers synced, configs uploaded |
+| Deployer | Picks a style from a regime routine, deploys, and later stops, archives and redeploys | All of the above, plus risk limits |
+| Executor trader | Creates and stops executors directly | Executor schemas in the loop |
+
+For the chosen level, Condor settles with you the **frequency** (`frequency_sec`), **what the loop may do without asking** and what it may only report, the **risk limits**, the **stop condition**, and **max ticks** for the first live run. A controller-based loop never restarts a bot; it stops, archives and redeploys.
+
+The risk limits go in the loop's `default_config.risk_limits`. Only these keys are accepted: `max_position_size_quote`, `max_open_executors`, `max_drawdown_pct`, `shutdown_drawdown_pct`, `max_drift_quote` and `max_leverage`. See [Risk engine](/trading-agents/architecture#risk-engine) for defaults and what each one does.
+
+## Testing an agent
+
+Every loop can be started in three execution modes. Use them in this order:
+
+| Mode | What happens |
+|---|---|
+| `dry_run` | One tick in which every action that would change something is refused. It shows how the agent gathers data, reasons, and what it would decide. |
+| `run_once` | One live tick. The agent can open real executors or deploy a real bot. |
+| `loop` | Ticks every `frequency_sec` until stopped or `max_ticks` is reached. |
+
+Dry runs and single ticks write one file each to `loops/<loop>/dry_runs/experiment_N.md`, not a session. In the dashboard, start them from the agent page's **Start** dialog and read the results in the **Runs** tab. From chat, ask Condor; starting a loop in any mode asks for your approval first.
+
+<Note>
+A Dry Run also refuses routines and `run_code`. The agent can't run its own analysis and reads the market with read-only tools such as `get_market_data` instead. Treat a Dry Run as a check of wiring and reasoning, not of the strategy.
+</Note>
+
+<Warning>
+**Make sure a market-reading agent can use `get_market_data`.** The skill's tool advice says an agent that reads markets needs `get_prices` and `run_code` and that there is no candle tool. That is out of date: `get_market_data` returns candles, and it is the only candle tool that works in a Dry Run. If you give the agent a `tools` allowlist, include `get_market_data`. An empty allowlist (the default) already includes it.
+</Warning>
+
+## Monitoring and changing agents
+
+Ask Condor, or use the agent page in the dashboard (`/agents/<slug>`). The skill uses these tools:
+
+| To | Tool |
+|---|---|
+| List all agents, their routing hints and the loops they own | `manage_agents` `list` |
+| See which loops are running | `control_agent` `list` |
+| Read a run's journal | `trading_agent_journal_read` with `section` set to `summary`, `runs` or `run:N` |
+| Compare the agent's controllers with the server's copies | `manage_agent_controllers` `status` |
+| Read or edit an agent | `manage_agents` `get` / `update` |
+| Delete an agent | `manage_agents` `delete`. Refused while the agent owns loops (delete them first with `manage_loops` `delete`) and always refused for an agent that ships with Condor. |
+
+`manage_agents` `publish` copies a local agent into the `agents/` folder that ships with Condor, so it can be committed. It is admin only, and the skill mentions it but doesn't do it unless you ask.
+
+## Rules the skill follows
+
+- **From a description:** role and purpose first, proven with a question. Routines and a loop only when you want them.
+- **From a folder:** inventory, review, discuss, plan, build. Nothing is written before you approve the plan, and every file is either mapped or listed as not imported with a reason.
+- The agent is created before anything else.
+- It never invents a model key or a server name.
+- Capital comes from you, never from a sample config.
+- Your folder is the source of truth for controllers. A server copy that has drifted is never overwritten without showing you the diff and getting a go-ahead.
+- One routine per background job, and Condor never writes routine code itself. A background job gets 900 seconds by default, so several routines in one job tend to time out.
+- A loop that can trade always has risk limits, is dry-run first, and goes live only when you say so.
+- Background agent runs are unattended and have no approvals, so only hand work to agents you trust.
+
+## Best practices
 
 <AccordionGroup>
-  <Accordion title="Start with dry runs">
-    Always test reasoning before real trading. The dry run shows exactly what the agent would do without risking money.
+  <Accordion title="Start with a Dry Run">
+    Check that the agent, server and exchange are wired up and that the agent's reasoning makes sense before any live tick. Then do a single **Run Once** with small capital before starting a loop.
   </Accordion>
-  <Accordion title="Use routines for market data">
-    Move indicator calculations into routines. The agent shouldn't spend tokens computing EMAs—that should be deterministic code.
+  <Accordion title="Put market analysis in routines">
+    Indicator and scan logic belongs in a routine: deterministic code that returns the same output for the same input. The agent then reads the result instead of computing it in the prompt.
   </Accordion>
-  <Accordion title="Write clear decision logic">
-    Structure agent.md with explicit steps: 1) Run analysis, 2) Make decision, 3) Execute. This makes the agent's reasoning predictable.
+  <Accordion title="Write the loop as explicit steps">
+    A loop that says which routine to call, how to read its output, and when to act, report or hold gives more predictable ticks than a loose description.
   </Accordion>
-  <Accordion title="Review learnings">
-    The agent writes observations to learnings.md. Review these to understand what the agent is learning and refine accordingly.
+  <Accordion title="Review the learnings">
+    Each loop keeps `loops/<loop>/learnings.md`, with **Market Observations**, **Execution Notes** and **Retired Insights** sections. Read it in the **Playbook** tab and edit it when an entry is wrong.
   </Accordion>
 </AccordionGroup>
