@@ -18,7 +18,7 @@ This guide runs its **PMM Mister Operator** loop on one pair you choose.
     Follow [Installing](/getting-started/installing). In the dashboard the server selector in the top bar shows a green dot when the server is reachable.
   </Step>
   <Step title="Exchange keys for a perpetual account">
-    Add them in **Settings → Keys and Wallets → Add API Key**. A testnet account such as `binance_perpetual_testnet` works and is the safest way to try this. See [Exchange Credentials](/getting-started/credentials).
+    Add them in **Settings → Keys and Wallets → Add API Key**, and start with a small balance. See [Exchange Credentials](/getting-started/credentials). The dashboard doesn't list testnet connectors such as `binance_perpetual_testnet`; those can only be added through the Hummingbot API directly.
   </Step>
   <Step title="A model the agent can run on">
     The agent's model is shown next to its name on the agent page; click it to change it. See [LLM Integration](/llm-integration).
@@ -62,7 +62,7 @@ Every bot deploy must declare a loss cap (`max_global_drawdown_quote`). The bot 
     | Field | What to enter |
     |---|---|
     | **Execution Mode** | Start with **Dry Run** (see the next step) |
-    | **Trading Context** | The pair and exchange, in plain words. For example `Do MM on SOL-USDT on binance_perpetual_testnet`. The dialog has no separate pair or exchange field; the loop reads them from here. |
+    | **Trading Context** | The pair and exchange, in plain words. For example `Do MM on SOL-USDT on binance_perpetual`. The dialog has no separate pair or exchange field; the loop reads them from here. |
     | **Server** | Your Hummingbot API server |
     | **Total Amount Quote** | Capital for the bot, in the quote asset. Start small, for example `100`. |
     | **Frequency (sec)** | Seconds between ticks. The default `120` is fine. |
@@ -103,7 +103,7 @@ The agent page has four tabs:
 | **Fleet** | The bots and executors this session owns |
 | **Playbook** | The loop's `loop.md` and its learnings. You can edit both here. |
 
-Tick errors, refused actions and shutdown alerts also appear in the notification bell, and in Telegram if you use it. The bot itself appears on the [Bots](/webui/bots) page.
+Tick errors, risk-limit blocks and shutdown alerts appear in the notification bell, and in Telegram if you use it. Actions the risk gate refused are recorded in the session journal under **Runs**. The bot itself appears on the [Bots](/webui/bots) page.
 
 ## Stop it
 
@@ -151,7 +151,7 @@ The agent's second loop, **HIP-3 MM Operator**, farms volume on Hyperliquid's HI
 Telegram has no Start button for loops. Ask the agent instead:
 
 1. Send `/agent`, tap **Talk to** and choose **Market Making Expert**.
-2. Ask it to start its loop, naming the loop, pair and capital. For example: *"Start the pmm_mister_operator loop for SOL-USDT on binance_perpetual_testnet with 100 USDT."*
+2. Ask it to start its loop, naming the loop, pair and capital. For example: *"Start the pmm_mister_operator loop for SOL-USDT on binance_perpetual with 100 USDT."*
 3. Approve the confirmation Condor shows before the loop starts.
 
 To stop the loop, ask the agent to stop it. `/stop` only cancels the reply the agent is writing; it doesn't stop a running loop.
