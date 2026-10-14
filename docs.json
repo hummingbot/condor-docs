@@ -79,7 +79,6 @@
               {
                 "group": "Executors",
                 "pages": [
-                  "webui/executors",
                   "executors/overview",
                   "executors/order-executor",
                   "executors/position-executor",
@@ -260,6 +259,10 @@
     {
       "source": "/trading-agents/agent-builder",
       "destination": "/condor-agent/agent-builder"
+    },
+    {
+      "source": "/webui/executors",
+      "destination": "/webui/bots"
     }
   ]
 }

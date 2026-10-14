@@ -57,10 +57,14 @@ A controller overrides two core methods from `ControllerBase`:
 
 The specialized base classes `DirectionalTradingControllerBase` and `MarketMakingControllerBase` already implement `determine_executor_actions()` for you, so trend and market-making controllers typically only implement `update_processed_data()` and `get_candles_config()`.
 
-This is the actual `bollinger_v1` directional controller:
+This is the `bollinger_v1` directional controller from the Hummingbot repository, with the CLI prompt metadata removed:
 
 ```python
 from typing import List
+
+import pandas_ta as ta  # noqa: F401  (registers the DataFrame.ta accessor)
+from pydantic import Field, field_validator
+from pydantic_core.core_schema import ValidationInfo
 
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.controllers.directional_trading_controller_base import (
@@ -71,17 +75,33 @@ from hummingbot.strategy_v2.controllers.directional_trading_controller_base impo
 
 class BollingerV1ControllerConfig(DirectionalTradingControllerConfigBase):
     controller_name: str = "bollinger_v1"
-    interval: str = "3m"
-    bb_length: int = 100
-    bb_std: float = 2.0
-    bb_long_threshold: float = 0.0
-    bb_short_threshold: float = 1.0
+    candles_connector: str = Field(default=None)
+    candles_trading_pair: str = Field(default=None)
+    interval: str = Field(default="3m")
+    bb_length: int = Field(default=100)
+    bb_std: float = Field(default=2.0)
+    bb_long_threshold: float = Field(default=0.0)
+    bb_short_threshold: float = Field(default=1.0)
+
+    @field_validator("candles_connector", mode="before")
+    @classmethod
+    def set_candles_connector(cls, v, validation_info: ValidationInfo):
+        if v is None or v == "":
+            return validation_info.data.get("connector_name")
+        return v
+
+    @field_validator("candles_trading_pair", mode="before")
+    @classmethod
+    def set_candles_trading_pair(cls, v, validation_info: ValidationInfo):
+        if v is None or v == "":
+            return validation_info.data.get("trading_pair")
+        return v
 
 
 class BollingerV1Controller(DirectionalTradingControllerBase):
     def __init__(self, config: BollingerV1ControllerConfig, *args, **kwargs):
         self.config = config
-        self.max_records = config.bb_length
+        self.max_records = self.config.bb_length
         super().__init__(config, *args, **kwargs)
 
     def get_candles_config(self) -> List[CandlesConfig]:
@@ -99,8 +119,9 @@ class BollingerV1Controller(DirectionalTradingControllerBase):
             interval=self.config.interval,
             max_records=self.max_records,
         )
-        df.ta.bbands(length=self.config.bb_length, std=self.config.bb_std, append=True)
-        bbp = df[f"BBP_{self.config.bb_length}_{self.config.bb_std}"]
+        df.ta.bbands(length=self.config.bb_length, lower_std=self.config.bb_std,
+                     upper_std=self.config.bb_std, append=True)
+        bbp = df[f"BBP_{self.config.bb_length}_{self.config.bb_std}_{self.config.bb_std}"]
 
         df["signal"] = 0
         df.loc[bbp < self.config.bb_long_threshold, "signal"] = 1
@@ -142,14 +163,22 @@ time_limit: 2700
 
 ## Deploying a Controller
 
-The usual flow is: create one or more controller configs (in the dashboard **Editor**, in Telegram, or via the API), then deploy a bot that runs them.
+The usual flow is: create one or more controller configs, then deploy a bot that runs them. You can create configs in the dashboard [Editor](/webui/bots#editor), in Telegram with `/new_bot` → **➕ New** (for `grid_strike`, `pmm_mister` and `pmm_v1` only), or through the API.
+
+### Via the dashboard
+
+On the [Bots](/webui/bots#deploy-bot) page, click **Deploy bot**, select one or more configs, and click **Deploy**. **Advanced Settings** holds the bot name, account, image and the two drawdown limits.
 
 ### Via Telegram
 
-```
-/bots → Create New Bot
-→ Select one or more controller configs
-→ Deploy
+`/new_bot` lists configs for the controller types Condor has Telegram forms for: `grid_strike`, `pmm_mister` and `pmm_v1`. Deploy other controllers from the dashboard or the API.
+
+```text
+/new_bot
+→ Pick the controller type, then select one or more configs
+→ 🚀 Deploy
+→ Answer the prompts (instance name, credentials profile, drawdown limits, image)
+→ Deploy Now
 ```
 
 ### Via API
@@ -162,11 +191,25 @@ curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/bot-orchestrat
   -d '{
     "instance_name": "hype-mm",
     "credentials_profile": "master_account",
-    "controllers_config": ["conf_market_making.pmm_simple_hype"],
+    "controllers_config": ["pmm_simple_hype"],
     "max_global_drawdown_quote": 50,
     "max_controller_drawdown_quote": 25
   }'
 ```
+
+The API appends a timestamp to the name, so the bot is called something like `hype-mm-20261015-143000`. The response returns it as `unique_instance_name`.
+
+### Agent-owned controllers
+
+An agent can ship its own controller code and sample configs inside its folder, and push them to the server when it needs them. See [Agent architecture → Controllers](/trading-agents/architecture#controllers).
+
+## Starting and Stopping a Controller
+
+You can stop one controller without stopping its bot. Stopping turns on the controller's `manual_kill_switch`: it cancels its orders and stops opening new executors, but keeps its config. Starting turns the switch off again.
+
+- **Dashboard**: select the controller on the [Bots](/webui/bots) page and click **Pause** or **Start**.
+- **Telegram**: `/bots` → select the bot → tap ⏸ or ▶️ next to the controller.
+- **Agents**: `manage_bots` with `action="stop_controllers"` or `"start_controllers"`, plus `bot_name` and `controller_names`.
 
 ## Updating a Running Controller
 
@@ -183,7 +226,7 @@ total_amount_quote: Decimal = Field(
 )
 ```
 
-At runtime, `ControllerBase.update_config(new_config)` copies over only the fields flagged `is_updatable`. In Condor, push a live update from the dashboard **Bots → Active** tab by editing the config and saving.
+At runtime, `ControllerBase.update_config(new_config)` copies over only the fields flagged `is_updatable`. In Condor, select the running controller on the [Bots](/webui/bots) page, click **Config**, edit the YAML and click **Save**. Agents do the same with `manage_bots(action="update_config")`.
 
 ## Custom Controller Metrics
 
@@ -203,7 +246,7 @@ These fields are stored with each controller snapshot and surfaced per controlle
 3. Implement `update_processed_data()` (and `determine_executor_actions()` if you subclass `ControllerBase` directly)
 4. Add a config file and deploy it
 
-Custom controllers run in stock Hummingbot too, and can be uploaded directly from the dashboard Editor.
+Custom controllers run in stock Hummingbot too. Upload them from the dashboard **Editor** (**Upload** → **Controller (.py)**). Telegram's `/new_bot` → **📤 Upload** takes YAML configs only.
 
 ## Monitoring Controllers
 
@@ -217,4 +260,4 @@ curl -u YOUR_USERNAME:YOUR_PASSWORD "http://localhost:8000/bot-orchestration/con
 curl -u YOUR_USERNAME:YOUR_PASSWORD "http://localhost:8000/bot-orchestration/controller-performance-history?bot_name=hype-mm&controller_id=pmm_simple_hype&interval=5m"
 ```
 
-In Condor, view this history under **Bots → Runs**, and the combined P&L across a bot's controllers under **Bots → Active**.
+In Condor, the [Bots](/webui/bots) page charts this history for a single controller, a bot, or any group of them.
