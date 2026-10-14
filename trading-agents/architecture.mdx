@@ -33,36 +33,36 @@ The rules Condor follows when it loads agents:
 
 ## Folder structure
 
-Everything an agent needs lives under its folder. Files marked *written by Condor* are created at runtime; don't create them yourself.
+Everything an agent needs lives under its folder. Entries marked *(Condor)* are written by Condor at runtime; don't create them yourself.
 
 ```text
 .condor/agents/
-  my_agent/                      # folder name = agent ID
-    AGENT.md                     # required: identity, domain knowledge, model, tool allowlist
-    shutdown.md                  # optional: emergency-shutdown policy for this agent
-    loops/                       # optional: without one, Condor generates a "Default" loop
-      my_loop/                   # must match the loop's name (see below)
-        loop.md                  # the per-tick playbook and its default config
-        config.yml               # written by Condor: saved config overrides
-        learnings.md             # written by Condor: lessons kept across sessions
-        sessions/                # written by Condor: one folder per Loop run
+  my_agent/                # folder name = agent ID
+    AGENT.md               # required: identity, model, tools
+    shutdown.md            # optional: shutdown policy
+    loops/                 # optional: else a "Default" loop
+      my_loop/             # must match the loop's name
+        loop.md            # per-tick playbook + config
+        config.yml         # (Condor) saved overrides
+        learnings.md       # (Condor) cross-session lessons
+        sessions/          # (Condor) one per Loop run
           session_1/
             journal.md
             snapshots/snapshot_1.md
-        dry_runs/                # written by Condor: one file per Dry Run / Run Once
+        dry_runs/          # (Condor) Dry Run / Run Once
           experiment_1.md
     skills/
       my_skill/
-        SKILL.md                 # a playbook the agent reads when it needs it
+        SKILL.md           # read when the agent needs it
     routines/
-      my_routine.py              # deterministic Python the agent can run
-    controllers/                 # optional: Hummingbot V2 controllers this agent deploys
+      my_routine.py        # deterministic Python
+    controllers/           # optional: Hummingbot V2 code
       my_controller/
         my_controller.py
         CONTROLLER.md
         sample_configs/
           balanced.yml
-    store/                       # written by Condor: the agent's memory
+    store/                 # (Condor) the agent's memory
 ```
 
 <Warning>

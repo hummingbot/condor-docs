@@ -52,6 +52,14 @@
             ]
           },
           {
+            "group": "Examples",
+            "pages": [
+              "examples/overview",
+              "examples/market-making-expert",
+              "examples/solana-lp"
+            ]
+          },
+          {
             "group": "Web UI Pages",
             "pages": [
               "webui/agents",

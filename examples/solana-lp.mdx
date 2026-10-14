@@ -1,0 +1,131 @@
+---
+title: "Run the Solana LP Expert"
+description: "Run the Solana DEX LP Expert's LP Slot Operator loop: rank trending pools, open concentrated-liquidity positions and rotate them on take-profit or stop-loss"
+---
+
+The **Solana DEX LP Expert** provides liquidity on Solana's concentrated-liquidity DEXes. Its **LP Slot Operator** loop keeps a fixed number of **slots**, each one LP position in a trending pool. It exits a slot on take-profit, stop-loss or when the price has left the position's range for too long, then fills the slot again with the best pool it hasn't already got.
+
+Positions are opened with [LP executors](/executors/lp-executor) through Gateway on Meteora and Orca.
+
+<Frame>
+  <img src="/images/webui/agent-solana-lp.jpg" alt="The Solana DEX LP Expert's agent page with the LP Slot Operator loop selected" />
+</Frame>
+
+## What you need
+
+<Steps>
+  <Step title="Gateway running">
+    In **Settings → Gateway**, click **Deploy**. When it shows **Gateway Running**, open **Networks & RPC** and set a reliable Solana RPC for `mainnet-beta`. Public RPCs are heavily rate-limited.
+
+    <Frame>
+      <img src="/images/webui/settings-gateway.jpg" alt="Settings, Gateway tab, showing Gateway running" />
+    </Frame>
+  </Step>
+  <Step title="A Solana wallet in Gateway">
+    In **Settings → Keys and Wallets**, click **Add Wallet**, choose Solana and paste the wallet's private key. Use a wallet that holds only what you're prepared to put into LP positions.
+  </Step>
+  <Step title="SOL in that wallet">
+    The loop quotes in SOL and swaps into each pool's token itself, so SOL is all you need. Keep extra SOL for transaction fees and position rent: each Meteora position locks about **0.057 SOL**, which is refunded when it closes.
+  </Step>
+  <Step title="A model the agent can run on">
+    The agent's model is shown next to its name on the agent page. See [LLM Integration](/llm-integration).
+  </Step>
+</Steps>
+
+<Tip>
+Two optional settings reduce rate-limit failures:
+
+- **Jupiter API key.** Without one, Gateway swaps through Jupiter's public endpoint, which rate-limits hard. In Telegram, send `/gateway`, open **Connectors → jupiter → Edit Configuration** and set `api_key`.
+- **`COINGECKO_API_KEY`** in Condor's `.env`. Pool ranking uses GeckoTerminal, which allows about 25 requests a minute without a key.
+</Tip>
+
+## How the loop works
+
+Every **300 seconds** by default, the agent:
+
+1. **Checks its open slots.** It exits a slot when its net PnL reaches the take-profit or stop-loss, or when the price has been outside the position's range for longer than `out_of_range_max_sec`.
+2. **Ranks pools**, if a slot is free. The `lp_scanner` routine pulls trending Solana pools from GeckoTerminal, drops pools under $25k TVL, and ranks the rest by fee yield (24h fees ÷ TVL).
+3. **Fills one slot.** It swaps SOL into the pool's token with a market order through Jupiter (unless the slot is SOL-only), then opens an LP executor on the top pool it doesn't already hold. It fills at most one slot per tick.
+4. **Journals the decision.**
+
+## Configure it
+
+The loop's settings live in its `loop.md`. The Start dialog doesn't show them; open the **Playbook** tab on the agent page, click edit on **loop.md** and change `default_config`.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `slots` | 3 | Positions held at once |
+| `capital_per_slot` | unset | SOL per position. **Set this**; see the warning below. |
+| `base_pct` | 20 | How much of each slot is held in the pool's token. `0` provides SOL only, below the price; `100` provides the token only, above the price; anything between is a two-sided position. |
+| `take_profit_pct` / `stop_loss_pct` | 20 / 20 | Exit thresholds on the slot's net PnL, in percent |
+| `out_of_range_max_sec` | 1800 | Exit a slot that has been out of range this long |
+| `venues` | `meteora,orca,raydium` | DEXes to consider. **Use `meteora,orca`**; see below. |
+| `ranking_window` | `24h` | Window for fee-yield ranking: `1h`, `6h` or `24h` |
+| `range_width_pct` | `auto` | Position width. `auto` derives it from recent volatility. |
+| `quote_asset` | `SOL` | `SOL` or `USDC` |
+
+<Warning>
+**Set `capital_per_slot` and keep Max Position small.** With `capital_per_slot` unset, each slot takes your wallet's SOL balance divided by `slots`, so a well-funded wallet means large positions. The only hard cap is **Max Position** in the Start dialog, which for this loop is counted in **SOL**, even though the dialog labels it with `$`. For example, with `capital_per_slot: 0.5` and three slots, set Max Position to `1.5`.
+</Warning>
+
+<Warning>
+**Use `venues: meteora,orca`.** The pool scanner looks up Raydium's standard AMM pools rather than its concentrated-liquidity (CLMM) pools, so Raydium candidates aren't valid LP targets.
+</Warning>
+
+<Note>
+The loop's `risk_limits` block lists `min_wallet_sol_reserve` and `max_open_slots`, but Condor's risk engine doesn't recognize those fields and ignores them. Keep a SOL buffer in the wallet yourself, and use `slots` to limit positions.
+</Note>
+
+## Start the loop
+
+<Steps>
+  <Step title="Open the agent">
+    Open `/agents/solana_dex_lp_expert` and make sure **LP Slot Operator** is selected under the agent's name.
+  </Step>
+  <Step title="Do a Dry Run">
+    Click **Start**, choose **Dry Run** and click **Run Dry Test**. One tick runs with every action refused. Read the result in the **Runs** tab.
+
+    <Frame>
+      <img src="/images/webui/agent-solana-runs.jpg" alt="The Runs tab showing the LP Slot Operator's dry-run slot check and HOLD recommendation" />
+    </Frame>
+
+    <Note>
+    A dry run also refuses routines, so `lp_scanner` doesn't run and there's no pool ranking. It confirms the agent can reach Gateway and read your wallet. If the wallet has no SOL, it reports that no slot can be filled.
+    </Note>
+  </Step>
+  <Step title="Run Once, then Loop">
+    **Run Once** runs one live tick, which can swap SOL and open a real position. When the result looks right, start again with **Loop**. Leave **Total Amount Quote** at its default; this loop sizes positions with `capital_per_slot`.
+  </Step>
+</Steps>
+
+While it runs, the **Now**, **Runs**, **Fleet** and **Playbook** tabs work as described in [Run the Market Making Expert](/examples/market-making-expert#watch-it-run). Open positions also appear on the [DEX](/webui/dex) page under **Your LP positions**.
+
+## Stop it
+
+<Warning>
+**Stop** ends the loop but leaves every LP position open. Nothing applies the take-profit, stop-loss or out-of-range exits after that. A new session can't manage positions opened by an earlier one, even after a restart. Close the positions before you stop, or stop them yourself afterwards: on the **DEX** page, click a position under **Your LP positions** to open its pool, then use **Stop executor** in the executors panel below the chart.
+</Warning>
+
+| You want to | Do this |
+|---|---|
+| Pause decisions, keep positions | **Pause** on the agent page; **Resume** to continue |
+| End the loop | Close the positions, then click **Stop** |
+| Wind everything down now | Ask the agent in chat to shut its loop down. It removes the liquidity and reclaims the rent on every position this session opened. |
+
+<Note>
+The emergency shutdown can't swap leftover tokens back to SOL; the risk gate only allows closing actions during a shutdown. Afterwards, sell any remaining tokens from the pool's page on the **DEX** tab (**Order** tab).
+</Note>
+
+## From Telegram
+
+1. Send `/agent`, tap **Talk to** and choose **Solana DEX LP Expert**.
+2. Ask it to start its loop and give the strategy settings. For example: *"Start the lp_slot_operator loop with 2 slots, capital_per_slot 0.5 SOL, venues meteora,orca."* Settings you name are applied to that session.
+3. Approve the confirmation Condor shows before the loop starts.
+
+`/stop` only cancels the agent's current reply. To stop the loop, ask the agent to stop it.
+
+## Learn more
+
+- [LP Executor](/executors/lp-executor): how a single position is opened, monitored and closed
+- [DEX](/webui/dex): browsing pools and your LP positions
+- [Architecture](/trading-agents/architecture): loops, sessions and the risk engine

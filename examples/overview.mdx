@@ -1,0 +1,48 @@
+---
+title: "Shipped Agents"
+description: "The agents that come with Condor, what each one does, and step-by-step guides for running them"
+---
+
+Condor ships with a set of agents in its `agents/` folder. Each one is a specialist you can chat with, hand work to, or run as a loop. They appear under **Agents** in the dashboard as soon as Condor starts.
+
+## Step-by-step guides
+
+<CardGroup cols={2}>
+  <Card title="Run the Market Making Expert" icon="scale-balanced" href="/examples/market-making-expert">
+    Quote both sides of a perpetual market with the `pmm_mister` controller, retuned to the market regime every tick.
+  </Card>
+  <Card title="Run the Solana LP Expert" icon="water" href="/examples/solana-lp">
+    Rank trending Solana pools by fee yield and rotate concentrated-liquidity positions on Meteora and Orca.
+  </Card>
+</CardGroup>
+
+## The agents
+
+| Agent | What it does | Loops |
+|---|---|---|
+| **Condor** | The default assistant. Answers questions about your portfolio, prices, trades and bots, hands specialist work to the agents below, and builds new agents. | — |
+| **Market Making Expert** | Regime detection, spread calibration and inventory management for market making | PMM Mister Operator, HIP-3 MM Operator |
+| **Solana DEX LP Expert** | Scans trending Solana pools, ranks them by fee yield, and runs LP positions with per-position take-profit and stop-loss | LP Slot Operator |
+| **Adaptive Grid Trader** | Multi-timeframe adaptive grid trading with an untraded reserve and strict risk limits | BTC-USDT Adaptive Grid (`bitget_perpetual`), SOL-USDT Adaptive Grid (`binance_perpetual`) |
+| **Directional Trader** | Directional strategy design, signal engineering, controller development and backtesting | EMA Trend Loop |
+| **Fundamental Analyst** | Fundamentals and valuation for companies and DeFi protocols: revenue, fees, competitors, market cap and FDV | — (chat and routines only) |
+
+<Note>
+The EMA Trend Loop only considers saved controller configs whose names contain `ema_`, and none ship with Condor. Create one with the Directional Trader before starting that loop.
+</Note>
+
+## Three ways to use an agent
+
+| How | When to use it | Where |
+|---|---|---|
+| **Chat with it** | Ask questions, get advice, have it do one task while you watch | Pick the agent in the left rail of the Agents page, or `/agent <slug>` in Telegram |
+| **Delegate to it** | Hand a task to the agent and get notified when it's done | Ask Condor to delegate, for example *"ask the Fundamental Analyst to compare Aave and Compound"* |
+| **Run a loop** | Let the agent act on its own every few minutes | **Start** on the agent's page at `/agents/<slug>` |
+
+<Warning>
+Delegated work runs without asking for your approval on each action. Only delegate tasks that move money to agents and settings you trust.
+</Warning>
+
+## Changing or adding agents
+
+You can edit any shipped agent from the dashboard or by asking Condor. Your changes are saved as copies in `.condor/agents/`, so updates to Condor never overwrite them. To create your own agent, see [Architecture](/trading-agents/architecture#creating-your-own-agent).

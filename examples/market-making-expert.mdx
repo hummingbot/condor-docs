@@ -1,0 +1,163 @@
+---
+title: "Run the Market Making Expert"
+description: "Start the Market Making Expert's PMM Mister Operator loop on a perpetual pair, watch it, and stop it safely"
+---
+
+The **Market Making Expert** quotes both sides of a perpetual futures market and earns the spread. It doesn't place orders itself. Each tick it reads the market, picks settings for the `pmm_mister` controller, and deploys or retunes a Hummingbot bot that runs that controller.
+
+This guide runs its **PMM Mister Operator** loop on one pair you choose.
+
+<Frame>
+  <img src="/images/webui/agent-page.jpg" alt="The Market Making Expert's agent page with the PMM Mister Operator loop selected" />
+</Frame>
+
+## What you need
+
+<Steps>
+  <Step title="Condor connected to a Hummingbot API server">
+    Follow [Installing](/getting-started/installing). In the dashboard the server selector in the top bar shows a green dot when the server is reachable.
+  </Step>
+  <Step title="Exchange keys for a perpetual account">
+    Add them in **Settings → Keys and Wallets → Add API Key**. A testnet account such as `binance_perpetual_testnet` works and is the safest way to try this. See [Exchange Credentials](/getting-started/credentials).
+  </Step>
+  <Step title="A model the agent can run on">
+    The agent's model is shown next to its name on the agent page; click it to change it. See [LLM Integration](/llm-integration).
+  </Step>
+</Steps>
+
+The loop deploys the `pmm_mister` controller, which ships with the agent. If it isn't on your server yet, the agent uploads it on its first tick. The agent page's **Controllers** tab shows whether the server's copy matches.
+
+<Note>
+`pmm_mister` quotes in **one-way** position mode. If the bot's logs show a "Position mode mismatch" warning, switch the account to one-way mode on the exchange.
+</Note>
+
+## How the loop works
+
+Every **120 seconds** by default, the agent:
+
+1. **Reads the market.** It runs two routines: `market_analyzer` classifies the regime (trending, ranging or volatile) from 5m, 15m and 4h candles, and `mm_dashboard` reports inventory, the bot's position and its PnL.
+2. **Decides.** It chooses one of **DEPLOY**, **UPDATE**, **HOLD** or **STOP**, and picks spreads, inventory band and take-profit for the regime.
+3. **Acts.** It writes a `pmm_mister` config and deploys a bot named after the base asset (for example `SOL-mm`), or updates the running bot's config.
+
+Every bot deploy must declare a loss cap (`max_global_drawdown_quote`). The bot stops itself when its losses reach it. The [risk gate](/trading-agents/architecture#risk-engine) refuses deploys without one.
+
+## Start the loop
+
+<Steps>
+  <Step title="Open the agent">
+    Open `/agents/market_making_expert` in the dashboard. From the chat, you can also open the **Agent** panel for Market Making Expert and click **Workspace**.
+  </Step>
+  <Step title="Pick the loop">
+    In the loop selector under the agent's name, choose **PMM Mister Operator**.
+
+    <Warning>
+    Always pick a loop before starting. If the agent is started without one (for example "start your loop" in chat), Condor creates a generic **Default** loop that doesn't use either of the shipped playbooks.
+    </Warning>
+  </Step>
+  <Step title="Click Start and fill in the dialog">
+    <Frame>
+      <img src="/images/webui/agent-start-dialog.jpg" alt="The Start New Session dialog with Loop mode selected" />
+    </Frame>
+
+    | Field | What to enter |
+    |---|---|
+    | **Execution Mode** | Start with **Dry Run** (see the next step) |
+    | **Trading Context** | The pair and exchange, in plain words. For example `Do MM on SOL-USDT on binance_perpetual_testnet`. The dialog has no separate pair or exchange field; the loop reads them from here. |
+    | **Server** | Your Hummingbot API server |
+    | **Total Amount Quote** | Capital for the bot, in the quote asset. Start small, for example `100`. |
+    | **Frequency (sec)** | Seconds between ticks. The default `120` is fine. |
+    | **Max Position ($)** | The most exposure the session may hold. The loop also uses this as the bot's loss cap. |
+    | **Max Executors** | Leave at `10` |
+    | **Max Drawdown %** | Pauses the loop at this drawdown. `-1` turns it off. |
+
+    <Warning>
+    **Set Max Position no higher than the loss you would accept.** The loop passes Max Position to the bot as its loss cap, and the default (600) is larger than the default capital (500). Setting **Total Amount Quote** and **Max Position** to the same small number, such as `100`, keeps both bounded.
+    </Warning>
+  </Step>
+  <Step title="Do a Dry Run">
+    Choose **Dry Run** and click **Run Dry Test**. The agent runs one tick in which every action is refused, then stops. Open the **Runs** tab to read its decision.
+
+    <Frame>
+      <img src="/images/webui/agent-runs.jpg" alt="The Runs tab showing a dry run's regime read and HOLD recommendation" />
+    </Frame>
+
+    <Note>
+    A dry run also refuses routines, so `market_analyzer` and `mm_dashboard` don't run. The agent improvises a market read with other tools. Use the dry run to check that the agent, server and exchange are wired up, not to judge the strategy.
+    </Note>
+  </Step>
+  <Step title="Run Once, then Loop">
+    **Run Once** runs a single live tick. It can deploy a real bot, so use small capital. When that tick looks right, start again with **Loop**.
+
+    Tick **Resume after Condor restarts** if the loop should start again automatically after Condor restarts. It starts a fresh session; it doesn't resume the old one.
+  </Step>
+</Steps>
+
+## Watch it run
+
+The agent page has four tabs:
+
+| Tab | What it shows |
+|---|---|
+| **Now** | The last decision and what the session has deployed |
+| **Runs** | Every session and dry run, with each tick's prompt, tool calls and response |
+| **Fleet** | The bots and executors this session owns |
+| **Playbook** | The loop's `loop.md` and its learnings. You can edit both here. |
+
+Tick errors, refused actions and shutdown alerts also appear in the notification bell, and in Telegram if you use it. The bot itself appears on the [Bots](/webui/bots) page.
+
+## Stop it
+
+<Warning>
+**Stop** ends the loop but leaves the bot running and trading. Nothing manages it after that. To stop trading, also stop the bot: on the **Bots** page, open the bot and stop it.
+</Warning>
+
+| You want to | Do this |
+|---|---|
+| Pause decisions but keep everything running | **Pause** on the agent page; **Resume** to continue |
+| End the loop and stop the bot | **Stop** on the agent page, then stop the bot on the **Bots** page |
+| Wind everything down now | Ask the agent in chat to shut its loop down. Then check the **Bots** page and stop the bot if it is still running. |
+
+## Settings the agent tunes
+
+These are the main `pmm_mister` fields the agent sets on each deploy or update. You can ask the agent to use specific values, or edit the loop's instructions in the **Playbook** tab.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `portfolio_allocation` | 0.1 | Share of the bot's capital quoted per cycle, across all levels |
+| `target_base_pct` / `min_base_pct` / `max_base_pct` | 0.5 / 0.3 / 0.7 | Inventory band: the share of capital to hold in the base asset |
+| `buy_spreads` / `sell_spreads` | 0.0005 | Distance of each quote level from the mid price (0.0005 = 0.05%) |
+| `take_profit` | 0.0001 | Profit target per filled order. Must exceed twice the maker fee. |
+| `executor_refresh_time` | 30 | Longest an unfilled quote stays up before it is replaced, in seconds |
+| `buy_cooldown_time` / `sell_cooldown_time` | 60 | Seconds since the last order on a level before a new order is placed there |
+| `leverage` | 20 | Account leverage for the pair |
+| `max_active_executors_by_level` | 4 | Cap on open and filled-but-held orders per level |
+| `min_skew` | 1.0 | Floor on order-size skew. Values below 1 shrink the overweight side; values above 1 enlarge **every** order. |
+| `global_stop_loss` / `global_sl_enabled` | 0.05 / off | Unrealized loss (0.05 = 5%) at which the position is closed, when enabled |
+
+<Warning>
+The agent's config playbook suggests `min_skew` values of 1.5 and 2.0 for its balanced and conservative profiles. In `pmm_mister` those values multiply every order by 1.5× or 2×. If you see them in a proposed config, ask the agent to use a value of 1.0 or lower.
+</Warning>
+
+<Accordion title="Variant: HIP-3 MM Operator (Hyperliquid)">
+The agent's second loop, **HIP-3 MM Operator**, farms volume on Hyperliquid's HIP-3 perpetuals issued by `xyz`. It picks its own market each time it reselects, so you don't name a pair in the Trading Context.
+
+- It needs a `hyperliquid_perpetual` account. In **Settings → Keys and Wallets**, click **Add API Key** and choose **Connect Hyperliquid**.
+- It ticks every 300 seconds and reselects the market every 30 ticks.
+- HIP-3 pairs use an uppercase issuer prefix, for example `XYZ:SPCX-USD`.
+</Accordion>
+
+## From Telegram
+
+Telegram has no Start button for loops. Ask the agent instead:
+
+1. Send `/agent`, tap **Talk to** and choose **Market Making Expert**.
+2. Ask it to start its loop, naming the loop, pair and capital. For example: *"Start the pmm_mister_operator loop for SOL-USDT on binance_perpetual_testnet with 100 USDT."*
+3. Approve the confirmation Condor shows before the loop starts.
+
+To stop the loop, ask the agent to stop it. `/stop` only cancels the reply the agent is writing; it doesn't stop a running loop.
+
+## Learn more
+
+- [Architecture](/trading-agents/architecture): how loops, sessions and the risk engine work
+- [Run the Solana LP Expert](/examples/solana-lp): the same workflow for DEX liquidity
+- [Bots](/webui/bots): watching and stopping the deployed bot
