@@ -1,29 +1,34 @@
 ---
 title: "How Condor Works"
-description: "The assistant you chat with is itself an agent — a folder of files you can read: a brain, a skill library, and a memory store"
+description: "The assistant you chat with is itself an agent, made of files you can read: a brain, a skill library and a memory store per user"
 ---
 
-The assistant you talk to on the [Agents page](/webui/agents) is not a hard-coded chatbot. **Condor is itself an agent**, built from the same parts as the agents you create — and every one of those parts is a plain file on disk you can open:
+The assistant you talk to on the [Agents page](/webui/agents) is not a hard-coded chatbot. **Condor is itself an agent**, built from the same parts as the agents you create, and every part is a plain file you can open.
 
+Its definition ships with Condor under `agents/condor/`. What your install writes for it, such as its memory of you and any skill it creates, goes under `.condor/agents/condor/`:
+
+```text
+agents/condor/                         # shipped with Condor
+├── AGENT.md                           # its brain: identity, tools and rules
+└── skills/                            # its own playbooks
+    ├── agent_builder/SKILL.md
+    ├── diagnose_solana_token_decimal_mismatch/SKILL.md
+    └── log_analyzer/SKILL.md
+
+.condor/agents/condor/                 # written by your install
+├── skills/                            # skills it creates or edits
+└── store/
+    └── user_<id>/                     # one memory store per user
+        ├── MEMORY.md                  # one-line index, injected into every session
+        ├── memories/                  # one file per memory
+        └── audit.log                  # every write and delete, timestamped
 ```
-agents/condor/
-├── AGENT.md                  # its brain: identity, tools, and operating rules
-├── skills/                   # how it operates — playbooks it reads before acting
-│   ├── agent_builder/SKILL.md
-│   ├── log_analyzer/SKILL.md
-│   └── verify_connector_support/SKILL.md
-└── store/                    # what it remembers — per user
-    └── user_1/
-        ├── MEMORY.md         # one-line index, injected into every session
-        ├── memories/         # one file per fact
-        └── audit.log         # every write and delete, timestamped
-```
 
-Agents you build with [Agent Builder](/condor-agent/agent-builder) get the same layout under `agents/<slug>/`. There is only one kind of thing in Condor — an agent — and this page dissects the one you talk to.
+When both places have the same file, the one under `.condor/` wins. Agents you build with [Agent Builder](/condor-agent/agent-builder) get the same layout under their own slug. See [Agent Architecture](/trading-agents/architecture) for the full folder structure.
 
-## AGENT.md — the brain
+## AGENT.md: the brain
 
-`AGENT.md` is the agent's system prompt with a small frontmatter header:
+`AGENT.md` is the agent's system prompt with a short frontmatter header:
 
 ```markdown
 ---
@@ -37,96 +42,122 @@ agent_key: claude-acp:sonnet
 You are Condor, a trading assistant. ...
 ```
 
-`agent_key` names the LLM harness it thinks with — change it (or pick a model in the chat's model picker) and the same brain runs on a different model. The body then does three jobs:
+`agent_key` sets the model it runs on by default. The body does three jobs:
 
-1. **Names its tools.** Two MCP servers: `mcp-hummingbot` (market data, portfolio, executors, orders, bots, DEX discovery — the trading surface) and `condor` (notifications, routines, trading agents, servers, memory, skills, and `consult`/`delegate`). One deliberate absence: connecting or removing exchange keys is *not* available to the assistant — keys are managed by you, in [Settings → Keys and Wallets](/webui/settings#keys-and-wallets).
-2. **Sets the routing discipline** (next section).
-3. **States the rules**: lead with the answer; confirm dangerous actions (orders, swaps, LP changes) before acting; keep tool chains short; never explore source code.
+1. **Names its tools.** They come from two MCP servers: `mcp-hummingbot` (market data, portfolio, executors, bots, DEX tools) and `condor` (notifications, routines, agents and loops, servers, memory, skills and `delegate`). For the full list, see [MCP Tools](/trading-agents/mcp-tools). Adding or removing exchange keys is not one of them: you manage keys yourself in [Settings → Keys and Wallets](/webui/settings#keys-and-wallets).
+2. **Sets how it routes work** (next section).
+3. **States its rules:** lead with the answer, ask for confirmation before orders, swaps and LP changes, keep tool chains short, and don't read source code unless asked.
 
 ## A coordinator, not a tool-caller
 
-The most important instruction in `AGENT.md` is a routing check that runs *before any tool call*:
+Before any tool call, Condor runs a routing check:
 
-1. **Does a skill match?** Its skill index is injected into context as `[SKILLS]` — if a playbook covers the request, Condor reads it and follows its steps instead of improvising.
-2. **Does a domain agent match?** The `[AGENTS]` index lists your expert agents. Domain work goes to the specialist, which holds the domain's tools and memory.
-3. **Only then** does it reach for raw tools.
+1. **Does a skill match?** Its skill index is in context as `[SKILLS]`. If a playbook covers the request, Condor reads it and follows its steps.
+2. **Does a domain agent match?** The `[AGENTS]` index lists your agents. Domain work goes to the specialist, which has the domain's tools and memory.
+3. **Only then** does it use raw tools.
 
-When it routes to a specialist, it picks one of two calls: **`consult`** blocks and relays the answer inline — for quick lookups and small changes you are waiting on; **`delegate`** runs the task in a detached background session that pings you when done — for multi-step work like a full deployment or anything that waits on a backtest.
+It hands work to another agent with `delegate`, which has two shapes:
 
-One rule is absolute: Condor never hand-writes routine code in chat. Authoring or fixing a routine is always delegated — to *itself*, in a background session that reads the `routine_cookbook` playbook, writes the routine into the library, and tests it before reporting back.
-
-## Skills — how it operates
-
-A skill is a playbook: *when* to apply it, and the steps. Each is a folder holding a `SKILL.md`:
-
-```markdown
----
-name: verify_connector_support
-description: Check what a connector actually supports before answering capability questions
-when_to_use: User asks "can I use connector X?" or "does Y support Z?"
-created: '2026-08-12T11:51:59Z'
-source: chat
----
-```
-
-The `source` field is worth a pause: `builtin` skills ship with Condor, but `source: chat` means **Condor wrote this one itself** — it discovered a reusable procedure during a conversation and saved it with `manage_skill`. The library is self-editing: skills get created, refined, and deleted as the agent works, and you can open any of them in a text editor.
-
-Here is the library on a real install:
-
-| Skill | When it fires | Source |
+| Call | What happens | Use it when |
 |---|---|---|
-| **`agent_builder`** | You ask to create, edit, dry-run, launch, or delete an autonomous trading agent. Builds minimally — role and purpose first, routines and loop strategy layered on only when wanted. The full playbook: [Skill: Agent Builder](/condor-agent/agent-builder) | `builtin` |
-| **`log_analyzer`** | Any question about bot, executor, or gateway health — "any errors in the logs?", "why is my bot failing?" (its triggers include Spanish phrasings). Runs the `logs_summary` routine rather than hand-rolling log calls | `builtin`, `references_routine: logs_summary` |
-| **`verify_connector_support`** | Capability questions — "can I use connector X?", "does Y support Z?" — check what the connector actually supports before answering | `chat` — Condor wrote it |
+| `delegate(action="start", ...)` | The other agent runs in a detached background session. Condor tells you the task is running and ends its turn; you are pinged when it finishes. With `on_complete="resume"`, Condor gets the result in a new turn and carries on. | The default whenever you are waiting: a deployment, a research task, anything slow |
+| `delegate(action="ask", ...)` | Blocks and returns the other agent's answer as text | Condor needs a quick answer as a step in its own reasoning. It is also the only option for an agent running unattended. |
 
-Two more mechanics:
+`delegate` also has `list`, `get` and `stop` to check on or cancel a delegation. In Telegram, `/delegations` lists them; on the dashboard they appear in the chat's Tasks list.
 
-- **A skill can carry a routine.** `references_routine: logs_summary` in `log_analyzer` means the executable part is a routine, not prose — the skill says *when*, the routine does *what*. If the routine disappears, reading the skill flags it (`routine_ok: false`) rather than silently invoking nothing.
-- **There is one shared library, and Condor is its only publisher.** `agents/_shared/skills/` (playbooks like `routine_cookbook`, `strategy_builder`, `backtest_flow`, `self_improve`) is read by *every* agent, but only the Condor assistant may publish into it — a shared playbook lands in every agent's context, so it must read correctly from every seat. A skill that belongs to one domain agent is written to that agent instead.
+One rule is absolute: Condor never writes routine code in the chat. Creating, editing or fixing a routine is always delegated to a background copy of Condor itself (`delegate(action="start", agent="condor", ...)`), which follows the `routine_cookbook` playbook, writes the routine and tests it before reporting.
 
-Skills are advisory, not authority: executing what a playbook describes still passes the normal confirmation for dangerous actions.
+## Skills: how it operates
 
-## Memory — what it knows about you
-
-Skills are how the agent operates, shared across users. **Memory is what it knows about *you*** — per user, under `store/user_<id>/`, and shared across your sessions *and* with your trading agents.
-
-`MEMORY.md` is the index — one line per memory — and it is injected into every session as `[USER MEMORY]`, so the agent starts each conversation already knowing the headline of everything it has learned. The detail lives in `memories/<name>.md`, read on demand:
+A skill is a playbook: *when* to use it, and the steps. Each one is a folder with a `SKILL.md`:
 
 ```markdown
 ---
-name: consult_lp_agent_before_config
-description: Always consult solana_dex_lp_expert before setting lp_rebalancer or lp_executor parameters
-type: feedback
-created: '2026-08-21T04:35:43Z'
+name: diagnose_solana_token_decimal_mismatch
+description: Find and explain why a Solana token shows the wrong amount or price in
+  the portfolio
+when_to_use: User says a token amount or value in the portfolio looks wrong — too
+  large, too small, or inconsistent with what their wallet shows
+created: '2026-09-01T20:33:20Z'
+source: reflection
+---
+
+1. Fetch the portfolio overview and note the suspect token's raw amount and value_usd.
+2. Call run_code to query the gateway for that token's metadata, especially `decimals`.
+...
+```
+
+The `source` field says where a skill came from:
+
+| `source` | Meaning |
+|---|---|
+| `builtin` | Shipped with Condor |
+| `chat` | Written with `manage_skill` during a conversation |
+| `reflection` | Proposed by Condor after reviewing a finished conversation, and accepted by a person before it was added |
+
+### Condor's own skills
+
+| Skill | When it applies | Source |
+|---|---|---|
+| `agent_builder` | You want to create, edit, dry-run, launch, monitor or delete a trading agent, including turning a folder of controllers and notes into one. See [Skill: Agent Builder](/condor-agent/agent-builder). | `builtin` |
+| `log_analyzer` | Any question about bot, executor or Gateway logs and errors. It runs the `logs_summary` routine rather than reading logs call by call. | `builtin`, `references_routine: logs_summary` |
+| `diagnose_solana_token_decimal_mismatch` | A Solana token's amount or value in the portfolio looks wrong | `reflection` |
+
+`references_routine` means the skill's executable part is a routine: the skill says *when*, the routine does *what*. If the routine no longer exists, reading the skill reports `routine_ok: false` instead of running nothing.
+
+### The shared library
+
+`agents/_shared/skills/` holds playbooks that **every** agent reads, Condor included. An agent's own skill with the same name takes precedence. The shipped shared skills are:
+
+| Area | Skills |
+|---|---|
+| Building and running agents | `agent_framework`, `loop_builder`, `operate_your_loop`, `controller_sources` |
+| Skills and self-improvement | `skill_authoring`, `skill_optimizer`, `self_improve` |
+| Routines, data and charts | `routine_cookbook`, `market_data_with_code`, `execution_data_with_code`, `charting`, `backtest_flow` |
+| Trading decisions | `directional_position`, `dca_into_position`, `run_a_grid`, `open_lp_position`, `recover_orphaned_position` |
+| Connectors | `verify_connector_support`, `hyperliquid_tokenized_perps` |
+
+Only Condor can publish to the shared library, with `manage_skill(..., shared=True)`. A shared playbook lands in every agent's context, so it has to read correctly from every seat. A skill that belongs to one agent is written to that agent instead, with `manage_skill(..., agent="<slug>")`.
+
+Skills are advice, not permission: an action a playbook describes still goes through the normal confirmation for orders, swaps and LP changes.
+
+## Memory: what it knows about you
+
+Skills are how the agent works, the same for every user. **Memory is what it knows about you.** It is kept per agent and per user: Condor's memory of you lives in `.condor/agents/condor/store/user_<id>/`.
+
+Memory is **not shared between agents**. Each trading agent keeps its own memory of you in its own store, `.condor/agents/<slug>/store/user_<id>/`. What you tell the Condor chat isn't visible to your trading agents, and the other way round.
+
+`MEMORY.md` is the index, one line per memory. It is injected into every chat session as `[USER MEMORY]`, so Condor starts each conversation knowing the headline of everything it has saved. The detail is in `memories/<name>.md`, read when needed. For example, a preference saved with `manage_memory(action="write", ...)` is stored like this:
+
+```markdown
+---
+name: report_in_usd
+description: User wants P&L and balances reported in USD
+type: preference
+created: '2026-10-01T09:12:00Z'
 source: chat
 ---
 
-Before creating any lp_rebalancer or lp_executor config on Solana, consult the
-solana_dex_lp_expert agent for position_width_pct, rebalance_threshold_pct, ...
-Skipping this caused two failed deployments (20% width → 102 bins, Meteora cap is 69).
-
-**Why:** Agent knows pool-specific constraints (bin caps, fee structures, volatility
-sizing) that aren't obvious from the pool listing alone.
-**How to apply:** Any time the user asks to LP on Solana ... consult
-solana_dex_lp_expert first, then build the config from its answer.
+Always report P&L and balances in USD, even for pairs quoted in USDT.
 ```
 
-That is a real memory, and it shows the shape well: one file, one fact, typed (`preference | fact | feedback | reference`), with a **Why** and a **How to apply** — this one written after two deployments failed, so the third wouldn't. The agent's writing rules are strict: save only what is *new and stable* about the user, never ephemeral conversation detail.
+Each memory is one fact, with a `type` of `preference`, `fact`, `feedback` or `reference`. Condor saves only what is new and stable about you, not details of the current conversation. After a conversation has been idle for 30 minutes, a background pass can also read it back and save memories from it; set `CONDOR_REFLECTION=off` to turn that off.
 
-Memory is also accountable. Every write and delete is appended to `audit.log` as a timestamped JSON line, and you can review or delete any memory yourself — `/memory` in Telegram, or ask the agent to run `manage_memory(action="audit")`.
+Every write and delete is appended to `audit.log`. You can review and delete memories with `/memory` in Telegram, which shows a section per agent, or ask Condor to run `manage_memory(action="audit")`.
 
-## Memory vs. skills, in one table
+## Memory vs. skills
 
 | | **Memory** | **Skills** |
 |---|---|---|
-| What it holds | Facts about *you* | Procedures for *itself* |
-| Scope | Per user | Per agent, shared across users |
+| Holds | Facts about *you* | Procedures for the agent |
+| Scope | Per agent, per user | Per agent, the same for every user (plus the shared library) |
 | Injected as | `[USER MEMORY]` index | `[SKILLS]` index |
-| Written when | You state a preference, correct it, or it learns a stable fact | It discovers a reusable procedure |
-| You control it via | `/memory`, audit log | The files under `skills/`, or asking it |
+| Written when | You state a preference or correct it, or a stable fact comes up | It works out a reusable procedure |
+| You control it with | `/memory`, the audit log | The files under `skills/`, or asking it |
 
 ## Learn more
 
-- [Skill: Agent Builder](/condor-agent/agent-builder) — the playbook Condor follows to build *new* agents with this same anatomy
-- [Agent Architecture](/trading-agents/architecture) — how agents execute against the Hummingbot API
-- [Managing Sessions](/getting-started/sessions) — watching an agent work
+- [Skill: Agent Builder](/condor-agent/agent-builder): the playbook Condor follows to build new agents with this same anatomy
+- [Agent Architecture](/trading-agents/architecture): how agents are laid out and run
+- [MCP Tools](/trading-agents/mcp-tools): every tool Condor and its agents can call
+- [Managing Sessions](/getting-started/sessions): watching an agent work

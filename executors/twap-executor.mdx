@@ -1,108 +1,106 @@
 ---
 title: "TWAP Executor"
-description: "Time-weighted average price execution over a duration"
+description: "Split one large buy or sell into equal orders spread evenly over time"
 ---
 
-The **TWAP Executor** executes trades over a specified time horizon by splitting a large order into smaller orders at regular intervals, minimizing market impact.
+The **TWAP Executor** (time-weighted average price) splits one large buy or sell into equal orders placed at a fixed interval, so the trade is spread over time instead of hitting the market at once.
+
+<Note>
+**Condor can't create a TWAP executor.** None of its tools creates one, so agents and the Condor chat can't use it. Create it through the Hummingbot API with `POST /executors/`, as shown below.
+</Note>
 
 ## Overview
 
 | Property | Value |
-|----------|-------|
-| Position Type | Spot or Perp |
-| keep_position | Configurable |
-| Use Cases | Large order execution, reducing slippage, systematic entry |
+|---|---|
+| Markets | Spot and perpetuals |
+| Created with | The Hummingbot API only |
+| Exit logic | None. It buys or sells the total amount and stops. |
+| `keep_position` | Not a config field. Passing it with a stop has no effect. |
+
+## How it works
+
+1. When it starts, the executor plans `total_duration // order_interval + 1` orders: one right away, then one every `order_interval` seconds.
+2. Each order is the remaining amount divided by the orders left, so the orders are roughly equal.
+3. When every planned order exists and all of them have filled, the executor ends with close type `COMPLETED`.
+
+For example, `total_duration: 3600` and `order_interval: 60` plan **61** orders, not 60.
 
 ## Configuration
 
-```python
-from hummingbot.strategy_v2.executors.twap_executor.data_types import TWAPExecutorConfig
+| Field | Required | Meaning |
+|---|---|---|
+| `connector_name` | Yes | Exchange connector |
+| `trading_pair` | Yes | Trading pair, such as `ETH-USDT` |
+| `side` | Yes | `1` BUY, `2` SELL |
+| `total_amount_quote` | Yes | Total to trade, in the quote asset |
+| `total_duration` | Yes | Seconds over which to spread the orders |
+| `order_interval` | Yes | Seconds between orders |
+| `mode` | No | `TAKER` (default) places market orders. `MAKER` places limit orders and needs `limit_order_buffer`. |
+| `limit_order_buffer` | For `MAKER` | How far from the mid price to place each limit order, as a fraction: below it for a buy, above it for a sell |
+| `order_resubmission_time` | No | `MAKER` only. Seconds after which an unfilled limit order is cancelled and placed again at the current price. If you leave it out, orders are never refreshed. |
+| `leverage` | No | Leverage for perpetuals. Default `1`. |
 
-config = TWAPExecutorConfig(
-    controller_id="my-agent",
-    connector_name="binance",
-    trading_pair="BTC-USDT",
-    side=TradeType.BUY,
-    leverage=1,
-    total_amount_quote=Decimal("10000"),
-    total_duration=3600,        # 1 hour total
-    order_interval=60,          # Order every minute
-    mode="MAKER",               # MAKER or TAKER
-)
+`MAKER` mode is marked beta in Hummingbot: the executor logs a warning when it starts in that mode.
+
+## Via the API
+
+A $5,000 market-order buy of ETH over one hour, one order a minute (61 orders of about $82):
+
+```bash
+curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/executors/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_name": "master_account",
+    "controller_id": "main",
+    "executor_config": {
+      "type": "twap_executor",
+      "connector_name": "binance",
+      "trading_pair": "ETH-USDT",
+      "side": 1,
+      "total_amount_quote": "5000",
+      "total_duration": 3600,
+      "order_interval": 60
+    }
+  }'
 ```
 
-## Parameters
+The same in `MAKER` mode, resting each order 0.05% below the mid price and refreshing it after 30 seconds:
 
-| Parameter | Description |
-|-----------|-------------|
-| `total_amount_quote` | Total amount to execute in quote currency |
-| `total_duration` | Total time to spread execution (seconds) |
-| `order_interval` | Time between orders (seconds) |
-| `mode` | `MAKER` (limit orders) or `TAKER` (market orders) |
-
-## How It Works
-
-1. **Order Plan**: Creates schedule of orders based on duration and interval
-2. **Execution**: Places orders at scheduled times
-3. **Monitoring**: Tracks fill rates and adjusts if needed
-4. **Completion**: Reports average price and total filled
-
-## Calculated Values
-
-The executor automatically calculates:
-
-- **Number of orders**: `total_duration / order_interval`
-- **Amount per order**: `total_amount_quote / number_of_orders`
-- **Average executed price**: Volume-weighted average of all fills
-
-## Example: Execute $50k Over 2 Hours
-
-```python
-large_order = TWAPExecutorConfig(
-    controller_id="whale-entry",
-    connector_name="binance",
-    trading_pair="ETH-USDT",
-    side=TradeType.BUY,
-    total_amount_quote=Decimal("50000"),
-    total_duration=7200,     # 2 hours
-    order_interval=120,      # Every 2 minutes
-    mode="MAKER",            # Use limit orders
-)
-# Creates 60 orders of ~$833 each
+```json
+{
+  "type": "twap_executor",
+  "connector_name": "binance",
+  "trading_pair": "ETH-USDT",
+  "side": 1,
+  "total_amount_quote": "5000",
+  "total_duration": 3600,
+  "order_interval": 60,
+  "mode": "MAKER",
+  "limit_order_buffer": "0.0005",
+  "order_resubmission_time": 30
+}
 ```
 
-## Example: Quick TWAP with Market Orders
+## Close types
 
-```python
-quick_twap = TWAPExecutorConfig(
-    controller_id="quick-fill",
-    connector_name="binance_perpetual",
-    trading_pair="SOL-USDT",
-    side=TradeType.BUY,
-    leverage=5,
-    total_amount_quote=Decimal("5000"),
-    total_duration=300,      # 5 minutes
-    order_interval=30,       # Every 30 seconds
-    mode="TAKER",            # Market orders for guaranteed fills
-)
-# Creates 10 orders of $500 each
-```
+| Close type | When |
+|---|---|
+| `COMPLETED` | Every planned order filled, or you stopped it (see below) |
+| `INSUFFICIENT_BALANCE` | The account couldn't fund the total amount |
+| `FAILED` | The planned order size was too small for the exchange, or orders kept failing |
 
-## Performance Metrics
+## Stopping early
 
-The executor reports:
+Stop the executor with `POST /executors/{executor_id}/stop`. The executor cancels its open orders and keeps what already filled; it doesn't sell back a buy or buy back a sell.
 
-| Metric | Description |
-|--------|-------------|
-| `filled_amount` | Total amount executed |
-| `average_price` | Volume-weighted average price |
-| `cumulative_fees` | Total fees paid |
-| `trade_pnl` | P&L vs if executed at start price |
-| `net_pnl` | P&L minus fees |
+A stopped TWAP executor ends with close type `COMPLETED`, whichever `keep_position` you pass: its shutdown step overwrites the close type the stop set. Its fills are not added to the Position Hold, so track the amount it traded yourself.
 
-## When to Use TWAP
+## What it reports
 
-- Executing orders larger than 1% of daily volume
-- Avoiding front-running or detection
-- Systematic rebalancing
-- Reducing timing risk
+The executor's `custom_info` includes `filled_amount_base`, `filled_amount_quote` and `current_position_average_price` (the volume-weighted average fill price). Its `net_pnl_quote` compares that average with the current mid price, minus fees.
+
+## Learn more
+
+- [Executors overview](/executors/overview): lifecycle, close types and the API
+- [Order Executor](/executors/order-executor): one order, created from Condor

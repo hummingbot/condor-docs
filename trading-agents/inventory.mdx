@@ -1,146 +1,121 @@
 ---
 title: "Inventory"
-description: "Virtual portfolio tracking for Trading Agents"
+description: "How the Position Hold tracks the positions executors hand over, per agent session, with breakeven prices and P&L"
 ---
 
-**Inventory** (also called Position Hold) is the virtual portfolio that tracks a Trading Agent's cumulative trading impact. It enables accurate P&L attribution when multiple agents share the same exchange accounts.
+An agent's **inventory** is its **Position Hold**: the positions its executors ended without closing. The Hummingbot API keeps it separately from the exchange balances, so several agents can trade the same pair on the same account and each still has its own position, breakeven price and P&L.
 
-## Why Inventory Tracking?
+## What goes into the Position Hold
 
-When multiple agents trade on shared accounts, you need to know:
-- Which agent made which trades
-- Each agent's individual P&L
-- Total exposure per agent
+Only executors that end with close type `POSITION_HOLD` add to it. That is:
 
-The Inventory system solves this by tracking positions per `controller_id` (agent ID).
+- every order executor that filled anything;
+- a position or grid executor stopped with `keep_position=true`;
+- a grid that crossed its `limit_price` with `keep_position: true` in its config;
+- an LP executor that closed with `keep_position` true, or whose close kept failing.
 
-## Position Hold
+An executor that closes its own position (a take profit or stop loss, for example) reports its P&L itself and adds nothing here. For the rules per executor, see [Position Handover](/executors/position-handover).
 
-Each position is uniquely keyed by `(connector_name, trading_pair)`:
+## How positions are keyed
+
+Each position is identified by four values:
+
+```text
+(account_name, connector_name, trading_pair, controller_id)
+```
+
+In an agent session, `controller_id` is the session ID, such as `my_agent.my_loop_3` (see [Session IDs](/trading-agents/sessions#session-ids)). So the inventory is **per session**, not per agent: a new session of the same loop starts with an empty inventory, and the agent can't see what an earlier session held.
 
 ```mermaid
 flowchart LR
-    subgraph Agents
-        A1[Agent A]
-        A2[Agent B]
+    subgraph Sessions
+        A1["Session agent_a.loop_1"]
+        A2["Session agent_b.loop_1"]
     end
-
-    subgraph PositionHold["Position Hold (Virtual)"]
-        PH1[Agent A Positions]
-        PH2[Agent B Positions]
+    subgraph PH["Position Hold (records)"]
+        P1["master_account | binance | SOL-USDT | agent_a.loop_1"]
+        P2["master_account | binance | SOL-USDT | agent_b.loop_1"]
     end
-
-    subgraph Portfolio["Exchange Portfolio (Real)"]
-        P[Shared Balances]
+    subgraph EX["Exchange (real)"]
+        B[Shared SOL and USDT balances]
     end
-
-    A1 --> PH1
-    A2 --> PH2
-    PH1 & PH2 --> P
+    A1 --> P1
+    A2 --> P2
+    P1 & P2 -.-> B
 ```
 
-Two agents can trade the same pair on the same exchange, and each maintains their own separate position with their own breakeven price and P&L.
+The connector is the one the executor traded on. For an LP executor that is the network, such as `solana-mainnet-beta`, not the DEX.
 
-## Position Types
+## Position fields
 
-| Type | Connectors | Description |
-|------|------------|-------------|
-| **Spot** | `binance`, `coinbase`, `jupiter` | Standard buy/sell positions |
-| **Perp** | `binance_perpetual`, `hyperliquid_perpetual` | Leveraged long/short positions |
-| **LP** | `meteora`, `uniswap_v3` | Liquidity provider positions |
+| Field | Meaning |
+|---|---|
+| `buy_amount_base` / `buy_amount_quote` | Open bought amount, in base, and what it cost, in quote |
+| `sell_amount_base` / `sell_amount_quote` | Open sold amount, in base, and what it brought in, in quote |
+| `net_amount_base` | `buy_amount_base − sell_amount_base`. Positive is long, negative is short. |
+| `position_side` | `LONG`, `SHORT` or `FLAT` |
+| `buy_breakeven_price` | Average buy price, or `null` with no open buys |
+| `sell_breakeven_price` | Average sell price, or `null` with no open sells |
+| `matched_amount_base` / `unmatched_amount_base` | Matched buy and sell volume, and the size of the open position |
+| `realized_pnl_quote` | P&L from buys and sells that have been matched |
+| `unrealized_pnl_quote` | P&L of the open position at the current rate, or `null` when no rate is available |
+| `cum_fees_quote` | Fees of all the fills, in quote |
+| `executor_ids` / `executor_count` | The executors that contributed |
 
-## Trading Pair Format
+All amounts are in the base asset and all P&L is in the quote asset.
 
-```
-trading_pair = "SOL-USDT"
-                 │    │
-                 │    └── Quote Asset (USDT)
-                 │        - P&L measured in this currency
-                 │
-                 └── Base Asset (SOL)
-                     - The asset being traded
-                     - Amount always in this unit
-```
+## How P&L is calculated
 
-**Key principle**: `amount` is always in base asset. All P&L is in quote asset.
+Whenever a position has both buys and sells, the API matches them right away:
 
-## Position State
-
-Each position tracks cumulative trading activity:
-
-| Field | Description |
-|-------|-------------|
-| `buy_amount_base` | Total base asset bought |
-| `buy_amount_quote` | Total quote spent on buys |
-| `sell_amount_base` | Total base asset sold |
-| `sell_amount_quote` | Total quote received from sells |
-| `cum_fees_quote` | Cumulative fees paid |
-
-### Derived Values
-
-**Net Amount**: `buy_amount_base - sell_amount_base`
-
-**Side**:
-- Positive net → Long (BUY)
-- Negative net → Short (SELL)
-- Zero net → Closed
-
-**Breakeven Price**: Volume-weighted average entry price
-
-## P&L Calculation
-
-All P&L values are in **quote asset**.
-
-### Unrealized P&L
-
-Mark-to-market value at current price:
-
-```
-Long:  (current_price - breakeven) × amount
-Short: (breakeven - current_price) × amount
+```text
+matched      = min(buy_amount_base, sell_amount_base)
+realized_pnl += matched × (average sell price − average buy price)
 ```
 
-### Realized P&L
+The matched amount is then removed from both sides, so only the open position is left, and the breakeven prices always describe that open position.
 
-When positions are reduced (buys matched against sells):
+For the open position:
 
-```
-matched = min(buy_amount_base, sell_amount_base)
-realized_pnl = (avg_sell_price - avg_buy_price) × matched
+```text
+Long:  unrealized_pnl = net_amount × (current rate − buy_breakeven_price)
+Short: unrealized_pnl = |net_amount| × (sell_breakeven_price − current rate)
 ```
 
-### Global P&L
-
-```
-global_pnl = unrealized_pnl + realized_pnl - fees
-```
+`realized_pnl_quote` and `unrealized_pnl_quote` don't include fees. Fees are kept in `cum_fees_quote`.
 
 ## Example
 
-**Trade 1**: Buy 100 SOL at $150
-```
-Position: Long 100 SOL, breakeven = $150
-```
+| Trade | Position after it |
+|---|---|
+| Buy 100 SOL at $150 | Long 100, buy breakeven $150 |
+| Buy 50 SOL at $145 | Long 150, buy breakeven $148.33 |
+| Sell 100 SOL at $155 | 100 matched: realized P&L ($155 − $148.33) × 100 = **+$666.67**. Long 50, buy breakeven $148.33. |
 
-**Trade 2**: Buy 50 SOL at $145
-```
-Position: Long 150 SOL, breakeven = $148.33 (weighted average)
-```
+## Reading the inventory
 
-**Trade 3**: Sell 100 SOL at $155
-```
-Realized P&L: ($155 - $148.33) × 100 = +$667
-Remaining: Long 50 SOL, breakeven = $148.33
-```
+From Condor, use `list_positions_held`. Pass `controller_id` to see one session's positions, and both `connector_name` and `trading_pair` for one position's detail.
 
-## Via API
+Through the API:
 
 ```bash
-# List positions for an agent
-curl -u YOUR_USERNAME:YOUR_PASSWORD "http://localhost:8000/executors/positions/summary?controller_id=my-agent"
+# All held positions for one session
+curl -u YOUR_USERNAME:YOUR_PASSWORD \
+  "http://localhost:8000/executors/positions/summary?controller_id=my_agent.my_loop_3"
+
+# One position
+curl -u YOUR_USERNAME:YOUR_PASSWORD \
+  "http://localhost:8000/executors/positions/binance/SOL-USDT?controller_id=my_agent.my_loop_3&account_name=master_account"
 ```
+
+The single-position route defaults to `controller_id=main`, so pass the session ID to read an agent's position. The summary also returns `total_realized_pnl` and `total_unrealized_pnl` across the positions it lists.
+
+A position whose buys and sells have fully matched no longer appears in these listings.
+
+Positions are saved in the API's database and restored when the API restarts.
 
 ## Related
 
-- [Position Handover](/executors/position-handover) - How executors add to inventory
-- [Executors](/executors/overview) - Trading operations that create positions
+- [Position Handover](/executors/position-handover): which executors add to the inventory, and when
+- [Executors overview](/executors/overview): close types and stop calls
+- [Sessions](/trading-agents/sessions): why each session has its own inventory

@@ -1,122 +1,98 @@
 ---
 title: "XEMM Executor"
-description: "Cross-exchange market making with arbitrage capture"
+description: "Cross-exchange market making: rest a limit order on one exchange and hedge the fill with a market order on another"
 ---
 
-The **XEMM Executor** (Cross-Exchange Market Making) captures arbitrage by simultaneously placing orders on different exchanges, exploiting price discrepancies.
+The **XEMM Executor** (cross-exchange market making) rests one limit order on a *maker* exchange, priced so that it is profitable against the price on a *taker* exchange. When the limit order fills, the executor immediately hedges it with a market order on the taker exchange. One executor makes one round trip.
+
+<Note>
+**Condor can't create an XEMM executor.** None of its tools creates one, so agents and the Condor chat can't use it. Create it through the Hummingbot API with `POST /executors/`, as shown below.
+</Note>
 
 ## Overview
 
 | Property | Value |
-|----------|-------|
-| Position Type | Spot |
-| keep_position | Configurable |
-| Use Cases | Cross-exchange arbitrage, market making, spread capture |
+|---|---|
+| Markets | Two markets that trade the same base asset |
+| Created with | The Hummingbot API only |
+| Round trips | One: one maker fill and one taker hedge |
+| `keep_position` | Not a config field. Only a stop parameter. |
+
+## How it works
+
+`maker_side` decides which market gets the limit order:
+
+| `maker_side` | Limit order (maker) | Hedge (taker, market order) |
+|---|---|---|
+| `1` BUY | Buy on `buying_market` | Sell on `selling_market` |
+| `2` SELL | Sell on `selling_market` | Buy on `buying_market` |
+
+1. The executor quotes the taker market for `order_amount` and estimates the fees on both sides.
+2. It places the limit order at the price that would earn `target_profitability` after those fees.
+3. While the order rests, it recalculates the profitability. If the net profitability drops below `min_profitability` or rises above `max_profitability`, it cancels the order and places a new one at the target.
+4. When the limit order fills, it sends a market order for `order_amount` on the taker market and stops once both orders are done.
+
+The taker exchange must support market orders.
 
 ## Configuration
 
-```python
-from hummingbot.strategy_v2.executors.xemm_executor.data_types import XEMMExecutorConfig
+| Field | Required | Meaning |
+|---|---|---|
+| `buying_market` | Yes | `{"connector_name": ..., "trading_pair": ...}` for the market where the executor buys |
+| `selling_market` | Yes | The same for the market where it sells. Must differ from `buying_market`. |
+| `maker_side` | Yes | `1` BUY or `2` SELL. See the table above. |
+| `order_amount` | Yes | Order size in the base asset |
+| `min_profitability` | Yes | Cancel and re-place the order when net profitability falls below this fraction |
+| `target_profitability` | Yes | Profitability the limit order is priced for, as a fraction |
+| `max_profitability` | Yes | Cancel and re-place the order when net profitability rises above this fraction |
 
-config = XEMMExecutorConfig(
-    controller_id="my-agent",
-    buying_market=ExchangePair(
-        exchange="binance",
-        trading_pair="ETH-USDT",
-    ),
-    selling_market=ExchangePair(
-        exchange="kucoin",
-        trading_pair="ETH-USDT",
-    ),
-    maker_side="buy",              # Which side to make
-    order_amount=Decimal("0.5"),   # Amount in base asset
-    min_profitability=Decimal("0.002"),  # 0.2% minimum
-)
+The values must satisfy `min_profitability ≤ target_profitability ≤ max_profitability`, and `min_profitability` can't equal `max_profitability`.
+
+The two trading pairs must have the same base asset, or an interchangeable one. Hummingbot treats these as interchangeable: ETH and WETH, BTC and WBTC, BNB and WBNB, POL and WPOL, AVAX and WAVAX, ONE and WONE, USDC and USDC.E, SOL and USOL, ETH and UETH, BTC and UBTC, and any two tokens whose names both contain `USD`. The quote assets may differ; the executor converts between them with the rate oracle.
+
+## Via the API
+
+Rest a buy of 0.5 ETH on Binance priced for 0.2% profit against a market sell on KuCoin, re-pricing it when profitability leaves the 0.1% to 0.4% band:
+
+```bash
+curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/executors/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_name": "master_account",
+    "controller_id": "main",
+    "executor_config": {
+      "type": "xemm_executor",
+      "buying_market": {"connector_name": "binance", "trading_pair": "ETH-USDT"},
+      "selling_market": {"connector_name": "kucoin", "trading_pair": "ETH-USDT"},
+      "maker_side": 1,
+      "order_amount": "0.5",
+      "min_profitability": "0.001",
+      "target_profitability": "0.002",
+      "max_profitability": "0.004"
+    }
+  }'
 ```
 
-## Parameters
+The account needs funds for both orders: with `maker_side: 1`, quote on the buying market and base on the selling market. The executor checks both balances when it starts.
 
-| Parameter | Description |
-|-----------|-------------|
-| `buying_market` | Exchange and pair for buy side |
-| `selling_market` | Exchange and pair for sell side |
-| `maker_side` | Which side places maker orders (`buy` or `sell`) |
-| `order_amount` | Order size in base asset |
-| `min_profitability` | Minimum profit threshold after fees |
+## Close types
 
-## How It Works
+| Close type | When |
+|---|---|
+| None (`null`) | The round trip completed: the maker order filled and the hedge was sent and done |
+| `EARLY_STOP` | You stopped it with `keep_position=false` |
+| `POSITION_HOLD` | You stopped it with `keep_position=true` |
+| `INSUFFICIENT_BALANCE` | Either market couldn't fund its order |
 
-1. **Price Monitoring**: Watches prices on both exchanges
-2. **Spread Calculation**: Computes potential profit including fees
-3. **Maker Order**: Places limit order on maker side
-4. **Taker Order**: When maker fills, immediately takes on other side
-5. **Profit Capture**: Locks in spread as profit
+## Stopping early
 
-## Arbitrage Validation
+Stop the executor with `POST /executors/{executor_id}/stop`. The executor cancels a resting maker order and stops right away. `keep_position` only changes the close type: nothing is unwound either way, and nothing is added to the Position Hold.
 
-The executor validates that:
+## What it reports
 
-- Trading pairs are interchangeable (same tokens)
-- Sufficient balance on both exchanges
-- Spread exceeds minimum profitability threshold
-- Transaction costs are accounted for
+The executor's `custom_info` includes the maker and taker connectors and pairs, `maker_target_price`, `taker_price`, `trade_profitability`, `tx_cost_pct` and `net_profitability` (trade profitability minus costs).
 
-## Example: ETH Arbitrage
+## Learn more
 
-```python
-eth_xemm = XEMMExecutorConfig(
-    controller_id="eth-arb",
-    buying_market=ExchangePair(
-        exchange="binance",
-        trading_pair="ETH-USDT",
-    ),
-    selling_market=ExchangePair(
-        exchange="okx",
-        trading_pair="ETH-USDT",
-    ),
-    maker_side="buy",
-    order_amount=Decimal("1.0"),
-    min_profitability=Decimal("0.003"),  # 0.3% min profit
-)
-```
-
-## Example: Stablecoin Spread
-
-```python
-stable_xemm = XEMMExecutorConfig(
-    controller_id="stable-spread",
-    buying_market=ExchangePair(
-        exchange="kraken",
-        trading_pair="USDC-USD",
-    ),
-    selling_market=ExchangePair(
-        exchange="coinbase",
-        trading_pair="USDC-USD",
-    ),
-    maker_side="sell",
-    order_amount=Decimal("10000"),
-    min_profitability=Decimal("0.0005"),  # 0.05% min
-)
-```
-
-## Profitability Calculation
-
-```
-Gross Spread = Sell Price - Buy Price
-Net Profit = Gross Spread - Buy Fee - Sell Fee - Transfer Costs
-
-Execute if: Net Profit / Trade Value > min_profitability
-```
-
-## Inventory Management
-
-The executor creates positions on both exchanges:
-
-| Exchange | Position |
-|----------|----------|
-| Buying Exchange | Long base asset |
-| Selling Exchange | Short base asset (or sold) |
-
-Total inventory risk depends on `keep_position` setting:
-- `true`: Positions remain for future management
-- `false`: Inventory rebalanced or hedged
+- [Executors overview](/executors/overview): lifecycle, close types and the API
+- [Arbitrage Executor](/executors/arbitrage-executor): take both sides at market when a spread appears
