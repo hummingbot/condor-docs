@@ -7,6 +7,10 @@ A Trading Agent is a **folder on disk** plus a **tick loop in memory**. The fold
 
 This page covers where to put an agent so Condor loads it, what goes in the folder, and what happens on each tick.
 
+<Frame>
+  <img src="/images/agent-structure.png" alt="Diagram of a Trading Agent: the stock agents/ folder and the local .condor/agents/ folder merged file by file; the agent folder with AGENT.md, loops, skills, routines, controllers and the files Condor writes at runtime; what the LLM sees on each tick; and one tick flowing from reading state through the risk checks, the LLM and the risk gate to the Hummingbot API and the journal, with the Dry Run, Run Once and Loop modes" />
+</Frame>
+
 ## Where Condor looks for agents
 
 Condor reads agents from **two folders** and merges them:
