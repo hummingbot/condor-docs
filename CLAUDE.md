@@ -15,7 +15,7 @@ This documentation covers **Condor** (web dashboard, Telegram bot and LLM tradin
 - **API Client**: https://github.com/hummingbot/hummingbot-api-client
 
 ### Reference documentation
-- Main Hummingbot docs: `~/development/hummingbot-site`
+- Main Hummingbot docs: `~/hummingbot-site`
 - Relevant sections: `docs/condor/`, `docs/hummingbot-api/`, `docs/mcp/`, `docs/gateway/`
 
 ### Tech stack
@@ -86,7 +86,7 @@ The API Reference is auto-generated from the OpenAPI spec. When endpoints change
 
 1. Start the Hummingbot API server:
    ```bash
-   cd ~/development/hummingbot-api
+   cd ~/hummingbot-api
    make setup    # first time only: writes .env with your credentials
    make deploy   # API on localhost:8000 (`make run` runs it from source; also needs .env)
    ```
@@ -111,7 +111,7 @@ If changes to router docstrings aren't appearing, restart the source server and 
 - Document just enough for user success - not too much, not too little
 - Prioritize accuracy and usability of information
 - Make content evergreen when possible
-- Search `~/development/hummingbot-site` for existing information before adding new content
+- Search `~/hummingbot-site` for existing information before adding new content
 - Check existing patterns in this repo for consistency
 - Start by making the smallest reasonable changes
 
@@ -148,7 +148,7 @@ description: "Concise summary for SEO/navigation (1-2 sentences)"
 - Use absolute URLs for internal links
 - Include untested code examples
 - Make assumptions - always ask for clarification
-- Duplicate content from `~/development/hummingbot-site` unless strategically necessary
+- Duplicate content from `~/hummingbot-site` unless strategically necessary
 - Add fallback values or mock data - throw clear errors instead
 
 ## Mintlify dev server
