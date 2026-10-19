@@ -1,183 +1,128 @@
 ---
 title: "Managing Agent Sessions"
-description: "Monitor, inspect, and control running agents"
+description: "Watch, pause, stop and inspect a running Trading Agent from the dashboard or Telegram"
 ---
 
 import FeedbackSurvey from "/snippets/feedback-survey.mdx";
 
-Each time you start a Trading Agent, it creates a **session** that tracks all activity, decisions, and state changes. Here's how to manage them.
+Each time you start a loop in **Loop** mode, Condor opens a new **session**: a numbered run with its own journal, its own per-tick snapshots and its own executors. This page shows you how to watch a session, pause it, stop it and read what the agent did on each tick.
 
-## View Active Sessions
+For what a session is and what Condor writes to disk, see [Sessions](/trading-agents/sessions).
 
-```
-/agent → Select agent → View Sessions
+## The agent page
 
-📂 SOL Scalper Sessions
+Open an agent from **Agents** in the dashboard, or go to `/agents/<slug>`. Choose a loop in the selector under the agent's name.
 
-Active:
-• session_3 (running) - Started 2h ago, 120 ticks
+<Frame>
+  <img src="/images/webui/agent-page.jpg" alt="The Market Making Expert's agent page with the PMM Mister Operator loop selected and the Now, Runs, Fleet and Playbook tabs" />
+</Frame>
 
-Completed:
-• session_2 - 6h, 360 ticks, +$45.20
-• session_1 - 4h, 240 ticks, +$12.50
-```
+The page has four tabs:
 
-## Monitor a Running Session
+| Tab | What it shows |
+|---|---|
+| **Now** | The selected run's last decision and what it has deployed |
+| **Runs** | Every run of every loop (loop sessions, dry runs, tasks and chats), with each tick's prompt, tool calls and response |
+| **Fleet** | The bots and executors this agent runs, in the same browser as the [Bots](/webui/bots) page |
+| **Playbook** | The loop's playbook, its config and its learnings. You can edit the playbook and learnings here. |
 
-```
-/agent → SOL Scalper → View Status
+## Start a session
 
-🤖 SOL Scalper - Session 3
-Status: Running
-Tick: 121
-Uptime: 2h 1m
+Click **Start** to open the **Start New Session** dialog.
 
-Portfolio:
-- Exposure: $75.00 / $100.00 limit
-- Session P&L: +$23.40
-- Active Executors: 3
+<Frame>
+  <img src="/images/webui/agent-start-dialog.jpg" alt="The Start New Session dialog with Loop mode selected" />
+</Frame>
 
-Last Decision (Tick 121):
-"Price consolidating at $156.20. EMAs still bullish.
- Holding current positions, waiting for breakout."
-```
+**Execution Mode** decides what the run does:
 
-## View Session Journal
+| Mode | Button | What happens |
+|---|---|---|
+| **Dry Run** | **Run Dry Test** | One tick. The risk gate refuses every action that would change anything, including routines and code. |
+| **Run Once** | **Execute Once** | One live tick. It can open real positions. |
+| **Loop** | **Start Session** | A new session that ticks every **Frequency (sec)** until you stop it |
 
-The journal contains the agent's complete decision history:
+Dry Run and Run Once don't create a session. Each writes one result that you read in the **Runs** tab.
 
-```
-/agent → SOL Scalper → Journal
+<Note>
+After a Dry Run or Run Once, the **Now** tab still says "This loop has not run yet". That is expected: **Now** follows loop sessions. Open **Runs** to see the result.
+</Note>
 
-📓 Session 3 Journal
+<Frame>
+  <img src="/images/webui/agent-dry-run.jpg" alt="The agent page after a dry run: the run selector shows D1 with 1 tick and the Now tab still says the loop has not run yet" />
+</Frame>
 
-## Summary
-- Started: 2024-03-27 14:00 UTC
-- Current Tick: 121
-- Session P&L: +$23.40
+The other fields:
 
-## Recent Decisions
+| Field | Meaning |
+|---|---|
+| **Trading Context** | Plain-language instructions for this session, such as the pair and exchange |
+| **Server** | The Hummingbot API server to trade on. **Auto** uses the current default. |
+| **Total Amount Quote** | Capital the session is meant to use, in the quote asset |
+| **Frequency (sec)** | Seconds between ticks (Loop only) |
+| **Tick Timeout (sec)** | Longest a single tick may run |
+| **Resume after Condor restarts** | Start the loop again in a fresh session when Condor restarts (Loop only) |
+| **Max Position ($)**, **Max Executors**, **Max Drawdown %** | Risk limits for the session. See [Risk engine](/trading-agents/architecture#risk-engine). |
 
-### Tick 121 - 16:01 UTC
-Decision: Hold
-Reasoning: Price consolidating, waiting for breakout
+## Pause, resume and stop
 
-### Tick 120 - 16:00 UTC
-Decision: Take partial profit
-Reasoning: Position #2 hit 1.5% gain, scaling out 50%
-Action: Closed 5 SOL @ $157.80
+While a session runs, the **Start** button is replaced by **Pause** and **Stop**.
 
-### Tick 115 - 15:55 UTC
-Decision: Open long
-Reasoning: Price bounced off S1 ($154.50), EMAs aligned
-Action: Created Position Executor - LONG 10 SOL @ $155.20
-```
+| Button | What happens |
+|---|---|
+| **Pause** | The loop skips its ticks. Executors, positions and bots stay open. |
+| **Resume** | Ticking continues in the same session |
+| **Stop** | Asks you to **Confirm**, then ends the session. Executors, positions and bots **stay open**, and nothing manages them any more. |
 
-## View Snapshots
+<Warning>
+Stopping a session doesn't close its positions. A new session gets a new ID, and it can't stop the executors an earlier session opened. Close or hand over positions before you start again. See [Stopping a loop](/trading-agents/architecture#stopping-a-loop).
+</Warning>
 
-Snapshots capture the complete state of each tick for debugging:
+To stop the loop **and** wind its positions down, ask the agent in chat to shut its loop down. That runs an emergency shutdown, which closes this session's executors according to the agent's shutdown policy.
 
-```
-/agent → SOL Scalper → Snapshots → Tick 115
+To change whether a loop starts again after Condor restarts, use the **resumes on restart** / **stops on restart** toggle in the **Playbook** tab. It applies to the running session and to future ones.
 
-📸 Snapshot - Tick 115
+## Read what the agent did
 
-Prompt:
-[Full system prompt sent to LLM]
+Open the **Runs** tab and pick a run. Each tick shows:
 
-Response:
-"Analyzing SOL-USDT... Price at $155.20, bounced from
- support at $154.50. EMAs: 7 > 25 > 99 (bullish).
- Opening long position with 1% stop, 2% take profit."
+- **System Prompt:** everything the agent was given for that tick
+- **Agent Response:** its reasoning and decision
+- **Tool Calls:** every tool it called, with the result
+- **Risk State:** exposure, executor count and drawdown at the time
 
-Tool Calls:
-1. run_routine("technical_analysis") → {trend: "bullish"...}
-2. manage_executors("create", "position_executor") → {id: "exec_115"}
+<Frame>
+  <img src="/images/webui/agent-runs.jpg" alt="The Runs tab of the Market Making Expert, showing a dry run's agent response" />
+</Frame>
 
-Risk State:
-- Exposure: $50.00
-- Daily P&L: +$18.20
-- Is Blocked: false
-```
+Refused actions are written to the session's journal with the reason, so you can see why the risk gate blocked a call.
 
-## Inject Directives
+## Notifications
 
-Send real-time instructions to a running agent:
+Condor tells you about a loop when something needs your attention:
 
-```
-/agent → SOL Scalper → Inject Directive
+- a tick error (once when it starts or changes, not on every tick)
+- a tick skipped because a risk limit was breached
+- a Dry Run or Run Once finishing or failing
+- a loop reaching its `max_ticks` limit
+- an emergency shutdown
 
-Enter directive:
-"Reduce exposure - high volatility expected in 10 minutes"
+These appear in the notification bell in the dashboard's top bar, and in Telegram if you use it. Each one links to the agent's page.
 
-✓ Directive injected. Will appear in next tick.
-```
+## From Telegram
 
-The agent sees your directive and responds:
+Telegram has no buttons for loops. Talk to the agent instead:
 
-```
-Tick 122 Decision:
-"Received user directive about high volatility.
- Closing position #3 to reduce exposure from $75 to $50."
-```
+1. Send `/agent`, tap **Talk to** and choose the agent.
+2. Ask in plain words. For example: *"Is your loop running?"*, *"Pause your loop"*, *"Stop your loop"* or *"Shut your loop down and close the positions"*.
 
-## Pause and Resume
+The agent uses its `control_agent` tool, which can `list`, `start`, `stop`, `pause`, `resume` and `shutdown` loops. Starting a loop asks you to approve it first.
 
-**Pause** an agent without losing state:
+<Warning>
+`/stop` only cancels the reply the agent is writing. **End session** in the `/agent` menu ends your chat with the agent. Neither one stops a running loop.
+</Warning>
 
-```
-/agent → SOL Scalper → Pause
-
-⏸️ Agent paused. Executors remain active.
-Resume anytime with /agent → Resume.
-```
-
-**Resume** continues from where it left off:
-
-```
-/agent → SOL Scalper → Resume
-
-▶️ Agent resumed. Next tick in 45 seconds.
-```
-
-## View Learnings
-
-Learnings persist across sessions:
-
-```
-/agent → SOL Scalper → Learnings
-
-📚 SOL Scalper Learnings
-
-## Active Insights
-
-1. SOL tends to respect round numbers ($150, $155, $160)
-2. Avoid entries during funding rate settlement (every 8h)
-3. Wider stops (1.5%) work better in high volatility
-4. EMAs lag during sharp moves - confirm with volume
-
-## Session Notes
-
-- Session 3: Consolidation day, fewer setups
-- Session 2: Strong trend, 4/5 winners
-```
-
-## Stop and Archive
-
-**Stop** ends the session:
-
-```
-/agent → SOL Scalper → Stop
-
-🛑 Agent stopped.
-Session 3 complete: 121 ticks, +$23.40
-
-Open positions remain active. Manage manually or start new session.
-```
-
-Sessions are automatically archived and can be reviewed anytime.
-
-## Next Step
+## Next step
 
 <Card title="Routines" icon="arrow-right" href="/routines/overview">
   Extend agents with deterministic Python code

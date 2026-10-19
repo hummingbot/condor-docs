@@ -1,117 +1,108 @@
 ---
 title: "Overview"
-description: "Autonomous LLM-driven trading agents built on the Trading Agents Standard"
+description: "LLM-driven trading agents that reason on a fixed tick and trade through Hummingbot executors and bots behind a risk gate"
 ---
 
-A **Trading Agent** is an autonomous, file-backed entity that runs on a fixed tick interval, reasons about the market with an LLM, and translates its decisions into real trades through Hummingbot executors.
+A **Trading Agent** is a folder on disk that Condor runs as a tick loop. On each tick it reads the market, asks an LLM what to do, and turns the decision into trades through Hummingbot executors or controller-based bots. A risk gate checks every call that could move money.
 
-<Frame>
-  <img src="/images/agent-structure.png" alt="Trading Agent Architecture" />
-</Frame>
+## Design philosophy
 
-## Design Philosophy
-
-The Trading Agents Standard separates what LLMs do well—reasoning under uncertainty—from what traditional software does well—reliable, repeatable execution.
+Trading Agents separate what LLMs do well, reasoning under uncertainty, from what traditional software does well, reliable and repeatable execution.
 
 ```mermaid
 flowchart TB
-    subgraph Agentic["Agentic Layer (Probabilistic)"]
+    subgraph Agentic["Agentic layer (probabilistic)"]
         O[Observe] --> OR[Orient]
         OR --> D[Decide]
         D --> A[Act]
         A --> O
     end
 
-    subgraph Execution["Execution Layer (Deterministic)"]
-        EX[Executors]
+    subgraph Execution["Execution layer (deterministic)"]
+        RK[Risk gate]
+        EX[Executors and bots]
         POS[Positions]
-        RK[Risk Engine]
     end
 
-    A --> EX
+    A --> RK
+    RK --> EX
     EX --> POS
-    D --> RK
 ```
 
-| Layer | Type | What It Does |
+| Layer | Type | What it does |
 |-------|------|--------------|
-| **Agentic** | LLM reasoning (OODA loop) | Observes market, orients context, decides action, acts via tools |
-| **Execution** | Deterministic Python | Runs executors, tracks positions, enforces risk limits |
+| **Agentic** | LLM reasoning | Reads the market and its own state, decides, and acts through tools |
+| **Execution** | Deterministic Python | Enforces risk limits, runs executors and bots, tracks positions |
 
-The result is an agent that *thinks* like a discretionary trader but *acts* like a systematic one, with full auditability across every tick.
+The result is an agent that *thinks* like a discretionary trader but *acts* like a systematic one, with a full record of every tick.
 
-## Core Principle: Executor-Based Trading
+## Executor-based trading
 
-**Agents only act through Hummingbot executors.** Each agent spawns executors with its own `controller_id == agent_id`, which provides:
+Agents never place orders directly. The risk gate always refuses `place_order`. An agent trades in one of two ways:
 
-1. **Isolation**: Two agents on the same account never see or touch each other's executors
-2. **Virtual Portfolio**: Each agent gets its own positions, breakeven prices, realized/unrealized P&L
-3. **Position Handover**: When an executor closes with `keep_position=true`, the agent retains the inventory
+- **Executors.** It creates Hummingbot executors (position, grid, DCA, order or LP) with the `create_*_executor` tools.
+- **Controller-based bots.** It deploys and retunes a Hummingbot bot that runs a controller, with `manage_bots`. Every deploy must declare a loss cap (`max_global_drawdown_quote`) no larger than the session's `max_position_size_quote`. See the [Market Making Expert](/examples/market-making-expert) for a loop that works this way.
 
-## Mental Model
+### Ownership through controller_id
 
-> An agent is a *folder* on disk and a *tick loop* in memory. The folder is its long-term memory; providers give it short-term situational awareness; the LLM is its decision function; executors are its hands; the risk engine is the wrist it can't move past.
+Each loop session has its own ID, such as `my_agent.my_loop_3`. Every executor the session creates must carry that ID as its `controller_id`; the risk gate refuses a create without it. This gives you:
 
-Everything an agent owns is tagged with its `controller_id`, making the system safely composable: any number of agents can share the same exchange account without stepping on each other.
+1. **Isolation.** An agent only *manages* its own executors. `list_executors` returns the whole fleet on the server, so the agent can see other executors, but the risk gate refuses any attempt to stop an executor owned by another session.
+2. **A virtual portfolio.** Positions and PnL are tracked per `controller_id`, so each session has its own book even when several agents share one exchange account. See [Inventory](/trading-agents/inventory).
+3. **Position handover.** When an executor closes with `keep_position=true`, the position stays in that session's inventory.
 
-## Core Components
+Because the ID is per session, a new session doesn't take over an earlier session's executors. See [Sessions](/trading-agents/sessions#executors-stay-with-the-session-that-opened-them).
 
-| Component | Purpose | Documentation |
-|-----------|---------|---------------|
-| [Architecture](/trading-agents/architecture) | File structure, tick engine, providers | agent.md, journals, learnings |
-| [Sessions](/trading-agents/sessions) | Session management, snapshots | Cross-session memory |
-| [Inventory](/trading-agents/inventory) | Position tracking and P&L | Virtual portfolio |
-| [Executors](/executors/overview) | Trading operations | Types, lifecycle, keep_position |
-| [MCP Tools](/trading-agents/mcp-tools) | LLM tool access | Market data, trading |
+## Mental model
 
-## Run Modes
+> An agent is a *folder* on disk and a *tick loop* in memory. The folder is its long-term memory; the data it gathers each tick is its situational awareness; the LLM is its decision function; executors and bots are its hands; the risk gate is the wrist it can't move past.
 
-| Mode | Behavior |
-|------|----------|
-| `dry_run` | One tick, no trading. Pure reasoning test. Saves experiment snapshot. |
-| `run_once` | One tick with trading. Manual single-shot execution. |
-| `loop` | Standard mode. Ticks every `frequency_sec` until stopped. Creates session with full journal. |
+## Run modes
 
-## Quick Start
+Choose the mode in the Start dialog or with the loop's `execution_mode` setting.
 
-**Via Telegram**:
-```
-/agent → Create New Agent → Configure → Start
-```
+| Mode | Ticks | Can trade? | What it records |
+|------|-------|------------|-----------------|
+| `dry_run` | One | No. Every action that changes anything is refused, including routines and code. | `loops/<loop>/dry_runs/experiment_N.md` |
+| `run_once` | One | Yes, with the same risk checks as a loop | `loops/<loop>/dry_runs/experiment_N.md` |
+| `loop` | Every `frequency_sec` until stopped, or until `max_ticks` | Yes | A new session with a journal and per-tick snapshots |
 
-**Programmatically**:
-```python
-from condor.trading_agent.engine import TickEngine
-from condor.trading_agent.strategy import StrategyStore
+Only `loop` creates a session. Start with `dry_run` to check that the agent, server and exchange are wired up.
 
-store = StrategyStore()
-strategy = store.get_by_slug("my_strategy")
+## Risk limits
 
-engine = TickEngine(
-    strategy=strategy,
-    config={
-        "execution_mode": "loop",
-        "frequency_sec": 60,
-        "server_name": "binance_main",
-        "total_amount_quote": 500,
-        "risk_limits": {
-            "max_total_exposure_quote": 1500,
-            "max_drawdown_pct": 5,
-            "max_open_executors": 4,
-        },
-    },
-)
+Each session has six risk limits, set in the loop's `default_config.risk_limits` or in the Start dialog:
 
-await engine.start()
-```
+| Limit | Default |
+|---|---|
+| `max_position_size_quote` | 500 |
+| `max_open_executors` | 5 |
+| `max_drawdown_pct` | -1 (off) |
+| `shutdown_drawdown_pct` | -1 (off) |
+| `max_drift_quote` | -1 (off) |
+| `max_leverage` | -1 (off) |
 
-## Session Continuity
+What each one does is on the [Architecture](/trading-agents/architecture#risk-engine) page.
 
-The `~/condor` directory stores all agent state, and Condor uses ACP (Agent Client Protocol) to connect to your LLM.
+## Stop vs. shutdown
 
-This means you can:
-- Start a conversation on Telegram
-- Continue it in Claude Code
-- Switch to the web dashboard
+- **Stop** ends the loop and leaves its executors, positions and bots open.
+- **Emergency shutdown** closes the session's executors according to the agent's `shutdown.md` policy, then stops. A `shutdown_drawdown_pct` breach triggers it automatically.
 
-Same session, same agent state, same conversation history.
+See [Stopping a loop](/trading-agents/architecture#stopping-a-loop).
+
+## Getting started
+
+- **Run a shipped agent.** Follow one of the [Examples](/examples/overview).
+- **Create your own.** Ask Condor to build one with its [Agent Builder](/condor-agent/agent-builder), or write the folder yourself as described in [Architecture](/trading-agents/architecture#creating-your-own-agent).
+- **Watch and control it.** See [Managing Agent Sessions](/getting-started/sessions).
+
+## Learn more
+
+| Page | What it covers |
+|------|----------------|
+| [Architecture](/trading-agents/architecture) | Where agents live, the folder layout, the tick pipeline and the risk engine |
+| [Sessions](/trading-agents/sessions) | Session IDs, journals, snapshots, restarts and learnings |
+| [Inventory](/trading-agents/inventory) | Position tracking and PnL |
+| [Executors](/executors/overview) | Executor types and lifecycle |
+| [MCP Tools](/trading-agents/mcp-tools) | The tools agents can call |

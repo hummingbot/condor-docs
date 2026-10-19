@@ -1,215 +1,181 @@
 ---
 title: "Grid Executor"
-description: "Like Position Executor but with multiple order levels across a price range"
+description: "Trade a price range with evenly spaced orders, each with its own take profit"
 ---
 
-The **Grid Executor** is like a Position Executor with multiple levels. It places orders at evenly spaced price intervals between a start and end price, managing each level independently with take profit targets.
+The **Grid Executor** splits a price range into evenly spaced levels. Each level places an entry order and, when that fills, a take-profit order on the other side. When both fill, the level resets and trades again. The grid as a whole stops when the price leaves the range, crosses a safety price, or runs out of time.
 
 ## Overview
 
 | Property | Value |
-|----------|-------|
-| Position Type | Spot or Perp |
-| keep_position | Configurable |
-| Use Cases | Range-bound markets, accumulation, market making |
+|---|---|
+| Markets | Spot and perpetuals |
+| Condor tool | `create_grid_executor` |
+| Risk control | `limit_price` (a stop for the whole grid) and `time_limit`. Condor can't set a grid stop loss. |
+| `keep_position` | A config field. It applies only when the price crosses `limit_price`. |
 
-## How It Works
+## Create one from Condor
 
-```mermaid
-flowchart TB
-    subgraph Grid["Grid Levels"]
-        L1[Level 1: $3000]
-        L2[Level 2: $3100]
-        L3[Level 3: $3200]
-        L4[Level 4: $3300]
-        L5[Level 5: $3400]
-    end
-
-    L1 --> F1{Filled?}
-    L2 --> F2{Filled?}
-    L3 --> F3{Filled?}
-
-    F1 -->|Yes| TP1[Take Profit Order]
-    F2 -->|Yes| TP2[Take Profit Order]
-
-    TP1 --> C1[Level Complete]
-    TP2 --> C2[Level Complete]
-```
-
-1. **Grid Creation**: Divides price range into evenly spaced levels
-2. **Order Placement**: Places entry orders at each level
-3. **Fill Management**: When a level fills, places take profit order
-4. **Level Completion**: Each level manages its own entry/exit cycle
-5. **Risk Management**: Overall position managed by triple barrier
-
-## Configuration
+Agents and the Condor chat use the `create_grid_executor` tool:
 
 ```python
-from hummingbot.strategy_v2.executors.grid_executor.data_types import GridExecutorConfig
-from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
-
-config = GridExecutorConfig(
-    controller_id="my-agent",
+create_grid_executor(
     connector_name="binance",
-    trading_pair="ETH-USDT",
-    side=TradeType.BUY,
-
-    # Grid boundaries
-    start_price=Decimal("3000"),      # Lower bound
-    end_price=Decimal("3500"),        # Upper bound
-    limit_price=Decimal("2900"),      # Stop loss price
-
-    # Sizing
-    total_amount_quote=Decimal("1000"),  # Total capital to deploy
-    min_spread_between_orders=Decimal("0.01"),  # 1% between levels
-    min_order_amount_quote=Decimal("5"),  # Min order size
-
-    # Execution
-    max_open_orders=5,                # Max simultaneous orders
-    activation_bounds=Decimal("0.02"), # Only active within 2% of price
-
-    # Risk management
-    triple_barrier_config=TripleBarrierConfig(
-        stop_loss=Decimal("0.05"),    # 5% total stop loss
-        time_limit=86400,              # 24 hour limit
-    ),
-
+    trading_pair="SOL-USDT",
+    side=1,
+    start_price=140,
+    end_price=150,
+    limit_price=138,
+    total_amount_quote=500,
+    take_profit=0.002,
+    open_order_type=3,
+    take_profit_order_type=3,
     leverage=1,
-    keep_position=False,
+    time_limit=43200,
+    controller_id="my_agent.my_loop_1",
 )
 ```
 
-## Parameters
+This runs a $500 long grid on SOL-USDT between 140 and 150. Each filled buy places a post-only sell 0.2% higher. The grid stops if SOL falls to 138, or after 12 hours. In an agent session, `controller_id` must be the session ID (see [Session IDs](/trading-agents/sessions#session-ids)).
 
-### Grid Boundaries
+### Direction rules
 
-| Parameter | Description |
-|-----------|-------------|
-| `start_price` | Lower price bound of the grid |
-| `end_price` | Upper price bound of the grid |
-| `limit_price` | Stop loss price - exits all positions if breached |
-| `side` | `BUY` for accumulation grid, `SELL` for distribution |
+`side` sets the direction. `start_price` is always the bottom of the range and `end_price` the top, for both sides. Condor rejects a grid whose prices are in the wrong order before anything is sent:
 
-### Sizing
+| `side` | Grid | Required order |
+|---|---|---|
+| `1` | Long: buys low, sells each fill higher | `limit_price < start_price < end_price` |
+| `2` | Short: sells high, buys each fill back lower | `start_price < end_price < limit_price` |
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `total_amount_quote` | - | Total capital to deploy across all levels |
-| `min_spread_between_orders` | 0.05% | Minimum % spread between grid levels |
-| `min_order_amount_quote` | 5 | Minimum order size in quote |
+The Hummingbot API accepts `limit_price: 0`, which turns the safety stop off. Through Condor that is only possible for a long grid, because `0` can't be above the range.
 
-### Execution
+### Parameters
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `max_open_orders` | 5 | Maximum simultaneous open orders |
-| `max_orders_per_batch` | None | Orders to place per batch |
-| `order_frequency` | 0 | Seconds between order batches |
-| `activation_bounds` | None | Only keep orders within this % of current price |
-| `safe_extra_spread` | 0.01% | Extra spread for safety |
+| Parameter | Required | Meaning |
+|---|---|---|
+| `connector_name` | Yes | Exchange connector, such as `binance` or `binance_perpetual` |
+| `trading_pair` | Yes | Trading pair, such as `SOL-USDT` |
+| `side` | Yes | `1` long grid, `2` short grid |
+| `start_price` / `end_price` | Yes | Bottom and top of the range |
+| `limit_price` | Yes | Safety price beyond the losing edge of the range. See [How the grid stops](#how-the-grid-stops). |
+| `total_amount_quote` | Yes | Capital for the whole grid, in the **quote** asset |
+| `take_profit` | Yes, unless saved as a default | Distance from each level's entry to its take-profit order, as a fraction (`0.002` is 0.2%). The API rejects a grid without one. |
+| `time_limit` | No | Stop the grid after this many seconds, counted from creation |
+| `open_order_type` | No | Entry orders: `1` MARKET, `2` LIMIT (default), `3` LIMIT_MAKER |
+| `take_profit_order_type` | No | Take-profit orders: `1` MARKET (default), `2` LIMIT, `3` LIMIT_MAKER. Use `3` for post-only orders that pay maker fees. |
+| `min_spread_between_orders` | No | Smallest gap between levels, as a fraction. Default `0.0005`. |
+| `min_order_amount_quote` | No | Smallest order per level, in quote. Default `5`. |
+| `max_open_orders` | No | No new entry orders are placed while this many are open. Default `5`. One batch can still go over it unless `max_orders_per_batch` is set. |
+| `max_orders_per_batch` | No | Entry orders placed per batch. Default: no limit. |
+| `order_frequency` | No | Seconds between batches. Default `0`. |
+| `activation_bounds` | No | Only keep orders within this fraction of the mid price (`0.001` is 0.1%). Default: off. |
+| `safe_extra_spread` | No | Extra distance from the current price when a level's price has already been crossed. Default `0.0001`. |
+| `leverage` | No | Leverage. **Default `20`.** Pass `1` for spot-like sizing on perpetuals. |
+| `keep_position` | No | What to do with the accumulated position when the price crosses `limit_price`. Default `false`. |
+| `coerce_tp_to_step` | No | Raise `take_profit` to at least one grid step, so a level can't close before the next one fills. Default `false`. |
+| `deduct_base_fees` | No | When an entry fee is paid in the base asset, size the take-profit order net of that fee. Default `false`. |
+| `level_id`, `account_name`, `controller_id`, `save_as_default` | No | As for the other create tools. `controller_id` defaults to `main`; an agent passes its session ID. |
 
-### Risk Management
+<Warning>
+**Check your saved grid defaults.** Condor merges your saved executor defaults under every create call. The defaults file Condor writes on first use already contains grid values, including `keep_position: true`, `take_profit: 0.0002`, `max_open_orders: 15`, `activation_bounds: 0.001`, `order_frequency: 5`, `max_orders_per_batch: 1` and `coerce_tp_to_step: true`. Anything you don't pass in the call comes from there, not from the backend defaults in the table above. Read it with `executor_defaults(action="get")` and change it with `action="save"`; `reset` keeps the values that are already there. See [Saved defaults](/executors/overview#saved-defaults).
+</Warning>
 
-| Parameter | Description |
-|-----------|-------------|
-| `triple_barrier_config` | Stop loss, take profit, time limit for overall position |
-| `leverage` | Leverage for perpetual markets |
-| `keep_position` | Whether to keep net position on termination |
+## How the levels are built
 
-## Grid Level States
+The executor fits as many levels as both limits allow, and the tighter limit wins:
 
-Each level tracks its own state independently:
+- **Capital:** `total_amount_quote` divided by the per-level minimum. The minimum is the larger of `min_order_amount_quote` and the exchange's minimum order value, plus a 5% margin.
+- **Spacing:** the range `(end_price − start_price) / start_price` divided by `min_spread_between_orders`.
 
-| State | Description |
-|-------|-------------|
-| `NOT_ACTIVE` | No orders placed at this level |
-| `OPEN_ORDER_PLACED` | Entry order active, waiting for fill |
-| `OPEN_ORDER_FILLED` | Entry filled, take profit order being placed |
-| `CLOSE_ORDER_PLACED` | Take profit order active |
-| `COMPLETE` | Both entry and take profit filled |
+Levels are spread evenly from `start_price` to `end_price`, with the same capital at each. If only one level fits, it sits at the middle of the range.
 
-## Example: Accumulation Grid
+Entry orders go to the levels closest to the current price first, in batches of `max_orders_per_batch` every `order_frequency` seconds, while fewer than `max_open_orders` are open. When a level's entry fills, the executor places that level's take-profit order at `level price × (1 + take_profit)` for a long grid, or `level price × (1 − take_profit)` for a short grid. When the take profit fills too, the level is free to trade again.
 
-Buy ETH between $3000-$3500, taking profit at each level:
+`take_profit` is per level. It is not a target for the grid as a whole.
 
-```python
-accumulation = GridExecutorConfig(
-    controller_id="eth-accumulator",
-    connector_name="binance",
-    trading_pair="ETH-USDT",
-    side=TradeType.BUY,
-    start_price=Decimal("3000"),
-    end_price=Decimal("3500"),
-    limit_price=Decimal("2800"),      # Stop if price crashes
-    total_amount_quote=Decimal("5000"),
-    min_spread_between_orders=Decimal("0.02"),  # 2% between levels
-    max_open_orders=10,
-    triple_barrier_config=TripleBarrierConfig(
-        stop_loss=Decimal("0.10"),    # 10% overall stop
-        time_limit=604800,             # 1 week
-    ),
-    keep_position=True,  # Keep accumulated ETH
-)
+## How the grid stops
+
+| Event | What happens | Close type |
+|---|---|---|
+| The price leaves the range on the winning side: above `end_price` for a long grid, below `start_price` for a short one | Open orders are cancelled and any remaining position is closed at market | `TAKE_PROFIT` |
+| The price crosses `limit_price` and `keep_position` is `false` | Open orders are cancelled and the position is closed at market | `STOP_LOSS` |
+| The price crosses `limit_price` and `keep_position` is `true` | Open orders are cancelled and the position is kept | `POSITION_HOLD` |
+| `time_limit` passes | Open orders are cancelled and the position is closed at market | `TIME_LIMIT` |
+| You stop it | See [Stopping a grid](#stopping-a-grid) | `EARLY_STOP` or `POSITION_HOLD` |
+
+`keep_position` in the config changes only the `limit_price` case. Leaving the range on the winning side and reaching the time limit always close the position.
+
+### Stop loss and trailing stop
+
+The Hummingbot API also accepts a grid `stop_loss` and `trailing_stop` inside `triple_barrier_config`. Both are measured on the open position's P&L and always close the position at market (`STOP_LOSS` or `TRAILING_STOP`), even when `keep_position` is `true`.
+
+`create_grid_executor` has no parameters for them, so a grid created from Condor has neither. Its losses are bounded only by `limit_price` and, if you set one, `time_limit`.
+
+## Stopping a grid
+
+Stop the executor with `stop_executor` or `POST /executors/{executor_id}/stop`. The `keep_position` you pass with the stop decides what happens; the config value is not used:
+
+- `keep_position=false` (the default) cancels open orders and closes the accumulated position at market. Close type `EARLY_STOP`.
+- `keep_position=true` cancels open orders and keeps the position. Close type `POSITION_HOLD`, or `EARLY_STOP` if nothing was held.
+
+A held position goes to the Position Hold for this executor's `controller_id`. See [Position Handover](/executors/position-handover).
+
+## Grid level states
+
+Each level reports its own state:
+
+| State | Meaning |
+|---|---|
+| `NOT_ACTIVE` | No order at this level |
+| `OPEN_ORDER_PLACED` | Entry order on the book |
+| `OPEN_ORDER_FILLED` | Entry filled, take-profit order not placed yet |
+| `CLOSE_ORDER_PLACED` | Take-profit order on the book |
+| `COMPLETE` | Both filled. The level then resets to `NOT_ACTIVE`. |
+
+## Via the API
+
+Create the executor with `POST /executors/`. `triple_barrier_config` is required and must contain `take_profit`. Order types are numbers and `side` is `1` or `2`.
+
+```bash
+curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/executors/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_name": "master_account",
+    "controller_id": "main",
+    "executor_config": {
+      "type": "grid_executor",
+      "connector_name": "binance",
+      "trading_pair": "SOL-USDT",
+      "side": 1,
+      "start_price": "140",
+      "end_price": "150",
+      "limit_price": "138",
+      "total_amount_quote": "500",
+      "leverage": 1,
+      "keep_position": false,
+      "triple_barrier_config": {
+        "take_profit": "0.002",
+        "time_limit": 43200,
+        "open_order_type": 3,
+        "take_profit_order_type": 3
+      }
+    }
+  }'
 ```
 
-## Example: Range Trading Grid
+The API doesn't apply Condor's saved defaults, so every field you leave out takes the backend default in the parameter table.
 
-Trade BTC in a range, closing each level for profit:
+## Grid vs position executor
 
-```python
-range_trade = GridExecutorConfig(
-    controller_id="btc-range",
-    connector_name="binance_perpetual",
-    trading_pair="BTC-USDT",
-    side=TradeType.BUY,
-    start_price=Decimal("60000"),
-    end_price=Decimal("65000"),
-    limit_price=Decimal("58000"),
-    total_amount_quote=Decimal("10000"),
-    min_spread_between_orders=Decimal("0.01"),
-    max_open_orders=5,
-    activation_bounds=Decimal("0.03"),  # Orders within 3% of price
-    triple_barrier_config=TripleBarrierConfig(
-        stop_loss=Decimal("0.05"),
-        time_limit=86400,
-    ),
-    leverage=3,
-    keep_position=False,  # Close positions, take P&L
-)
-```
+| | Position Executor | Grid Executor |
+|---|---|---|
+| Entries | One | One per level, repeated as levels reset |
+| Take profit | One target for the position | One per level |
+| Stop | Stop loss, trailing stop, time limit | `limit_price` and time limit (stop loss and trailing stop through the API only) |
+| Use | A directional trade | Earning from a price that moves back and forth in a range |
 
-## Grid vs Position Executor
+## Learn more
 
-| Feature | Position Executor | Grid Executor |
-|---------|------------------|---------------|
-| Order Levels | Single | Multiple (auto-calculated) |
-| Entry | One price | Range of prices |
-| Take Profit | Single target | Per-level targets |
-| Use Case | Directional bet | Range trading |
-| Complexity | Simple | More complex |
-
-Think of Grid Executor as running multiple Position Executors simultaneously across a price range, with coordinated risk management.
-
-## Activation Bounds
-
-The `activation_bounds` parameter keeps orders active only near the current price:
-
-```python
-activation_bounds=Decimal("0.02")  # 2%
-```
-
-- Orders more than 2% from current price are cancelled
-- As price moves, new orders are placed within bounds
-- Reduces open order count and exchange rate limits
-
-## Position Handover
-
-When `keep_position=True`:
-- Net inventory from all levels stays in account
-- Added to Position Hold for agent management
-- Useful for accumulation strategies
-
-When `keep_position=False`:
-- All positions closed on termination
-- Realized P&L from each level reported
-- Clean exit with no leftover inventory
+- [Executors overview](/executors/overview): saved defaults, lifecycle and the API
+- [Position Handover](/executors/position-handover): what happens to a held grid position
+- [MCP Tools](/trading-agents/mcp-tools): `create_grid_executor` and `executor_defaults`

@@ -8,8 +8,10 @@
     "dark": "#fcc603"
   },
   "favicon": "/logo/condor-logo-square.png",
-  "metadata": {
-    "og:site_name": "Condor"
+  "seo": {
+    "metatags": {
+      "og:site_name": "Condor"
+    }
   },
   "api": {
     "playground": {
@@ -52,6 +54,14 @@
             ]
           },
           {
+            "group": "Examples",
+            "pages": [
+              "examples/overview",
+              "examples/market-making-expert",
+              "examples/solana-lp"
+            ]
+          },
+          {
             "group": "Web UI Pages",
             "pages": [
               "webui/agents",
@@ -71,7 +81,6 @@
               {
                 "group": "Executors",
                 "pages": [
-                  "webui/executors",
                   "executors/overview",
                   "executors/order-executor",
                   "executors/position-executor",
@@ -156,7 +165,6 @@
           {
             "group": "The Bot Pod",
             "pages": [
-              "videos/ep13",
               "videos/ep12",
               "videos/ep11",
               "videos/ep10",
@@ -252,6 +260,14 @@
     {
       "source": "/trading-agents/agent-builder",
       "destination": "/condor-agent/agent-builder"
+    },
+    {
+      "source": "/webui/executors",
+      "destination": "/webui/bots"
+    },
+    {
+      "source": "/installation",
+      "destination": "/getting-started/installing"
     }
   ]
 }

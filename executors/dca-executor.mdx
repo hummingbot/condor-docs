@@ -1,128 +1,136 @@
 ---
 title: "DCA Executor"
-description: "Dollar cost averaging across multiple price levels"
+description: "Build a position over a ladder of price levels, with one exit for the whole position"
 ---
 
-The **DCA Executor** implements Dollar Cost Averaging by spreading investment across multiple orders at different price levels, reducing the impact of volatility.
+The **DCA Executor** builds a position in steps. You give it a list of price levels and an amount for each, and it places one order per level. The exit (take profit, stop loss, trailing stop or time limit) is measured against the average entry price of everything that filled.
 
 ## Overview
 
 | Property | Value |
-|----------|-------|
-| Position Type | Spot or Perp |
-| keep_position | Configurable |
-| Use Cases | Building positions, averaging down, systematic entry |
+|---|---|
+| Markets | Spot and perpetuals |
+| Condor tool | `create_dca_executor` |
+| Exits | Take profit, stop loss, trailing stop, time limit, all on the average entry |
+| `keep_position` | Not a config field. Only a stop parameter. |
 
-## Configuration
+## Create one from Condor
+
+Agents and the Condor chat use the `create_dca_executor` tool:
 
 ```python
-from hummingbot.strategy_v2.executors.dca_executor.data_types import (
-    DCAExecutorConfig,
-    DCAMode,
-    TrailingStop,
-)
-
-config = DCAExecutorConfig(
-    controller_id="my-agent",
+create_dca_executor(
     connector_name="binance",
     trading_pair="BTC-USDT",
-    side=TradeType.BUY,
-    leverage=1,
-    amounts_quote=[100, 150, 200, 300],  # Increasing amounts
-    prices=[65000, 63000, 61000, 59000],  # Entry prices
-    take_profit=Decimal("0.05"),          # 5% TP from avg
-    stop_loss=Decimal("0.10"),            # 10% SL from avg
-    time_limit=86400,                      # 24 hours
-    mode=DCAMode.MAKER,
+    side=1,
+    amounts_quote=[100, 100, 150],
+    prices=[50000, 48000, 46000],
+    take_profit=0.03,
+    stop_loss=0.05,
+    controller_id="my_agent.my_loop_1",
 )
 ```
 
-## Parameters
+This buys $100 of BTC at 50,000, $100 at 48,000 and $150 at 46,000, closes everything at a 3% net profit on the average entry, and has a 5% stop loss. In an agent session, `controller_id` must be the session ID (see [Session IDs](/trading-agents/sessions#session-ids)).
 
-| Parameter | Description |
-|-----------|-------------|
-| `amounts_quote` | List of order amounts in quote currency |
-| `prices` | List of entry prices for each level |
-| `take_profit` | Exit target as % from average entry |
-| `stop_loss` | Stop loss as % from average entry |
-| `time_limit` | Maximum duration in seconds |
-| `mode` | `MAKER` (limit) or `TAKER` (market) |
-| `activation_bounds` | Optional price bounds for activation |
+<Note>
+Amounts here are in the **quote** asset, unlike the position executor, whose `amount` is in the base asset. `amounts_quote` and `prices` are parallel lists: entry `i` is an order of `amounts_quote[i]` at `prices[i]`. Condor rejects lists of different lengths.
+</Note>
 
-## How It Works
+### Parameters
 
-1. **Level Setup**: Creates orders at each price/amount pair
-2. **Order Management**: Places limit orders at specified prices
-3. **Fill Tracking**: Tracks fills and calculates average entry
-4. **Exit Management**: Applies TP/SL relative to average entry
+| Parameter | Required | Meaning |
+|---|---|---|
+| `connector_name` | Yes | Exchange connector, such as `binance` or `binance_perpetual` |
+| `trading_pair` | Yes | Trading pair, such as `BTC-USDT` |
+| `side` | Yes | `1` BUY, `2` SELL |
+| `amounts_quote` | Yes | Order size for each level, in quote |
+| `prices` | Yes | Price for each level, in the order the levels are placed. For a buy ladder, list them from highest to lowest. |
+| `mode` | No | `MAKER` (default) or `TAKER`. See [Modes](#modes). |
+| `take_profit` | No | Close when the net profit on the average entry reaches this fraction (`0.03` is 3%) |
+| `stop_loss` | No | Stop loss as a fraction. See [Exits](#exits). |
+| `time_limit` | No | Close after this many seconds, counted from creation |
+| `trailing_stop_activation_price` / `trailing_stop_trailing_delta` | No | Trailing stop, as profit fractions. Both are needed; one alone is dropped. Works as described for the [position executor](/executors/position-executor#trailing-stop). |
+| `leverage` | No | Leverage for perpetuals. Default `1`. |
+| `level_id`, `account_name`, `controller_id`, `save_as_default` | No | As for the other create tools. `controller_id` defaults to `main`; an agent passes its session ID. |
 
-## DCA Modes
+## Modes
 
-| Mode | Behavior |
-|------|----------|
-| `MAKER` | Places limit orders at each price level |
-| `TAKER` | Uses market orders when price reaches level |
+Levels are placed one after another, in the order of `prices`. The next level is placed only after the previous level's order exists.
 
-## Example: Systematic BTC Entry
+| Mode | Orders | When a level is placed |
+|---|---|---|
+| `MAKER` | Limit order at the level's price | Right away, one level after another |
+| `TAKER` | Market order | When the price comes close to the level. By default that is between 0.01% below and 0.5% above the level price for a buy (mirrored for a sell). |
 
-```python
-# Build BTC position with increasing size at lower prices
-btc_dca = DCAExecutorConfig(
-    controller_id="btc-dca",
-    connector_name="binance",
-    trading_pair="BTC-USDT",
-    side=TradeType.BUY,
-    amounts_quote=[
-        Decimal("200"),   # First entry
-        Decimal("300"),   # Avg down
-        Decimal("500"),   # Larger at support
-    ],
-    prices=[
-        Decimal("67000"),
-        Decimal("64000"),
-        Decimal("61000"),
-    ],
-    take_profit=Decimal("0.08"),  # 8% from avg
-    stop_loss=Decimal("0.15"),    # 15% from avg
-    mode=DCAMode.MAKER,
-)
+## Exits
+
+| Exit | When it triggers | Close type |
+|---|---|---|
+| Take profit | Net profit on the average entry, after fees, rises above `take_profit` | `TAKE_PROFIT` |
+| Stop loss, `MAKER` mode | Every level has filled **and** the net loss reaches `stop_loss` | `STOP_LOSS` |
+| Stop loss, `TAKER` mode | The net loss in quote reaches `stop_loss` × the sum of `amounts_quote` | `STOP_LOSS` |
+| Trailing stop | Net profit falls below the trailing trigger | `TRAILING_STOP` |
+| Time limit | `time_limit` seconds have passed since creation | `TIME_LIMIT` |
+
+Every exit cancels the unfilled levels and closes the filled amount with a market order.
+
+<Warning>
+In `MAKER` mode the stop loss does nothing until every level has filled. If the price falls part way through a buy ladder and keeps falling without reaching the last level, the stop loss never triggers. Use a `time_limit`, or `TAKER` mode, if you need a bound in that case.
+</Warning>
+
+## Via the API
+
+Create the executor with `POST /executors/`. Unlike the position executor, the exits are top-level fields, not a `triple_barrier_config`.
+
+```bash
+curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/executors/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_name": "master_account",
+    "controller_id": "main",
+    "executor_config": {
+      "type": "dca_executor",
+      "connector_name": "binance",
+      "trading_pair": "BTC-USDT",
+      "side": 1,
+      "amounts_quote": ["100", "100", "150"],
+      "prices": ["50000", "48000", "46000"],
+      "take_profit": "0.03",
+      "stop_loss": "0.05",
+      "trailing_stop": {"activation_price": "0.02", "trailing_delta": "0.005"},
+      "mode": "MAKER"
+    }
+  }'
 ```
 
-## Example: Quick DCA with Trailing Stop
+The API also accepts `activation_bounds`, which the Condor tool doesn't expose: a list of two fractions that controls when a level is placed. In `TAKER` mode it replaces the default 0.01% and 0.5%.
 
-```python
-# Tighter DCA with trailing stop
-quick_dca = DCAExecutorConfig(
-    controller_id="quick-dca",
-    connector_name="binance_perpetual",
-    trading_pair="ETH-USDT",
-    side=TradeType.BUY,
-    leverage=3,
-    amounts_quote=[
-        Decimal("100"),
-        Decimal("100"),
-        Decimal("100"),
-    ],
-    prices=[
-        Decimal("3200"),
-        Decimal("3100"),
-        Decimal("3000"),
-    ],
-    take_profit=Decimal("0.05"),
-    stop_loss=Decimal("0.08"),
-    trailing_stop=TrailingStop(
-        activation_price=Decimal("0.03"),
-        trailing_delta=Decimal("0.015"),
-    ),
-    time_limit=7200,  # 2 hours
-)
-```
+## Close types
 
-## Spot vs Perpetual
+Besides the exits above, a DCA executor can end with:
 
-| Market | Behavior |
-|--------|----------|
-| **Spot** | Accumulates base asset across levels |
-| **Perpetual** | Builds leveraged position across levels |
+| Close type | When |
+|---|---|
+| `EARLY_STOP` | You stopped it with `keep_position=false` |
+| `POSITION_HOLD` | You stopped it with `keep_position=true` |
+| `EXPIRED` | The time limit had already passed when it started |
+| `FAILED` | A level was below the exchange's minimum order size or value, or orders kept failing |
+| `INSUFFICIENT_BALANCE` | The account couldn't fund the ladder |
 
-On perpetual markets, leverage is applied to all orders uniformly.
+## Stopping early
+
+Stop the executor with `stop_executor` or `POST /executors/{executor_id}/stop`:
+
+- `keep_position=false` (the default) cancels unfilled levels and closes the filled amount at market.
+- `keep_position=true` cancels unfilled levels and leaves the filled amount in the account.
+
+<Warning>
+A DCA executor stopped with `keep_position=true` ends as `POSITION_HOLD`, but the current Hummingbot API doesn't add its fills to the Position Hold, so they don't appear in `list_positions_held` or in an agent's held positions. Track or close that amount yourself.
+</Warning>
+
+## Learn more
+
+- [Executors overview](/executors/overview): lifecycle, close types and the API
+- [Position Executor](/executors/position-executor): the whole position in one entry
+- [Grid Executor](/executors/grid-executor): repeated entries and exits across a range

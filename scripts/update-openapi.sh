@@ -1,58 +1,52 @@
 #!/bin/bash
-# Update OpenAPI spec for Mintlify documentation
+# Rebuild the API Reference spec from a saved copy
 #
 # Usage: ./scripts/update-openapi.sh
 #
-# This script processes the OpenAPI file from the openapi-sources directory
-# and copies it to the appropriate location for Mintlify.
+# Use this when you already have openapi-sources/hummingbot-api.json (for
+# example, saved from another server's /openapi.json). To fetch a fresh copy
+# from a running server instead, use ./scripts/generate-openapi.sh.
 #
-# To update the API docs:
-# 1. Place updated OpenAPI file in openapi-sources/hummingbot-api.json
-# 2. Run this script
-# 3. Commit and push changes
+# This script:
+# 1. Validates openapi-sources/hummingbot-api.json
+# 2. Adds the `servers` entry Mintlify's playground uses as its base URL and
+#    saves the result to api-reference/openapi.json
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 SOURCE_DIR="$ROOT_DIR/openapi-sources"
+RAW_SPEC="$SOURCE_DIR/hummingbot-api.json"
+DOCS_SPEC="$ROOT_DIR/api-reference/openapi.json"
+
+# The playground base URL written into the published spec. Keep in sync with
+# scripts/generate-openapi.sh.
+SERVERS_JQ='. + {servers: [{url: "http://localhost:8000", description: "Local development server"}]}'
+
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: 'jq' is required but not installed." >&2
+    exit 1
+fi
+
+if [ ! -f "$RAW_SPEC" ]; then
+    echo "Error: openapi-sources/hummingbot-api.json not found." >&2
+    echo "Save a server's /openapi.json there, or run ./scripts/generate-openapi.sh." >&2
+    exit 1
+fi
+
+if ! jq -e '.openapi and .paths' "$RAW_SPEC" >/dev/null 2>&1; then
+    echo "Error: openapi-sources/hummingbot-api.json is not an OpenAPI document" >&2
+    exit 1
+fi
 
 echo "Updating OpenAPI spec..."
+jq "$SERVERS_JQ" "$RAW_SPEC" > "$DOCS_SPEC"
 
-# Check if source directory exists
-if [ ! -d "$SOURCE_DIR" ]; then
-    echo "Creating openapi-sources directory..."
-    mkdir -p "$SOURCE_DIR"
-    echo ""
-    echo "Please add your OpenAPI file to openapi-sources/:"
-    echo "  - hummingbot-api.json (from http://localhost:8000/openapi.json)"
-    echo ""
-    exit 1
-fi
-
-# Process Hummingbot API OpenAPI
-if [ -f "$SOURCE_DIR/hummingbot-api.json" ]; then
-    echo "Processing Hummingbot API OpenAPI..."
-
-    # Validate JSON
-    if ! jq empty "$SOURCE_DIR/hummingbot-api.json" 2>/dev/null; then
-        echo "Error: hummingbot-api.json is not valid JSON"
-        exit 1
-    fi
-
-    # Copy to destination
-    cp "$SOURCE_DIR/hummingbot-api.json" "$ROOT_DIR/api-reference/openapi.json"
-
-    # Show info
-    VERSION=$(jq -r '.info.version // "unknown"' "$SOURCE_DIR/hummingbot-api.json")
-    PATHS=$(jq '.paths | keys | length' "$SOURCE_DIR/hummingbot-api.json")
-    echo "  Version: $VERSION"
-    echo "  Endpoints: $PATHS"
-    echo "  Copied to: api-reference/openapi.json"
-else
-    echo "Error: openapi-sources/hummingbot-api.json not found"
-    exit 1
-fi
-
+VERSION=$(jq -r '.info.version // "unknown"' "$RAW_SPEC")
+PATHS=$(jq '.paths | keys | length' "$RAW_SPEC")
+echo "  Version: $VERSION"
+echo "  Paths: $PATHS"
+echo "  Saved to: api-reference/openapi.json"
 echo ""
-echo "Done! Run 'mintlify dev' to preview changes."
+echo "Done. Run 'npx mint@latest dev' to preview the changes."

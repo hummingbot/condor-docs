@@ -1,123 +1,94 @@
 ---
 title: "Arbitrage Executor"
-description: "Simultaneous execution across markets for arbitrage profits"
+description: "Wait for a profitable price gap between two markets, then buy on one and sell on the other at market"
 ---
 
-The **Arbitrage Executor** captures price discrepancies between markets by simultaneously executing buy and sell orders, particularly useful for CEX-DEX arbitrage.
+The **Arbitrage Executor** watches the same asset on two markets. When buying on one and selling on the other would be profitable after fees, it sends both orders at once as market orders. One executor makes one arbitrage trade.
+
+<Note>
+**Condor can't create an arbitrage executor.** None of its tools creates one, so agents and the Condor chat can't use it. Create it through the Hummingbot API with `POST /executors/`, as shown below.
+</Note>
 
 ## Overview
 
 | Property | Value |
-|----------|-------|
-| Position Type | Spot |
-| keep_position | Configurable |
-| Use Cases | CEX-DEX arbitrage, cross-market spreads |
+|---|---|
+| Markets | Two markets that trade the same base asset |
+| Created with | The Hummingbot API only |
+| Trades | One: a market buy on `buying_market` and a market sell on `selling_market` |
+| `keep_position` | Not a config field. Only a stop parameter. |
+
+## How it works
+
+1. On each update, the executor asks both markets what price it would get for `order_amount`: a buy on `buying_market` and a sell on `selling_market`. If the quote assets differ, it converts the sell price with the rate oracle.
+2. It computes the profitability: the gap between the two prices as a fraction of the buy price, minus the estimated fees on both sides as a fraction of `order_amount`.
+3. When the profitability is above `min_profitability`, it places a market buy on `buying_market` and a market sell on `selling_market` at the same time.
+4. When both orders have filled, it ends with close type `COMPLETED`.
+
+It keeps waiting until the gap appears or you stop it. A failed order is placed again. After more than 10 failures (the retry limit the Hummingbot API gives every executor) it ends as `FAILED`.
 
 ## Configuration
 
-```python
-from hummingbot.strategy_v2.executors.arbitrage_executor.data_types import (
-    ArbitrageExecutorConfig,
-    ExchangePair,
-)
+| Field | Required | Meaning |
+|---|---|---|
+| `buying_market` | Yes | `{"connector_name": ..., "trading_pair": ...}` for the market to buy on |
+| `selling_market` | Yes | The same for the market to sell on. Must differ from `buying_market`. |
+| `order_amount` | Yes | Amount to buy and sell, in the base asset |
+| `min_profitability` | Yes | Smallest profitability that triggers the trade, as a fraction (`0.004` is 0.4%) |
+| `gas_conversion_price` | For a Gateway AMM market | Used to convert that market's gas cost into the base asset |
 
-config = ArbitrageExecutorConfig(
-    controller_id="my-agent",
-    buying_market=ExchangePair(
-        exchange="uniswap_polygon_mainnet",
-        trading_pair="WMATIC-USDT",
-    ),
-    selling_market=ExchangePair(
-        exchange="binance",
-        trading_pair="MATIC-USDT",
-    ),
-    order_amount=Decimal("500"),        # In base asset
-    min_profitability=Decimal("0.004"), # 0.4% minimum
-)
+The two trading pairs must have the same base asset, or an interchangeable one. The base assets are the only part that is checked. Hummingbot treats these as interchangeable: ETH and WETH, BTC and WBTC, BNB and WBNB, POL and WPOL, AVAX and WAVAX, ONE and WONE, USDC and USDC.E, SOL and USOL, ETH and UETH, BTC and UBTC, and any two tokens whose names both contain `USD`.
+
+## Via the API
+
+Buy 10 SOL on Binance and sell 10 SOL on KuCoin as soon as the gap is worth more than 0.4% after fees:
+
+```bash
+curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/executors/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_name": "master_account",
+    "controller_id": "main",
+    "executor_config": {
+      "type": "arbitrage_executor",
+      "buying_market": {"connector_name": "binance", "trading_pair": "SOL-USDT"},
+      "selling_market": {"connector_name": "kucoin", "trading_pair": "SOL-USDT"},
+      "order_amount": "10",
+      "min_profitability": "0.004"
+    }
+  }'
 ```
 
-## Parameters
+When it starts, the executor checks that the account holds at least `order_amount` of the base asset on the selling market, and enough quote on the buying market to buy `order_amount`. If not, it ends with `INSUFFICIENT_BALANCE`.
 
-| Parameter | Description |
-|-----------|-------------|
-| `buying_market` | Exchange and pair for buy side |
-| `selling_market` | Exchange and pair for sell side |
-| `order_amount` | Amount in base asset |
-| `min_profitability` | Minimum profit threshold |
+## Close types
 
-## How It Works
+| Close type | When |
+|---|---|
+| `COMPLETED` | Both orders filled |
+| `EARLY_STOP` | You stopped it with `keep_position=false` |
+| `POSITION_HOLD` | You stopped it with `keep_position=true` |
+| `INSUFFICIENT_BALANCE` | A market didn't hold enough to fund its side |
+| `FAILED` | More than 10 order failures |
 
-1. **Validation**: Confirms trading pairs are interchangeable
-2. **Price Comparison**: Monitors prices on both markets
-3. **Profitability Check**: Calculates profit after all fees
-4. **Simultaneous Execution**: Places both orders when profitable
-5. **Tracking**: Records fill prices and actual profit
+## Stopping early
 
-## CEX-DEX Arbitrage
+Stop the executor with `POST /executors/{executor_id}/stop`. It stops right away. `keep_position` only changes the close type: nothing is unwound either way, and nothing is added to the Position Hold.
 
-Common use case is arbitraging between centralized and decentralized exchanges:
+## What it reports
 
-```python
-cex_dex_arb = ArbitrageExecutorConfig(
-    controller_id="cex-dex-arb",
-    buying_market=ExchangePair(
-        exchange="jupiter",  # DEX
-        trading_pair="SOL-USDC",
-    ),
-    selling_market=ExchangePair(
-        exchange="binance",  # CEX
-        trading_pair="SOL-USDT",
-    ),
-    order_amount=Decimal("10"),
-    min_profitability=Decimal("0.005"),
-)
-```
-
-## Token Interchangeability
-
-The executor validates tokens are equivalent:
-
-| Check | Example |
-|-------|---------|
-| Same token | MATIC = MATIC |
-| Wrapped equivalents | ETH = WETH |
-| Stablecoin equivalents | USDT ≈ USDC (configurable) |
-
-## Profitability Formula
-
-```
-Buy Cost = Buy Amount × Buy Price + Buy Fees + Gas
-Sell Revenue = Sell Amount × Sell Price - Sell Fees
-
-Net Profit = Sell Revenue - Buy Cost
-Profitability = Net Profit / Buy Cost
-
-Execute if: Profitability > min_profitability
-```
-
-## Example: Polygon MATIC Arbitrage
-
-```python
-matic_arb = ArbitrageExecutorConfig(
-    controller_id="matic-arb",
-    buying_market=ExchangePair(
-        exchange="uniswap_polygon_mainnet",
-        trading_pair="WMATIC-USDT",
-    ),
-    selling_market=ExchangePair(
-        exchange="binance",
-        trading_pair="MATIC-USDT",
-    ),
-    order_amount=Decimal("1000"),
-    min_profitability=Decimal("0.004"),
-)
-```
+The executor's `custom_info` includes `buy_connector`, `sell_connector`, `buy_pair`, `sell_pair`, the last quoted `buy_price` and `sell_price`, `trade_pnl_pct` (the gap), `tx_cost_pct`, `profit_pct` (the gap minus costs) and `failures`. Its `net_pnl_quote` is the sell proceeds minus the buy cost minus fees, and is reported only once the executor has completed.
 
 ## Considerations
 
 | Factor | Impact |
-|--------|--------|
-| **Gas Costs** | DEX trades have variable gas costs |
-| **Slippage** | Large orders may move price |
-| **Bridge Time** | Cross-chain requires bridging |
-| **Latency** | Speed matters for volatile spreads |
+|---|---|
+| Fees | The fee estimate is part of the profitability check, so a gap smaller than the fees never triggers |
+| Slippage | Prices are quoted for the full `order_amount`, but the market orders can still fill at a worse price |
+| Latency | The two orders are sent together, not atomically. If one fills and the other fails, the failed one is placed again. |
+| Inventory | Each trade moves base from the selling market to the buying market. Rebalancing between venues is up to you. |
+
+## Learn more
+
+- [Executors overview](/executors/overview): lifecycle, close types and the API
+- [XEMM Executor](/executors/xemm-executor): earn the spread with a resting limit order instead

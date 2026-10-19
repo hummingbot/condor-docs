@@ -1,65 +1,91 @@
 ---
 title: "Trade"
-description: "Chart-first manual trading: orders, positions, grids, and DCA on CEX venues"
+description: "Chart-first manual trading on order-book venues: orders, positions, grids and DCA, each run as an executor"
 ---
 
-The **Trade** page is a chart-first trading terminal for centralized exchanges. Everything you do here creates an [executor](/executors/overview) — a single supervised operation the API carries out and reports back on.
+The **Trade** page is a chart-first trading terminal for venues with an order book, such as Binance, Hyperliquid or XRPL. Everything you create here is an [executor](/executors/overview): a single operation the Hummingbot API runs and reports on.
+
+DEX pools traded through Gateway have their own page. See [DEX](/webui/dex).
 
 <Frame>
-  <img src="/images/webui/trade-order.jpg" alt="The Trade page: pair bar, chart, and the Order form in the Execute panel" />
+  <img src="/images/webui/trade-order.jpg" alt="The Trade page on XRPL XRP-RLUSD: market chip with star, interval and range buttons, chart, the Order builder in the Execute panel, and the executors pane below" />
 </Frame>
 
-## The pair bar
+## Choosing a market
 
-Top left: the **trading pair**, the **connector** it trades on (spot or perp), and **Browse** to search everything the connector lists. Candle interval (`1m`–`1d`) and chart range (`1h`–`30d`) sit above the chart. The chart itself is TradingView — shift-click to measure ranges, and grid boundaries you set in the panel are drawn directly on it.
+The chip at the top left shows the venue and pair, for example **Xrpl XRP-RLUSD**. Click it, or press **`/`** anywhere on the page, to open the market browser.
+
+- The left rail lists venues in two groups:
+  - **Your accounts**: venues you have API keys for.
+  - **View only**: venues whose market data is public, so you can chart them without keys.
+- The table lists the venue's pairs with price, 24h volume and price change. You can sort by any column, search, filter by quote asset, or show **Starred** markets only.
+- Press **Esc** to close it.
+
+Click the **star** next to the chip to save the market. Starred markets appear in the favorites strip under the top bar for one-click switching. Favorites are saved per server, in your browser.
+
+The venue list comes from the server: any connector you have keys for, plus any connector with public candle data. To add one to **Your accounts**, add its keys under [Settings → Keys and Wallets](/webui/settings#keys-and-wallets).
+
+## The chart
+
+- **Interval**: `1m`, `5m`, `15m`, `1h`, `4h`, `1d`.
+- **Range**: `1h`, `6h`, `1d`, `3d`, `7d`, `14d`, `30d`.
+- **Shift+click** to start measuring. Then move the mouse to see the % change from that point.
+- Prices you set in a builder, such as grid bounds or a limit price, are drawn as lines. Drag a line to change the price.
+- Executors on the pair are drawn on the chart too.
 
 ## The Execute panel
 
-The right panel's **Execute** tab has four builders, one per executor type:
+The right panel has two tabs: **Execute** and **Data**.
 
-- **Order** — a market or limit order. Set direction, amount (with `%`-of-balance shortcuts and USD notation), execution strategy, leverage, and position action, then **Create Order Executor**.
-- **Position** — a position with stop-loss / take-profit attached ([Position Executor](/executors/position-executor)).
-- **Grid** — a grid of orders between a start and end price, with stop-loss boundary, total amount, per-order minimums, spread, leverage, and take-profit per fill. **Auto-fill** proposes boundaries from the chart ([Grid Executor](/executors/grid-executor)).
-- **DCA** — laddered entries over time ([DCA Executor](/executors/dca-executor)).
+**Execute** holds one builder per executor type. Each builder ends with a **Create … Executor** button.
+
+| Builder | What it creates |
+|---|---|
+| **Order** | A single order. Set direction, amount (with 10/25/50/100% of balance shortcuts), execution strategy (**Market**, **Limit**, **Limit Maker** or **Limit Chaser**), leverage and position action (**Open** or **Close**). |
+| **Position** | A position with stop-loss, take-profit, time limit and trailing stop. See [Position Executor](/executors/position-executor). |
+| **Grid** | A ladder of orders between a lower and upper price, with a stop-loss limit, total amount, minimum order amount, spread and take-profit. **Auto-fill** proposes bounds around the current price. See [Grid Executor](/executors/grid-executor). |
+| **DCA** | Laddered entries with take-profit, stop-loss, time limit and trailing stop. See [DCA Executor](/executors/dca-executor). |
+| **LP** | A concentrated-liquidity position. See [LP Executor](/executors/lp-executor). |
+
+Which builders you see depends on the venue:
+
+- A venue with an order book gets **Order**, **Position**, **Grid** and **DCA**.
+- **LP** appears only on a venue that can hold a CLMM position. In practice those are Gateway networks, which you trade from the [DEX](/webui/dex) page.
+- A venue without Hummingbot market data gets **Order** only, with **Market** as its only strategy. That is what you see on a DEX pool.
+
+On a **View only** venue, the builder is blurred and shows **View only — no API keys for …** with an **Add API keys** button. The chart, the market browser and the Data tab still work.
 
 <Frame>
-  <img src="/images/webui/trade-grid.jpg" alt="The Grid builder, with price boundaries and grid structure" />
+  <img src="/images/webui/trade-grid.jpg" alt="The Grid builder with direction, lower and upper prices, the stop-loss limit and grid structure fields" />
 </Frame>
 
 ## The Data tab
 
-**Data** swaps the builder for the live **order book** (with spread) and **recent trades** for the selected pair.
+**Data** replaces the builder with the live **order book** and **recent trades** for the pair.
 
 <Frame>
-  <img src="/images/webui/trade-data.jpg" alt="The Data tab: order book and recent trades" />
+  <img src="/images/webui/trade-data.jpg" alt="The Data tab showing the order book and recent trades for the selected pair" />
 </Frame>
 
-## The bottom tray
+## The bottom pane
 
-Below the chart, two tables scoped to the current pair: **Executors** (live and recent, with entry, PNL, and volume) and **Positions**. This is where what you just created reports in.
+Below the chart, a pane scoped to the current pair shows standalone executors, the ones on controller `main`, which is where this page creates them. Executors that bots run don't appear here. The pane shows:
 
-## Supported exchanges
+- A summary line: the executor count, total PnL and volume, and your balances for the pair.
+- **Executors**: active executors first, with type, side, status, entry, price, PnL, volume and age. Click one to highlight it on the chart.
+- **Positions**: open positions on the pair.
 
-| Exchange | Spot | Perpetual |
-|----------|------|-----------|
-| **Binance** | Yes | Yes |
-| **Bybit** | Yes | Yes |
-| **OKX** | Yes | Yes |
-| **Kucoin** | Yes | Yes |
-| **Gate.io** | Yes | Yes |
-| **Kraken** | Yes | No |
-| **Coinbase** | Yes | No |
-| **Hyperliquid** | No | Yes |
-
-Any connector with credentials under [Settings → Keys and Wallets](/webui/settings#keys-and-wallets) shows up in the connector picker.
+Click the summary line to collapse the pane, or drag its top edge to resize it.
 
 ## Using Telegram
 
-**`/trade`** (and its alias **`/swap`**) opens one unified trading menu covering **CEX and DEX** venues. Pick the venue and pair, build the order with toggle buttons (side, order type, position mode) and text input — `$100` converts USD to token units — then **📊 Quote** before **✅ Execute**. The same menu reaches **📋 Orders** (view, filter, cancel) and **📊 Positions** (view, close with confirmation), and perpetual venues get leverage and position-mode controls.
+**`/trade`** opens one trading menu for both CEX and DEX venues. **`/swap`** is an alias for it. Pick the venue and pair, set the side, amount and order type with buttons, then tap **📊 Quote** and **✅ Execute**. Type an amount like `$100` to size it in USD. The same menu has **📋 Orders** (view and cancel) and **📊 Positions** (view and close). Perpetual venues also get leverage and position-mode buttons.
+
+Telegram places orders directly. To create grid or position executors from Telegram, use **`/executors`**.
 
 ## Using Hummingbot API
 
-The builders create executors, but the API also places orders directly — no executor, no exit conditions, no per-agent attribution:
+The builders create executors. The API can also place orders directly, with no executor, no exit conditions and no attribution to an agent:
 
 ```bash
 # Market order
@@ -74,7 +100,7 @@ curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/trading/orders
     "order_type": "MARKET"
   }'
 
-# Cancel — account, connector, and client order id in the path
+# Cancel: account, connector and client order id go in the path
 curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST \
   http://localhost:8000/trading/master_account/binance/orders/{client_order_id}/cancel
 
@@ -85,8 +111,9 @@ curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST \
   -d '{"trading_pair": "BTC-USDT", "leverage": 5}'
 ```
 
-Reach for direct orders for quick manual trades; reach for [executors](/executors/overview) when you want automatic exits (TP/SL/time) and P&L tagged to whoever created it.
+Use direct orders for quick manual trades. Use [executors](/executors/overview) when you want automatic exits (take-profit, stop-loss, time limit) and PnL tagged to whoever created them.
 
 ## Learn more
 
-- [Executors](/executors/overview) — every executor type in depth
+- [Executors](/executors/overview): every executor type in depth
+- [DEX](/webui/dex): pools traded through Gateway

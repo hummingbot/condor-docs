@@ -1,110 +1,160 @@
 ---
 title: "Backtesting"
-description: "Use historical data to research strategy parameters and validate behavior"
+description: "Use historical data to research controller parameters and validate behavior"
 ---
 
-Backtesting simulates your strategy against historical exchange data. Use it to understand parameter sensitivity and validate that your strategy behaves as expected—not to predict exact live results.
+Backtesting simulates a controller config against historical candles. Use it to understand parameter sensitivity and to check that your strategy behaves as expected, not to predict exact live results.
 
 ## Philosophy
 
-Backtesting market making strategies cannot perfectly simulate reality:
+Backtesting market making strategies can't perfectly simulate reality:
 
-1. **Queue Position** — Order books are FIFO (First In, First Out). You never know your position in the queue because exchanges don't reveal participant order positions.
-
-2. **Path Dependency** — If one fill differs between backtest and live, all subsequent behavior diverges. The correlation breaks with a single mismatched order.
-
-3. **Order Book Opacity** — Thick order books (like USDT/BRL with $600K at the first level) mean your orders may never fill even if price touches your level.
+1. **Queue position**: order books are first in, first out, and exchanges don't tell you where your order sits in the queue.
+2. **Path dependency**: if one fill differs between backtest and live, everything after it diverges.
+3. **Order book depth**: on a thick book your order may never fill, even when the price touches your level.
 
 <Warning>
-Don't trust absolute P&L numbers from backtests. Use backtesting as a **parameter research tool**, not a prediction engine.
+Don't trust absolute PnL numbers from backtests. Use backtesting as a **parameter research tool**, not a prediction engine.
 </Warning>
 
-## What Backtesting Is Good For
+## What backtesting is good for
 
-| Use Case | Example |
+| Use case | Example |
 |----------|---------|
 | Parameter sensitivity | "What happens if I change portfolio allocation from 2% to 10%?" |
-| Behavior validation | "Is my strategy placing sell orders only after reaching 30% inventory?" |
+| Behavior validation | "Does my strategy only sell after inventory reaches 30%?" |
 | Relative comparison | "Does configuration A generate more volume than B?" |
 | Strategy debugging | "Why did the bot stop trading in this scenario?" |
 
-## Supported Executors
+## Supported executors
 
-The backtesting engine works with controllers using these executors:
+The Hummingbot backtesting engine simulates the executors a controller creates. It has simulators for these executor types:
 
-| Executor | Supported | Notes |
-|----------|-----------|-------|
-| Position Executor | Yes | Full support including position hold |
-| DCA Executor | Yes | Dollar-cost averaging strategies |
-| Grid Executor | Yes | Grid trading strategies |
-| Order Executor | Coming | Not yet supported |
-| Arbitrage Executor | No | Requires order book data |
-| XEMM Executor | No | Requires cross-exchange order books |
+| Executor | Supported |
+|----------|-----------|
+| Position Executor | Yes, including position hold |
+| DCA Executor | Yes |
+| Grid Executor | Yes |
+| Order Executor | Yes |
+| Arbitrage, XEMM, TWAP, LP executors | No |
 
-## Candle Resolution
+A controller that creates unsupported executors produces no trades for them in a backtest.
 
-**One-second candles are crucial for market making backtests.**
+## Running a backtest in Condor
 
-With one-minute candles, the engine can only simulate one fill per minute. Real market making often has 30+ fills per minute. One-second resolution captures the granularity needed.
+Condor runs backtests with the **`backtest_chart`** routine. It sends a saved controller config to the Hummingbot API's backtesting engine, waits for the result, and draws an interactive chart. The routine is part of Condor's shared routine library, so you can run it from the dashboard, from Telegram, or through an agent.
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Open the [Routines](/webui/routines) page and select **backtest_chart**.
+    2. Pick a config in **config_name** and fill in the other fields (see the table below).
+    3. Run it. The summary and metrics appear in the run's result, and the interactive chart is saved as a report.
+  </Tab>
+  <Tab title="Telegram">
+    Send `/routines`, choose **backtest_chart**, set the fields and run it. The chart is sent to the chat as an image.
+  </Tab>
+  <Tab title="Agent">
+    Ask an agent, for example: "Backtest `pmm_mister__balanced` on 5m candles for the last 30 days." (`pmm_mister__balanced` is the name an agent gives the `balanced` sample config when it uploads it.) Agents call the routine through `manage_routines`:
+
+    ```python
+    # Condor MCP tool call made by the agent
+    manage_routines(
+        action="run_async",
+        name="backtest_chart",
+        config={
+            "config_name": "pmm_mister__balanced",
+            "start_date": "2026-09-15",
+            "end_date": "2026-10-15",
+            "resolution": "5m",
+        },
+    )
+    ```
+
+    `run_async` returns straight away and hands the result back to the agent when the backtest finishes.
+  </Tab>
+</Tabs>
+
+### Fields
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `config_name` | (empty) | Saved controller config to backtest. In the dashboard it's a dropdown of the server's configs. |
+| `start_date` | `2025-04-22` | First day, `YYYY-MM-DD` (UTC). |
+| `end_date` | `2025-04-23` | Last day, `YYYY-MM-DD` (UTC). |
+| `resolution` | `1m` | Candle resolution for the simulation: `1m`, `5m`, `15m` or `1h`. |
+| `trade_cost` | `0.0002` | Fee per trade as a decimal (`0.0002` = 0.02%). |
+| `chart` | `true` | Send the chart image to the chat. Turn it off for parameter sweeps; the chart is still saved in the web report. |
+| `task_id` | (empty) | Re-draw a saved backtest by its task ID instead of running a new one. |
+
+Each run gets a **Task ID**, shown in the summary. Results are stored in Condor for 30 days by default (`CONDOR_BACKTEST_RETENTION_DAYS`).
+
+If a run has fewer than 20 executors, the summary warns that the metrics are noise. Widen the date range or loosen the config and run it again.
+
+### Candle resolution and look-ahead
+
+For controllers that trade on indicator signals, use a resolution no finer than the controller's own candle `interval`.
+
+<Warning>
+The engine joins each controller's indicator candles to the simulation candles by the candle's **open** time. When the simulation resolution is finer than the controller's interval (for example, a 15m `bollinger_v1` run at `1m`), each 1m row inside a 15m candle already sees that 15m candle's final close and signal. The backtest trades on information it wouldn't have had live, so PnL and Sharpe come out better than they should. Backtest such controllers at their own interval (here, `15m`).
+</Warning>
 
 <Note>
-Currently, only Binance Spot provides one-second candles. You may need a server in a region where Binance is accessible, or use Tailscale to route requests through an allowed region.
+`supertrend_v1` can't be backtested at the moment: the engine drops every row of its indicator data, and the run fails.
 </Note>
 
-## Running Backtests
+Hummingbot's standalone script `scripts/backtest_pmm_mister.py` (run from a Hummingbot source checkout) defaults to `--resolution 1s` for market making. Condor's routine lists only `1m`, `5m`, `15m` and `1h`.
 
-### Via Hummingbot Scripts
+### Comparing backtests
 
-Hummingbot includes backtesting scripts in the `scripts/` folder:
+The **`backtest_compare`** routine overlays the PnL curves of saved backtests and ranks them in a metrics table.
 
-```bash
-cd ~/hummingbot
-python scripts/backtest_pmm_mister.py 0.5  # Backtest 0.5 days
-```
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `task_ids` | (empty) | Comma-separated task IDs. Leave it blank to use the latest runs. |
+| `latest_n` | `3` | How many recent backtests to compare when `task_ids` is blank (2–6). |
+| `normalize_time` | `false` | Align every curve at t=0 so runs over different dates overlay. |
 
-The script outputs:
-- Processing time (e.g., "34 seconds for 0.5 days")
-- Interactive Plotly chart in browser
+## Reading the chart
 
-### Via Condor Web Dashboard
-
-1. Navigate to **Bots** → **Backtest**
-2. Select a controller config
-3. Set the time range
-4. Run and view results
-
-## Interpreting Results
-
-### Chart Panes
-
-The Plotly output has three panes:
+The `backtest_chart` figure stacks up to four panes that share the time axis. Panes only appear when the backtest has data for them.
 
 | Pane | Content |
 |------|---------|
-| **Top** | Candles with executor markers |
-| **Middle** | P&L lines and volume |
-| **Bottom** | Position size over time |
+| **Price** | Price line (white), with the controller's Bollinger Bands when present, green or red background shading where the signal is long or short, and executor entry and exit markers. Grid executors also show their levels and fills. |
+| **MACD** | MACD histogram and signal line, only when the controller computes MACD. |
+| **Cumulative PnL** | PnL lines, active executor count and cumulative volume. |
+| **Position held** | Long and short inventory, net position and its unrealized PnL. Shown for controllers that hold positions. |
 
-### P&L Lines
+The chart title shows net PnL, Sharpe ratio, profit factor, executor count and volume.
 
-| Line | Meaning |
-|------|---------|
-| **Yellow** | Total P&L (realized + unrealized) |
-| **Purple** | Position unrealized P&L |
-| **Gap between yellow and purple** | Executor realized P&L |
+### PnL lines
 
-### Executor Colors
+| Line | Colour | Meaning |
+|------|--------|---------|
+| **Total PnL** | Yellow, solid with a light fill | Everything combined |
+| **Executor Realized PnL** | Green, dotted | PnL from executors that closed |
+| **Position Realized PnL** | Blue, dotted | PnL realized from held positions |
+| **Position Unrealized PnL** | Purple, dotted | Open PnL on held positions |
+| **Active Executors** | Faint white area | Number of executors running at once (scaled to fit) |
+| **Cumulative Volume** | Cyan, dash-dot, right axis | Traded volume so far |
 
-| Color | Meaning |
-|-------|---------|
-| **White** | Orders placed but not filled (early stop/refresh) |
-| **Green** | Filled orders that hit take profit |
-| **Blue** | Filled orders moved to position hold (market went against you) |
-| **Purple** | Executors reducing position (selling accumulated inventory) |
+### Executor markers
 
-## Example Analysis
+Each executor is drawn as an entry marker and an exit marker joined by a line. Markers are grouped by how the executor closed:
 
-### Portfolio Allocation: 2% vs 10%
+| Legend entry | Colour and shape | Meaning |
+|--------------|------------------|---------|
+| **TP Buy** / **TP Sell** | Green ▲ / red ▼ | Closed at take profit |
+| **SL Buy** / **SL Sell** | Orange ▲ / ▼ | Closed at stop loss |
+| **Hold Buy** / **Hold Sell** | Blue / purple ●, dotted line | Fill kept as inventory (position hold) |
+| **Early Stop Buy** / **Early Stop Sell** | Grey-white ✕, dashed line | Stopped early, often an order refreshed before it filled |
+| **Other Buy** / **Other Sell** | Grey ▲ / ▼ | Any other close type, such as time limit |
+
+For TP, SL and Other markers the connecting line is green when the executor made money and red when it lost.
+
+## Example analysis: 2% vs 10% allocation
+
+With `pmm_mister`, `portfolio_allocation` sets how much of the capital is quoted around the price.
 
 **2% allocation:**
 - Inventory builds gradually
@@ -113,39 +163,33 @@ The Plotly output has three panes:
 
 **10% allocation:**
 - Inventory builds quickly
-- May hit max position during drawdowns
-- Trading stops if position is underwater and at max (profit protection enabled)
+- May reach `max_base_pct` during a drawdown
+- With `position_profit_protection` on, the controller won't sell below its break-even price, and above `max_base_pct` it won't buy either, so it stops trading until the position is profitable again
 
-```
-# With profit_protection=true and 10% allocation:
-# If market drops while at max position → bot stops trading
-# Bot resumes only when position becomes profitable again
-```
+## PMM Mister parameters
 
-## PMM Mister Parameters
-
-Key parameters that affect backtesting behavior:
+These `pmm_mister` fields have the most effect on backtest behaviour. Field names come from the controller's config class.
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
-| `portfolio_allocation` | % of capital placed around mid price | 0.02 (2%) |
-| `min_base_percentage` | Minimum inventory before selling | 0.30 (30%) |
-| `max_base_percentage` | Maximum inventory before buying stops | 0.70 (70%) |
-| `max_active_executors_by_level` | How many times to replace a level | 20 |
-| `cooldown_time` | Seconds between level replacements | 30 |
-| `price_distance_tolerance` | Minimum price move before replacement | 0.0002 |
-| `activization_time` | Seconds before inventory is "permanent" | 1660 |
-| `profit_protection` | Only sell if position is profitable | true |
+| `portfolio_allocation` | Fraction of capital quoted around the price | `0.02` (2%) |
+| `min_base_pct` | Below this inventory share, the controller stops placing orders that reduce the position | `0.3` (30%) |
+| `max_base_pct` | Above this inventory share, the controller stops placing orders that add to the position | `0.7` (70%) |
+| `max_active_executors_by_level` | Maximum active executors per price level | `20` |
+| `buy_cooldown_time` / `sell_cooldown_time` | Seconds to wait before replacing a level on that side | `30` |
+| `price_distance_tolerance` | Minimum distance from existing orders before a new one is placed at a level | `0.0002` |
+| `buy_position_effectivization_time` / `sell_position_effectivization_time` | Seconds after a fill before it's turned into held inventory | `1660` |
+| `position_profit_protection` | Block the reducing side while the price is worse than break-even | `true` |
 
-## Trading Bots vs Trading Agents
+## Trading bots vs trading agents
 
-| Aspect | Trading Bots | Trading Agents |
+| Aspect | Trading bots | Trading agents |
 |--------|--------------|----------------|
 | Logic | Deterministic, coded | LLM-driven decisions |
-| Tick speed | 1 second or faster | 60+ seconds |
-| Backtesting | Fully supported | Not applicable |
-| Use case | HFT market making | Oversight, strategy selection |
+| Tick speed | 1 second by default | Minutes (each loop sets its own interval) |
+| Backtesting | Supported for controllers | Not directly; agents backtest the controllers they deploy |
+| Use case | Market making, executing a fixed strategy | Oversight, choosing and tuning strategies |
 
 <Tip>
-Agents can oversee and modify bot parameters, but they operate at a higher level (every minute+) rather than every tick. This separation keeps HFT performance while adding intelligent oversight.
+Agents can backtest, deploy and retune controllers, but they act every few minutes, not every tick. The bot does the fast work; the agent supervises it.
 </Tip>

@@ -12,7 +12,7 @@
           "Docker"
         ],
         "summary": "Is Docker Running",
-        "description": "Check if Docker daemon is running.\n\nArgs:\n    docker_service: Docker service dependency\n    \nReturns:\n    Dictionary indicating if Docker is running",
+        "description": "Check if Docker daemon is running.\n\nArgs:\n    docker_service: Docker service dependency\n\nReturns:\n    Dictionary indicating if Docker is running",
         "operationId": "is_docker_running_docker_running_get",
         "responses": {
           "200": {
@@ -37,7 +37,7 @@
           "Docker"
         ],
         "summary": "Available Images",
-        "description": "Get available Docker images matching the specified name.\n\nArgs:\n    image_name: Name pattern to search for in image tags\n    docker_service: Docker service dependency\n    \nReturns:\n    Dictionary with list of available image tags",
+        "description": "Get available Docker images matching the specified name.\n\nArgs:\n    image_name: Name pattern to search for in image tags\n    docker_service: Docker service dependency\n\nReturns:\n    Dictionary with list of available image tags\n\nRaises:\n    HTTPException: 502 if the Docker daemon refused or could not be reached",
         "operationId": "available_images_docker_available_images__get",
         "security": [
           {
@@ -83,7 +83,7 @@
           "Docker"
         ],
         "summary": "Active Containers",
-        "description": "Get all currently active (running) Docker containers.\n\nArgs:\n    name_filter: Optional filter to match container names (case-insensitive)\n    docker_service: Docker service dependency\n    \nReturns:\n    List of active container information",
+        "description": "Get all currently active (running) Docker containers.\n\nArgs:\n    name_filter: Optional filter to match container names (case-insensitive)\n    docker_service: Docker service dependency\n\nReturns:\n    List of active container information\n\nRaises:\n    HTTPException: 502 if the Docker daemon refused or could not be reached",
         "operationId": "active_containers_docker_active_containers_get",
         "security": [
           {
@@ -129,7 +129,7 @@
           "Docker"
         ],
         "summary": "Exited Containers",
-        "description": "Get all exited (stopped) Docker containers.\n\nArgs:\n    name_filter: Optional filter to match container names (case-insensitive)\n    docker_service: Docker service dependency\n    \nReturns:\n    List of exited container information",
+        "description": "Get all exited (stopped) Docker containers.\n\nArgs:\n    name_filter: Optional filter to match container names (case-insensitive)\n    docker_service: Docker service dependency\n\nReturns:\n    List of exited container information\n\nRaises:\n    HTTPException: 502 if the Docker daemon refused or could not be reached",
         "operationId": "exited_containers_docker_exited_containers_get",
         "security": [
           {
@@ -175,7 +175,7 @@
           "Docker"
         ],
         "summary": "Clean Exited Containers",
-        "description": "Remove all exited Docker containers to free up space.\n\nArgs:\n    docker_service: Docker service dependency\n    \nReturns:\n    Response from cleanup operation",
+        "description": "Remove all exited Docker containers to free up space.\n\nArgs:\n    docker_service: Docker service dependency\n\nReturns:\n    {\"success\": true, \"message\": ...} once the exited containers are pruned\n\nRaises:\n    HTTPException: 502 if the Docker daemon refused or could not be reached",
         "operationId": "clean_exited_containers_docker_clean_exited_containers_post",
         "responses": {
           "200": {
@@ -200,7 +200,7 @@
           "Docker"
         ],
         "summary": "Remove Container",
-        "description": "Remove a Hummingbot container and optionally archive its bot data.\n\nNOTE: This endpoint only works with Hummingbot containers (names starting with 'hummingbot-')\nas it archives bot-specific data from the bots/instances directory.\n\nArgs:\n    container_name: Name of the Hummingbot container to remove\n    archive_locally: Whether to archive data locally (default: True)\n    s3_bucket: S3 bucket name for cloud archiving (optional)\n    docker_service: Docker service dependency\n    bot_archiver: Bot archiver service dependency\n    \nReturns:\n    Response from container removal operation\n    \nRaises:\n    HTTPException: 400 if container is not a Hummingbot container\n    HTTPException: 500 if archiving fails",
+        "description": "Remove a bot container created by this API and archive its bot data.\n\nNOTE: This endpoint only works with containers this API manages. A bot container is named\nafter its instance verbatim, and owns the bots/instances/<container_name> directory that this\nendpoint archives; an unrelated container on the host has no such directory and is refused.\n\nArgs:\n    container_name: Name of the bot container to remove\n    archive_locally: Whether to archive data locally (default: True)\n    s3_bucket: S3 bucket name for cloud archiving (optional)\n    docker_service: Docker service dependency\n    bot_archiver: Bot archiver service dependency\n\nReturns:\n    Response from container removal operation\n\nRaises:\n    HTTPException: 400 if the container is not a bot managed by this API\n    HTTPException: 500 if archiving fails",
         "operationId": "remove_container_docker_remove_container__container_name__post",
         "security": [
           {
@@ -265,7 +265,7 @@
           "Docker"
         ],
         "summary": "Stop Container",
-        "description": "Stop a running Docker container.\n\nArgs:\n    container_name: Name of the container to stop\n    docker_service: Docker service dependency\n    \nReturns:\n    Response from container stop operation",
+        "description": "Stop a running Docker container.\n\nArgs:\n    container_name: Name of the container to stop\n    docker_service: Docker service dependency\n\nReturns:\n    {\"success\": true, \"message\": ...} once the container is stopped\n\nRaises:\n    HTTPException: 404 if no container by that name exists\n    HTTPException: 502 if the Docker daemon refused or could not be reached",
         "operationId": "stop_container_docker_stop_container__container_name__post",
         "security": [
           {
@@ -311,7 +311,7 @@
           "Docker"
         ],
         "summary": "Start Container",
-        "description": "Start a stopped Docker container.\n\nArgs:\n    container_name: Name of the container to start\n    docker_service: Docker service dependency\n    \nReturns:\n    Response from container start operation",
+        "description": "Start a stopped Docker container.\n\nArgs:\n    container_name: Name of the container to start\n    docker_service: Docker service dependency\n\nReturns:\n    {\"success\": true, \"message\": ...} once the container is started\n\nRaises:\n    HTTPException: 404 if no container by that name exists\n    HTTPException: 502 if the Docker daemon refused or could not be reached",
         "operationId": "start_container_docker_start_container__container_name__post",
         "security": [
           {
@@ -357,7 +357,7 @@
           "Docker"
         ],
         "summary": "Pull Image",
-        "description": "Initiate Docker image pull as background task.\nReturns immediately with task status for monitoring.\n\nArgs:\n    image: DockerImage object containing the image name to pull\n    docker_service: Docker service dependency\n    \nReturns:\n    Status of the pull operation initiation",
+        "description": "Initiate Docker image pull as background task.\nReturns immediately with task status for monitoring.\n\nArgs:\n    image: DockerImage object containing the image name to pull\n    docker_service: Docker service dependency\n\nReturns:\n    Status of the pull operation initiation",
         "operationId": "pull_image_docker_pull_image__post",
         "requestBody": {
           "content": {
@@ -402,7 +402,7 @@
           "Docker"
         ],
         "summary": "Get Pull Status",
-        "description": "Get status of all pull operations.\n\nArgs:\n    docker_service: Docker service dependency\n    \nReturns:\n    Dictionary with all pull operations and their statuses",
+        "description": "Get status of all pull operations.\n\nArgs:\n    docker_service: Docker service dependency\n\nReturns:\n    Dictionary with all pull operations and their statuses",
         "operationId": "get_pull_status_docker_pull_status__get",
         "responses": {
           "200": {
@@ -2131,7 +2131,7 @@
           "Connectors"
         ],
         "summary": "Get Connector Config Map",
-        "description": "Get configuration fields required for a specific connector with type information.\n\nArgs:\n    connector_name: Name of the connector to get config map for\n\nReturns:\n    Dictionary mapping field names to their type information.\n    Each field contains:\n    - type: The expected data type (e.g., \"str\", \"SecretStr\", \"int\")\n    - required: Whether the field is required",
+        "description": "Get configuration fields required for a specific connector with type information.\n\nArgs:\n    connector_name: Name of the connector to get config map for\n\nReturns:\n    Dictionary mapping field names to their type information.\n    Each field contains:\n    - type: The expected data type (e.g., \"str\", \"SecretStr\", \"int\")\n    - required: Whether the field is required\n    - allowed_values: List of accepted values (only for Literal fields)\n    - prompt: Human readable prompt from the Hummingbot config map (when defined)",
         "operationId": "get_connector_config_map_connectors__connector_name__config_map_get",
         "security": [
           {
@@ -2677,7 +2677,7 @@
           "Trading"
         ],
         "summary": "Get Orders",
-        "description": "Get historical order data across all or filtered accounts from the database/registry.\n\nArgs:\n    filter_request: JSON payload with filtering criteria\n\nReturns:\n    Paginated response with historical order data and pagination metadata",
+        "description": "Get historical order data across all or filtered accounts from the database/registry.\n\nOrders come newest first. `pagination.next_cursor` is the cursor of the page's last\norder; pass it back as `cursor` to get the orders older than it. It is `null` on the\nlast page. A cursor is a position, not a token: any `<created_at ISO>|<order id>` pages\nfrom that point back, whether or not the order exists. A cursor not in that format is\nrefused with a 400.\n\nArgs:\n    filter_request: JSON payload with filtering criteria\n\nReturns:\n    Paginated response with historical order data and pagination metadata",
         "operationId": "get_orders_trading_orders_search_post",
         "requestBody": {
           "content": {
@@ -2889,7 +2889,7 @@
           "Trading"
         ],
         "summary": "Set Leverage",
-        "description": "Set leverage for a specific trading pair on a perpetual connector.\n\nArgs:\n    account_name: Name of the account\n    connector_name: Name of the perpetual connector\n    request: Leverage request with trading pair and leverage value\n    accounts_service: Injected accounts service\n\nReturns:\n    Dictionary with success status and message\n\nRaises:\n    HTTPException: 400 for invalid parameters or non-perpetual connector, 404 for account/connector not found, 500 for execution errors",
+        "description": "Set leverage for a specific trading pair on a perpetual connector.\n\nArgs:\n    account_name: Name of the account\n    connector_name: Name of the perpetual connector\n    request: Leverage request with trading pair and leverage value\n    accounts_service: Injected accounts service\n\nReturns:\n    Dictionary with success status and message\n\nRaises:\n    HTTPException: 400 for invalid parameters or non-perpetual connector, 404 for account/connector\n        not found, 500 for execution errors",
         "operationId": "set_leverage_trading__account_name___connector_name__leverage_post",
         "security": [
           {
@@ -5344,7 +5344,7 @@
             "required": false,
             "schema": {
               "type": "number",
-              "default": 30,
+              "default": 30.0,
               "title": "Timeout"
             }
           }
@@ -7872,6 +7872,586 @@
         }
       }
     },
+    "/bot-orchestration/rate-oracle/sources": {
+      "get": {
+        "tags": [
+          "Bot Orchestration"
+        ],
+        "summary": "Get Bot Rate Oracle Sources",
+        "description": "List the rate oracle sources a bot can be configured with. Does not affect the API's own pricing.",
+        "operationId": "get_bot_rate_oracle_sources_bot_orchestration_rate_oracle_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response Get Bot Rate Oracle Sources Bot Orchestration Rate Oracle Sources Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/bot-orchestration/rate-oracle/config": {
+      "get": {
+        "tags": [
+          "Bot Orchestration"
+        ],
+        "summary": "Get Bot Rate Oracle Config",
+        "description": "Get the client defaults that bots deployed with this credentials profile will use.\n\nArgs:\n    account_name: Credentials profile whose conf_client.yml to read (default master_account)",
+        "operationId": "get_bot_rate_oracle_config_bot_orchestration_rate_oracle_config_get",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "account_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "master_account",
+              "title": "Account Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateOracleConfigResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Bot Orchestration"
+        ],
+        "summary": "Update Bot Rate Oracle Config",
+        "description": "Update the bot rate oracle source, global token and/or rate-limit share in an account's\nconf_client.yml.\n\nBots pick the change up on their next deploy (running bots keep their copied config).\nChanging master_account's global token also switches the API's own valuation quote token.\n\nArgs:\n    update_request: Configuration updates to apply\n    account_name: Credentials profile whose conf_client.yml to update (default master_account)",
+        "operationId": "update_bot_rate_oracle_config_bot_orchestration_rate_oracle_config_put",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "account_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "master_account",
+              "title": "Account Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RateOracleConfigUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateOracleConfigUpdateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/performance/history": {
+      "get": {
+        "tags": [
+          "Performance"
+        ],
+        "summary": "Get Performance History",
+        "description": "Historical performance for one subject, newest first, in one normalized row shape.\n\nBoth subjects page identically: descending timestamp, `cursor` is the last row's\ntimestamp, `has_more` says whether another page exists.\n\n`interval` is a floor, not a guarantee. The controller series is written on a\n5-minute grain, so asking it for `1m` returns that native grain; the executor series\nis written on PERFORMANCE_EXECUTOR_SNAPSHOT_INTERVAL (60s by default). The echoed\n`interval` says what was asked for, the timestamps say what was served.\n\nIt is a claim about resolution only. Sampling is per scope -- per executor, per (bot,\ncontroller) -- so a coarser interval thins every scope's own series and never drops a\nscope from the answer. An unnarrowed query over a fleet returns the whole fleet at\nevery interval, at a lower resolution.\n\nRealized vs unrealized, for executors: an executor reports one net PnL, and the split\ncomes from whether its position is really settled. A `POSITION_HOLD` close is NOT\nsettled -- it hands the position on to position_holds, which report it in their own\nright -- so its PnL stays in `unrealized_pnl_quote` even though `is_terminal` is true\nand `status` is TERMINATED. Counting it realized here would double-count it, the same\nexclusion /executors/performance applies. Any other terminal close is realized.\n\nAn executor's series is answered from executor_performance_snapshots alone, including\nits final value: completion writes a terminal row, so there is no join to the\nexecutors table and no \"and then append the last point\" rule. An executor that was\nlive when the API crashed gets its terminal row from the startup reap instead, carrying\n`close_type: SYSTEM_CLEANUP` and the last figures observed before the crash -- an\napproximated close, marked as one, rather than a series that never ends.",
+        "operationId": "get_performance_history_performance_history_get",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(controller|executor)$",
+              "description": "Which population to read: \"controller\" or \"executor\"",
+              "title": "Subject"
+            },
+            "description": "Which population to read: \"controller\" or \"executor\""
+          },
+          {
+            "name": "bot_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by bot name (controller subject only)",
+              "title": "Bot Name"
+            },
+            "description": "Filter by bot name (controller subject only)"
+          },
+          {
+            "name": "controller_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by controller ID (either subject)",
+              "title": "Controller Id"
+            },
+            "description": "Filter by controller ID (either subject)"
+          },
+          {
+            "name": "executor_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by executor ID (executor subject only)",
+              "title": "Executor Id"
+            },
+            "description": "Filter by executor ID (executor subject only)"
+          },
+          {
+            "name": "executor_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by executor type (executor subject only)",
+              "title": "Executor Type"
+            },
+            "description": "Filter by executor type (executor subject only)"
+          },
+          {
+            "name": "account_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by account name (executor subject only)",
+              "title": "Account Name"
+            },
+            "description": "Filter by account name (executor subject only)"
+          },
+          {
+            "name": "connector_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by connector (executor subject only)",
+              "title": "Connector Name"
+            },
+            "description": "Filter by connector (executor subject only)"
+          },
+          {
+            "name": "trading_pair",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by trading pair (executor subject only)",
+              "title": "Trading Pair"
+            },
+            "description": "Filter by trading pair (executor subject only)"
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO 8601 start of the window",
+              "title": "Start Time"
+            },
+            "description": "ISO 8601 start of the window"
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO 8601 end of the window",
+              "title": "End Time"
+            },
+            "description": "ISO 8601 end of the window"
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(1m|5m|15m|30m|1h|4h|12h|1d)$",
+              "default": "5m",
+              "title": "Interval"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cursor from a previous page's next_cursor",
+              "title": "Cursor"
+            },
+            "description": "Cursor from a previous page's next_cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/performance/latest": {
+      "get": {
+        "tags": [
+          "Performance"
+        ],
+        "summary": "Get Latest Performance",
+        "description": "The most recent snapshot of every scope in one subject, newest first.\n\nOne row per scope -- per (bot, controller), or per executor -- in the same normalized\nshape `/history` returns, so a dashboard's live tiles and its charts read the same\nfields off the same client.\n\n`limit` caps how many scopes come back, it is not a page boundary: there is no cursor\nhere because this is not a series. Newest-first ordering means the scopes that are\nstill reporting come first, which matters far more for executors than for controllers\n-- every executor that ever ran leaves a terminal row behind, so the executor\npopulation grows without bound while the controller one does not.\n\nThis reads the stored series, not live memory. An executor younger than one snapshot\ninterval has no row yet and does not appear, and a live one's figures are up to one\ninterval stale -- by design, so that this row and the last row of `/history` are the\nsame row. Live in-memory figures are what `/executors/` serves.\n\nA closed executor's latest row is its terminal row, carrying `is_terminal: true` and\nits `close_type`, so \"the final value\" needs no separate call. That holds for every\nway an executor can close, including the startup reap of one a crash left behind\n(`close_type: SYSTEM_CLEANUP`): this row and `GET /executors/{executor_id}` are written\nin the same transaction, so the two surfaces cannot disagree about whether an executor\nis done.",
+        "operationId": "get_latest_performance_performance_latest_get",
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(controller|executor)$",
+              "description": "Which population to read: \"controller\" or \"executor\"",
+              "title": "Subject"
+            },
+            "description": "Which population to read: \"controller\" or \"executor\""
+          },
+          {
+            "name": "bot_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by bot name (controller subject only)",
+              "title": "Bot Name"
+            },
+            "description": "Filter by bot name (controller subject only)"
+          },
+          {
+            "name": "controller_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by controller ID (either subject)",
+              "title": "Controller Id"
+            },
+            "description": "Filter by controller ID (either subject)"
+          },
+          {
+            "name": "executor_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by executor ID (executor subject only)",
+              "title": "Executor Id"
+            },
+            "description": "Filter by executor ID (executor subject only)"
+          },
+          {
+            "name": "executor_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by executor type (executor subject only)",
+              "title": "Executor Type"
+            },
+            "description": "Filter by executor type (executor subject only)"
+          },
+          {
+            "name": "account_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by account name (executor subject only)",
+              "title": "Account Name"
+            },
+            "description": "Filter by account name (executor subject only)"
+          },
+          {
+            "name": "connector_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by connector (executor subject only)",
+              "title": "Connector Name"
+            },
+            "description": "Filter by connector (executor subject only)"
+          },
+          {
+            "name": "trading_pair",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by trading pair (executor subject only)",
+              "title": "Trading Pair"
+            },
+            "description": "Filter by trading pair (executor subject only)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "description": "Cap on how many scopes come back, newest first",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Cap on how many scopes come back, newest first"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceLatestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/backtesting/run": {
       "post": {
         "tags": [
@@ -8643,6 +9223,133 @@
         "summary": "Get System Resources",
         "description": "Get host machine CPU, RAM, and disk usage.\n\nReturns:\n    Dictionary with current CPU, memory, and disk utilization for the host.",
         "operationId": "get_system_resources_system_resources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/system/info": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get System Info",
+        "description": "Get the versions this API server runs and how its own container was deployed.\n\nRead-only, and never raises: when docker.sock is not mounted, the daemon is\nunreachable or this process cannot find its own container, the version fields are\nstill reported and the container block is None.\n\nReturns:\n    Dictionary with the API version, the hummingbot library version, the market-data\n    tunables this process is running with, whether the Docker daemon could be\n    reached, the API's own container (id, name, image, digest and compose labels),\n    and whether that image is pinned, with a short reason and the override file name\n    when it is.",
+        "operationId": "get_system_info_system_info_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/system/upgrade/preflight": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get Upgrade Preflight",
+        "description": "Report whether this API can replace its own container, and what it would cost.\n\nRead-only and never raises: a daemon that cannot be reached, a container that cannot\nbe placed and a registry that cannot be read are all reported as can_upgrade false\nwith a blocked_reason, because the caller of a destructive action needs a reason far\nmore than it needs a 500.\n\nReturns:\n    Dictionary with image_ref, current_digest, available_digest, up_to_date, the\n    pinning verdict (pinned / pinned_reason / override_file), the compose project,\n    working dir and config files, running_executors and running_bots, and\n    can_upgrade with its blocked_reason (None only when the upgrade may be started).",
+        "operationId": "get_upgrade_preflight_system_upgrade_preflight_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/system/upgrade": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Start Upgrade",
+        "description": "Pull the published image and hand the container recreate to a helper container.\n\nThe preflight is re-run here, so a server that became unupgradable since the caller\nlast looked -- an executor started, another upgrade began, the daemon went away --\nis refused rather than upgraded on a stale reading.\n\nArgs:\n    request: acknowledge_executor_loss, the caller's consent to every running\n        executor being closed as SYSTEM_CLEANUP. Required when any is running.\n\nReturns:\n    202 with the run id and the initial phase. The API is replaced part-way through,\n    so the result is read back from /system/upgrade/status after it restarts.\n\nRaises:\n    HTTPException: 409 when the upgrade is refused. Nothing was pulled, and nothing\n        on the server was changed.",
+        "operationId": "start_upgrade_system_upgrade_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SelfUpgradeRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ]
+      }
+    },
+    "/system/upgrade/status": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get Upgrade Status",
+        "description": "Report the current or last self-upgrade.\n\nPhases: idle (there has been none), pulling, recreating (this API is about to be\nreplaced, so the next answer comes from the new one), done, failed. After a\nsuccessful recreate the record is the one this API collected from the helper\ncontainer on boot, including its exit code and the tail of its output.\n\nReturns:\n    Dictionary with run_id, phase, detail, previous_digest, new_digest, exit_code\n    and log_tail.",
+        "operationId": "get_upgrade_status_system_upgrade_status_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -10086,8 +10793,8 @@
         "properties": {
           "limit": {
             "type": "integer",
-            "maximum": 1000,
-            "minimum": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
             "title": "Limit",
             "description": "Number of items per page",
             "default": 100
@@ -10294,11 +11001,11 @@
           },
           "timeout": {
             "type": "number",
-            "maximum": 120,
-            "minimum": 1,
+            "maximum": 120.0,
+            "minimum": 1.0,
             "title": "Timeout",
             "description": "Timeout in seconds for order book initialization",
-            "default": 30
+            "default": 30.0
           }
         },
         "type": "object",
@@ -12130,14 +12837,14 @@
           "cum_fees_quote": 1.25,
           "executor_id": "abc123...",
           "executor_type": "position_executor",
-          "filled_amount_quote": 5000,
+          "filled_amount_quote": 5000.0,
           "is_active": true,
           "is_trading": true,
           "net_pnl_pct": 2.5,
           "net_pnl_quote": 125.5,
           "side": "BUY",
           "status": "RUNNING",
-          "timestamp": 1705315800,
+          "timestamp": 1705315800.0,
           "trading_pair": "BTC-USDT"
         }
       },
@@ -12145,8 +12852,8 @@
         "properties": {
           "limit": {
             "type": "integer",
-            "maximum": 1000,
-            "minimum": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
             "title": "Limit",
             "description": "Number of items per page",
             "default": 100
@@ -12452,7 +13159,7 @@
           },
           "total_active": 5,
           "total_pnl_quote": 1234.56,
-          "total_volume_quote": 50000
+          "total_volume_quote": 50000.0
         }
       },
       "FundingInfoRequest": {
@@ -12547,8 +13254,8 @@
         "properties": {
           "limit": {
             "type": "integer",
-            "maximum": 1000,
-            "minimum": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
             "title": "Limit",
             "description": "Number of items per page",
             "default": 100
@@ -12745,6 +13452,37 @@
         "title": "GatewayWalletCredential",
         "description": "Credentials for adding an existing wallet to Gateway"
       },
+      "GlobalTokenConfig": {
+        "properties": {
+          "global_token_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Token Name",
+            "description": "The token to use as global quote (e.g., USDT, USD, BTC)"
+          },
+          "global_token_symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Token Symbol",
+            "description": "Symbol to display for the global token"
+          }
+        },
+        "type": "object",
+        "title": "GlobalTokenConfig",
+        "description": "Global token configuration for displaying values."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -12800,8 +13538,8 @@
           },
           "leverage": {
             "type": "integer",
-            "maximum": 125,
-            "minimum": 1,
+            "maximum": 125.0,
+            "minimum": 1.0,
             "title": "Leverage",
             "description": "Leverage value (typically 1-125)"
           }
@@ -12948,8 +13686,8 @@
           },
           "depth": {
             "type": "integer",
-            "maximum": 1000,
-            "minimum": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
             "title": "Depth",
             "description": "Number of price levels to return",
             "default": 10
@@ -13006,8 +13744,8 @@
         "properties": {
           "limit": {
             "type": "integer",
-            "maximum": 1000,
-            "minimum": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
             "title": "Limit",
             "description": "Number of items per page",
             "default": 100
@@ -13320,6 +14058,57 @@
           }
         }
       },
+      "PerformanceHistoryResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "success"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PerformanceRow"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "pagination": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Pagination",
+            "description": "next_cursor, has_more, limit and the interval that was requested"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "title": "PerformanceHistoryResponse",
+        "description": "Envelope of GET /performance/history, matching the controller route's shape."
+      },
+      "PerformanceLatestResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "success"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PerformanceRow"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "PerformanceLatestResponse",
+        "description": "Envelope of GET /performance/latest.\n\nNo pagination block: this is one row per scope, not a series, so there is no cursor\nto walk and no interval to sample. `limit` is a cap on how many scopes come back,\nnewest-first, not a page boundary."
+      },
       "PerformanceReportResponse": {
         "properties": {
           "controller_id": {
@@ -13425,6 +14214,195 @@
         "title": "PerformanceReportResponse",
         "description": "Performance report for executors, optionally filtered by controller_id."
       },
+      "PerformanceRow": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "ISO 8601 timestamp of the snapshot"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject",
+            "description": "Which population this row came from: \"controller\" or \"executor\""
+          },
+          "scope_id": {
+            "type": "string",
+            "title": "Scope Id",
+            "description": "controller_id for controllers, executor_id for executors"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Status at the moment of the snapshot"
+          },
+          "is_terminal": {
+            "type": "boolean",
+            "title": "Is Terminal",
+            "description": "True only on the final row of a completed executor's series. Always false for controllers, which have no terminal row.",
+            "default": false
+          },
+          "realized_pnl_quote": {
+            "type": "number",
+            "title": "Realized Pnl Quote",
+            "description": "Realized PnL in quote currency. For an executor this is its net PnL once the position is really settled, and 0 while it is not. A POSITION_HOLD close is not settled: the position carries on in position_holds, so a held executor's PnL stays unrealized here even though is_terminal is true."
+          },
+          "unrealized_pnl_quote": {
+            "type": "number",
+            "title": "Unrealized Pnl Quote",
+            "description": "Unrealized PnL in quote currency. For an executor this is its net PnL while the position is open, and after a POSITION_HOLD close."
+          },
+          "global_pnl_quote": {
+            "type": "number",
+            "title": "Global Pnl Quote",
+            "description": "Total PnL (realized + unrealized) in quote currency"
+          },
+          "global_pnl_pct": {
+            "type": "number",
+            "title": "Global Pnl Pct",
+            "description": "Total PnL as a fraction of the capital deployed"
+          },
+          "volume_quote": {
+            "type": "number",
+            "title": "Volume Quote",
+            "description": "Volume traded in quote currency. Volume GENERATED, not capital deployed: an LP position's deposit is excluded."
+          },
+          "cum_fees_quote": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cum Fees Quote",
+            "description": "Cumulative fees in quote currency. NULL for controllers: their PerformanceReport genuinely has no fees field, and unknown is not zero."
+          },
+          "bot_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Name",
+            "description": "Docker bot name; controllers only"
+          },
+          "controller_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controller Id",
+            "description": "Controller ID, on both subjects"
+          },
+          "executor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executor Id",
+            "description": "Executor ID; executors only"
+          },
+          "executor_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executor Type",
+            "description": "Executor type; executors only"
+          },
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name",
+            "description": "Account name; executors only"
+          },
+          "connector_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connector Name",
+            "description": "Connector name; executors only"
+          },
+          "trading_pair": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trading Pair",
+            "description": "Trading pair; executors only"
+          },
+          "close_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close Type",
+            "description": "Close type; set on an executor's terminal row"
+          },
+          "performance": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Performance",
+            "description": "Controllers: the raw stored PerformanceReport. Empty for executors, whose metrics are all typed columns above."
+          },
+          "custom_info": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Custom Info",
+            "description": "Controllers: the raw stored custom_info. Empty for executors -- these payloads carry fill_events and grid levels, which have no business in a per-minute row."
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp",
+          "subject",
+          "scope_id",
+          "status",
+          "realized_pnl_quote",
+          "unrealized_pnl_quote",
+          "global_pnl_quote",
+          "global_pnl_pct",
+          "volume_quote"
+        ],
+        "title": "PerformanceRow",
+        "description": "A single point of a performance series, for either subject."
+      },
       "PoolPricesResponse": {
         "properties": {
           "quote_token": {
@@ -13496,8 +14474,8 @@
         "properties": {
           "limit": {
             "type": "integer",
-            "maximum": 1000,
-            "minimum": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
             "title": "Limit",
             "description": "Number of items per page",
             "default": 100
@@ -13639,8 +14617,8 @@
         "properties": {
           "limit": {
             "type": "integer",
-            "maximum": 1000,
-            "minimum": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
             "title": "Limit",
             "description": "Number of items per page",
             "default": 100
@@ -13780,7 +14758,7 @@
           "cum_fees_quote": {
             "type": "number",
             "title": "Cum Fees Quote",
-            "default": 0
+            "default": 0.0
           },
           "unrealized_pnl_quote": {
             "anyOf": [
@@ -14049,6 +15027,161 @@
         "title": "QuoteVolumeForPriceRequest",
         "description": "Request model for getting quote volume at a specific price"
       },
+      "RateOracleConfig": {
+        "properties": {
+          "account_name": {
+            "type": "string",
+            "title": "Account Name",
+            "description": "Credentials profile the configuration belongs to"
+          },
+          "rate_oracle_source": {
+            "$ref": "#/components/schemas/RateOracleSourceConfig"
+          },
+          "global_token": {
+            "$ref": "#/components/schemas/GlobalTokenConfig"
+          },
+          "rate_limits_share_pct": {
+            "type": "number",
+            "maximum": 100.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Rate Limits Share Pct",
+            "description": "Percentage of each exchange's API rate limit allocated to a bot instance",
+            "default": 100.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_name",
+          "rate_oracle_source",
+          "global_token"
+        ],
+        "title": "RateOracleConfig",
+        "description": "Bot client defaults persisted in an account's conf_client.yml."
+      },
+      "RateOracleConfigResponse": {
+        "properties": {
+          "account_name": {
+            "type": "string",
+            "title": "Account Name",
+            "description": "Credentials profile the configuration belongs to"
+          },
+          "rate_oracle_source": {
+            "$ref": "#/components/schemas/RateOracleSourceConfig"
+          },
+          "global_token": {
+            "$ref": "#/components/schemas/GlobalTokenConfig"
+          },
+          "rate_limits_share_pct": {
+            "type": "number",
+            "maximum": 100.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Rate Limits Share Pct",
+            "description": "Percentage of each exchange's API rate limit allocated to a bot instance",
+            "default": 100.0
+          },
+          "available_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Available Sources",
+            "description": "Rate oracle sources that can be configured"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_name",
+          "rate_oracle_source",
+          "global_token",
+          "available_sources"
+        ],
+        "title": "RateOracleConfigResponse",
+        "description": "Response for the rate oracle configuration GET endpoint."
+      },
+      "RateOracleConfigUpdateRequest": {
+        "properties": {
+          "rate_oracle_source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RateOracleSourceConfig"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New rate oracle source configuration (optional)"
+          },
+          "global_token": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GlobalTokenConfig"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New global token configuration (optional)"
+          },
+          "rate_limits_share_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate Limits Share Pct",
+            "description": "New share of each exchange's API rate limit for a bot instance, 1-100 (optional)"
+          }
+        },
+        "type": "object",
+        "title": "RateOracleConfigUpdateRequest",
+        "description": "Request model for updating the rate oracle configuration."
+      },
+      "RateOracleConfigUpdateResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "Whether the update was successful"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Status message"
+          },
+          "config": {
+            "$ref": "#/components/schemas/RateOracleConfig",
+            "description": "Updated configuration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "message",
+          "config"
+        ],
+        "title": "RateOracleConfigUpdateResponse",
+        "description": "Response for a bot client defaults update."
+      },
+      "RateOracleSourceConfig": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "The rate oracle source deployed bots use for price data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RateOracleSourceConfig",
+        "description": "Rate oracle source configuration."
+      },
       "RateRequest": {
         "properties": {
           "trading_pairs": {
@@ -14169,6 +15302,19 @@
         ],
         "title": "Script",
         "description": "Script file content"
+      },
+      "SelfUpgradeRequest": {
+        "properties": {
+          "acknowledge_executor_loss": {
+            "type": "boolean",
+            "title": "Acknowledge Executor Loss",
+            "description": "Confirms that every running executor will be closed as SYSTEM_CLEANUP and not restored. Required when the server has any running executor.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "SelfUpgradeRequest",
+        "description": "Consent to what a self-upgrade destroys.\n\nRestarting the API closes every RUNNING executor as SYSTEM_CLEANUP and they are not\nrestored, so the one field here is the acknowledgement of that -- and it defaults to\nFalse, which means a caller that sends an empty body is refused rather than served.\nBot containers are separate and keep running."
       },
       "SetDefaultWalletRequest": {
         "properties": {
@@ -14973,8 +16119,8 @@
         "properties": {
           "limit": {
             "type": "integer",
-            "maximum": 1000,
-            "minimum": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
             "title": "Limit",
             "description": "Number of items per page",
             "default": 100
@@ -15110,7 +16256,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "exclusiveMinimum": 0
+                "exclusiveMinimum": 0.0
               },
               {
                 "type": "string",

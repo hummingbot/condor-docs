@@ -1,178 +1,151 @@
 ---
 title: "Build Your First Agent"
-description: "Create and deploy an autonomous Trading Agent"
+description: "Ask Condor to build a trading agent for you, then test it with a Dry Run, a single live tick and a loop"
 ---
 
-Now let's create your first Trading Agent—an autonomous system that observes markets, reasons about strategy, and executes trades.
+A Trading Agent is a folder that Condor reads: an `AGENT.md` that says who the agent is, plus optional loops, routines, skills and controllers. You don't have to write that folder yourself. Condor ships with an `agent_builder` skill that creates the agent for you from a conversation.
 
-## Start Agent Builder
+This guide walks through building a first agent from a description, testing it, and stopping it.
 
-1. Send `/agent` in Telegram
-2. Select **Agent Builder** mode
-3. Follow the guided flow
+## What you need
 
-## Phase 1: Strategy Design
+<Steps>
+  <Step title="Condor connected to a Hummingbot API server">
+    Follow [Installing](/getting-started/installing). In the dashboard the server selector in the top bar shows a green dot when the server is reachable.
+  </Step>
+  <Step title="Exchange keys">
+    Add them in **Settings → Keys and Wallets → Add API Key**, and start with a small balance. See [Exchange Credentials](/getting-started/credentials). The dashboard doesn't list testnet connectors such as `binance_perpetual_testnet`; those can only be added through the Hummingbot API directly.
+  </Step>
+  <Step title="A model">
+    A new agent uses the model Condor is running on unless you ask for a different one. See [LLM Integration](/llm-integration).
+  </Step>
+</Steps>
 
-Tell the Agent Builder what you want to trade:
+## 1. Ask Condor to build it
 
-```
-You: I want to create a scalping strategy for SOL-USDT on Binance perpetual.
-     Use support/resistance levels with EMAs for trend confirmation.
-     Take profit at 2%, stop loss at 1%.
+Open the dashboard and talk to **Condor** in the chat. In Telegram, send Condor a plain message; if you switched to another agent earlier, send `/agent`, tap **Talk to** and choose **Condor (coordinator)**.
 
-Agent Builder: Great! I'll create a SOL perp scalper with:
-- Market: Binance Perpetual SOL-USDT
-- Entry: Support levels + EMA alignment
-- Exit: 2% TP / 1% SL
-- Position size: $25 per trade
+Describe the agent in a sentence or two: what it specializes in and what you will use it for. For example:
 
-Shall I proceed with strategy design?
-```
-
-## Phase 2: Market Data
-
-The builder selects or creates routines for market analysis:
-
-```
-Agent Builder: I'll create a routine to analyze SOL-USDT with:
-- 1-minute candles
-- EMA(7), EMA(25), EMA(99) for trend
-- Support/resistance detection
-
-Running analysis now...
-
-Analysis Result:
-- Price: $156.20
-- Trend: Bullish (EMAs aligned)
-- Support: $154.50, $152.00
-- Resistance: $158.00, $160.50
-
-Does this look correct?
+```text
+Build me an agent that specializes in SOL-USDT perpetuals on support and
+resistance levels. I want to ask it for trade setups, and later let it
+open and close position executors on its own.
 ```
 
-## Phase 3: Strategy Logic
+Condor follows the [Agent Builder](/condor-agent/agent-builder) skill. It starts small and adds one piece at a time, asking you before each step:
 
-The builder creates your `agent.md` file:
+1. **Creates the agent.** It settles the agent's role and what it is for, then writes its `AGENT.md`.
+2. **Asks it a question** in its specialty and shows you the answer, to prove it works. If the answer is off, Condor edits the instructions and asks again.
+3. **Adds routines,** if you want them. A routine is deterministic Python that turns raw market data into the view the agent needs, such as a support and resistance scan. Condor hands each routine to a background worker, which writes and tests it. The work appears in the **Tasks** panel beside the chat.
+4. **Writes a loop,** if you want the agent to act on its own. The loop is the playbook it follows on every tick, with its frequency and risk limits.
 
-```yaml
----
-name: SOL Scalper
-tick_interval: 60
-connectors:
-  - binance_perpetual
+The agent can answer questions as soon as step 1 is done. Routines and a loop make it more specific; they aren't required.
 
-configs:
-  trading_pair: SOL-USDT
-  position_size: 25
+<Tip>
+If you already have controllers, configs or strategy notes in a folder, give Condor the folder's path instead. The skill reads every file, proposes a build plan, and writes nothing until you approve it. See [Build from a folder](/condor-agent/agent-builder#path-b-build-from-a-folder).
+</Tip>
 
-limits:
-  max_position_size_quote: 100
-  max_single_order_quote: 25
-  max_open_executors: 3
-  max_drawdown_pct: 5
----
+## 2. Find what it built
 
-## Goal
-Scalp SOL-USDT on Binance perpetual using support/resistance with EMA confirmation.
+Condor writes the agent under the local agents folder of your Condor install:
 
-## Entry Rules
-1. Run technical analysis routine
-2. If trend is bullish AND price near support → Long
-3. If trend is bearish AND price near resistance → Short
-
-## Exit Rules
-- Take profit: 2%
-- Stop loss: 1%
-- Keep position on stop (to recover)
-
-## Constraints
-- Max 3 concurrent positions
-- Never exceed $100 total exposure
+```text
+.condor/agents/<slug>/
+  AGENT.md                 # identity, model, tools
+  loops/<loop>/loop.md     # per-tick playbook, if you asked for a loop
+  routines/<name>.py       # if you asked for routines
 ```
 
-## Phase 4: Dry Run
+The slug is the agent's name in lowercase with spaces turned into underscores, for example `sol_sr_scalper`. Open `/agents/<slug>` in the dashboard to see the agent page. From the chat you can also open the agent's panel and click **Workspace**.
 
-Test the agent's reasoning without real trades:
+<Note>
+**Where to put your agent.** Agents you create belong in `.condor/agents/`, which `git pull` and `/update` never touch. The `agents/` folder in the repo holds the agents that ship with Condor. See [Architecture](/trading-agents/architecture#where-condor-looks-for-agents) for the full folder layout and file formats.
+</Note>
 
-```
-Agent Builder: Starting dry run...
+<Frame>
+  <img src="/images/webui/agent-page.jpg" alt="The agent page of a shipped agent, the Market Making Expert, with a loop selected" />
+</Frame>
 
-Dry Run Result:
-- Analyzed SOL-USDT
-- Trend: Bullish
-- Price near support ($154.50)
-- Decision: Would open LONG
-- Reasoning: "EMAs aligned bullish, price 1.1% from S1"
+Before you test, check two things the builder can get wrong:
 
-No trades executed (dry run mode).
-Ready for live test?
-```
+- **Routines.** Open **Routines** in the top bar and check that the new routine is listed under your agent. A background worker can save it to Condor's general library instead, where the agent can't run it. If so, ask Condor to move it into the agent's routines.
+- **Tools.** If the agent's `tools` list is not empty, make sure it includes `get_market_data`. It is the candle tool that also works in a Dry Run, and a tool left off the list is never available to the agent. An empty list means the agent can use every tool.
 
-## Phase 5: Run Once
+## 3. Test it
 
-Test with a single real trade:
+On the agent page, pick the loop in the selector under the agent's name, click **Start**, and work through the three execution modes in order.
 
-```
-Agent Builder: Running once with live trading...
+<Frame>
+  <img src="/images/webui/agent-start-dry-run.jpg" alt="The Start New Session dialog with Dry Run selected and the Run Dry Test button" />
+</Frame>
 
-Run Once Result:
-- Created Position Executor
-- Side: LONG
-- Entry: $155.80
-- Take Profit: $158.92 (2%)
-- Stop Loss: $154.24 (1%)
+<Steps>
+  <Step title="Dry Run">
+    Choose **Dry Run**, enter the pair and exchange in **Trading Context** (for example `Trade SOL-USDT on binance_perpetual`), and click **Run Dry Test**. The agent runs one tick in which every action that would change something is refused. Open the **Runs** tab to read what it did and what it decided.
 
-Position is now active. Monitor with /agent.
-```
+    <Note>
+    A Dry Run also refuses routines and `run_code`, so the agent can't run its own analysis. It reads the market with read-only tools such as `get_market_data` instead. Use the Dry Run to check that the agent, server and exchange are wired up and that its reasoning makes sense, not to judge the strategy.
+    </Note>
+  </Step>
+  <Step title="Run Once">
+    Choose **Run Once** and click **Execute Once**. This runs one live tick: the agent can open real executors or deploy a real bot, so use small capital. Check the **Runs** and **Fleet** tabs afterwards.
+  </Step>
+  <Step title="Loop">
+    When that tick looks right, start again with **Loop** and click **Start Session**. Set **Total Amount Quote**, **Frequency (sec)** and the risk limits (**Max Position ($)**, **Max Executors**, **Max Drawdown %**) to amounts you would accept losing.
+  </Step>
+</Steps>
 
-## Phase 6: Deploy Live
+<Frame>
+  <img src="/images/webui/agent-runs.jpg" alt="The Runs tab of the Market Making Expert, showing a dry run's agent response" />
+</Frame>
 
-Start the agent in loop mode:
+You can also ask Condor in chat to start the loop. Starting a loop always needs your approval: the dashboard shows an approval card with **Allow** and **Deny**, and Telegram shows a confirmation.
 
-```
-You: Deploy live with 60 second frequency
+<Frame>
+  <img src="/images/webui/chat-approval.jpg" alt="An approval card in the Condor chat, waiting for Allow or Deny" />
+</Frame>
 
-Agent Builder: Agent deployed! 🚀
+## 4. Watch and stop it
 
-SOL Scalper is now running:
-- Frequency: Every 60 seconds
-- Mode: Loop
-- Risk limits active
+The agent page has four tabs:
 
-Monitor with /agent → SOL Scalper → View Status
-```
+| Tab | What it shows |
+|---|---|
+| **Now** | The last decision and what the session has deployed |
+| **Runs** | Every session and dry run, with each tick's prompt, tool calls and response |
+| **Fleet** | The bots and executors this session owns |
+| **Playbook** | The loop's `loop.md` and its learnings. You can edit both here. |
 
-## Monitor Your Agent
+To stop it:
 
-Once deployed, monitor via Telegram:
+| You want to | Do this |
+|---|---|
+| Pause decisions but keep everything running | **Pause** on the agent page; **Resume** to continue |
+| End the loop | **Stop** on the agent page, then **Confirm** |
+| Wind everything down now | Ask the agent in chat to shut its loop down |
 
-```
-/agent → SOL Scalper → View Status
+<Warning>
+**Stop** ends the loop but leaves its executors, positions and bots open, and nothing manages them afterwards. Close them yourself, or use a shutdown, which closes them according to the agent's `shutdown.md` policy. See [Stopping a loop](/trading-agents/architecture#stopping-a-loop).
+</Warning>
 
-🤖 SOL Scalper
-Status: Running
-Session: session_1
-Tick: 47
+## Write the folder by hand instead
 
-Active Executors:
-- Position #1: LONG 10 SOL @ $155.80 (+$4.20)
+You can skip the builder and create the files yourself: an `AGENT.md` in `.condor/agents/<slug>/` and, optionally, `loops/<loop>/loop.md`. Reload the dashboard and the agent appears. [Architecture](/trading-agents/architecture#creating-your-own-agent) has the file formats, the frontmatter fields and the risk limits.
 
-Recent Decisions:
-- Tick 47: Monitoring, no action
-- Tick 46: Opened long position
-- Tick 45: Waiting for setup
-```
+## Next steps
 
-## Stop or Pause
-
-```
-/agent → SOL Scalper → Stop Agent
-```
-
-The agent stops cleanly, keeping any open positions for you to manage manually or resume later.
-
-## Next Step
-
-<Card title="Managing Agent Sessions" icon="arrow-right" href="/getting-started/sessions">
-  Learn to monitor, debug, and control agents
-</Card>
+<CardGroup cols={2}>
+  <Card title="Agent Builder" icon="hammer" href="/condor-agent/agent-builder">
+    Everything the builder skill does, including building from a folder
+  </Card>
+  <Card title="Run the Market Making Expert" icon="play" href="/examples/market-making-expert">
+    Run a shipped agent end to end
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/trading-agents/architecture">
+    Folder layout, risk engine, sessions and journals
+  </Card>
+  <Card title="Managing Agent Sessions" icon="arrow-right" href="/getting-started/sessions">
+    Monitor, debug and control running agents
+  </Card>
+</CardGroup>

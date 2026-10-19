@@ -1,224 +1,166 @@
 ---
 title: "Position Executor"
-description: "Places an entry order and manages the position with TP, SL, trailing stop, and time limit"
+description: "Open one position and close it automatically at a take profit, stop loss, trailing stop or time limit"
 ---
 
-The **Position Executor** places an entry order and, once filled, manages the position using the Triple Barrier Method—automatically closing at take profit, stop loss, trailing stop activation, or time limit.
+The **Position Executor** places one entry order and, once it fills, watches the position and closes it at the first exit that triggers: take profit, stop loss, trailing stop or time limit. This set of exits is called the triple barrier.
 
 ## Overview
 
 | Property | Value |
-|----------|-------|
-| Position Type | Spot or Perp |
-| keep_position | Configurable |
-| Use Cases | Directional trades, scalping, swing trading |
+|---|---|
+| Markets | Spot and perpetuals |
+| Condor tool | `create_position_executor` |
+| Exits | Take profit, stop loss, trailing stop, time limit |
+| `keep_position` | Not a config field. Only a stop with `keep_position=true` keeps the position. Every barrier exit closes it. |
 
-## How It Works
+## Create one from Condor
 
-```mermaid
-flowchart LR
-    E[Entry Order] --> F{Filled?}
-    F -->|Yes| M[Monitor Position]
-    F -->|No| W[Wait/Retry]
-    W --> F
-    M --> TP[Take Profit Hit] --> C[Close Position]
-    M --> SL[Stop Loss Hit] --> C
-    M --> TS[Trailing Stop Hit] --> C
-    M --> TL[Time Limit Hit] --> C
-    C --> T[TERMINATED]
-```
-
-1. **Entry**: Places order at `entry_price` (or market if not specified)
-2. **Monitor**: Once filled, continuously monitors price against barriers
-3. **Exit**: First barrier hit triggers position close
-4. **Report**: Reports P&L and terminates
-
-## Configuration
+Agents and the Condor chat use the `create_position_executor` tool:
 
 ```python
-from hummingbot.strategy_v2.executors.position_executor.data_types import (
-    PositionExecutorConfig,
-    TripleBarrierConfig,
-    TrailingStop,
-)
-
-config = PositionExecutorConfig(
-    controller_id="my-agent",
-    connector_name="binance_perpetual",
-    trading_pair="SOL-USDT",
-    side=TradeType.BUY,
-    amount=Decimal("10.0"),
-    entry_price=Decimal("150.0"),  # Optional: None for market entry
-    leverage=5,
-    triple_barrier_config=TripleBarrierConfig(
-        take_profit=Decimal("0.02"),      # 2% profit target
-        stop_loss=Decimal("0.01"),         # 1% stop loss
-        time_limit=3600,                   # 1 hour max
-        trailing_stop=TrailingStop(
-            activation_price=Decimal("0.01"),  # Activate at 1% profit
-            trailing_delta=Decimal("0.005"),   # Trail by 0.5%
-        ),
-    ),
-)
-```
-
-## Triple Barrier Config
-
-The `TripleBarrierConfig` defines all exit conditions:
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `take_profit` | Decimal | Exit when profit reaches this % (e.g., 0.02 = 2%) |
-| `stop_loss` | Decimal | Exit when loss reaches this % (e.g., 0.01 = 1%) |
-| `time_limit` | int | Exit after this many seconds |
-| `trailing_stop` | TrailingStop | Dynamic stop that follows price |
-| `open_order_type` | OrderType | Entry order type (default: LIMIT) |
-| `take_profit_order_type` | OrderType | TP exit order type (default: MARKET) |
-| `stop_loss_order_type` | OrderType | SL exit order type (default: MARKET) |
-| `time_limit_order_type` | OrderType | Time exit order type (default: MARKET) |
-
-### Take Profit
-
-Closes position when price moves in your favor by the specified percentage.
-
-```python
-TripleBarrierConfig(
-    take_profit=Decimal("0.02"),  # Close at 2% profit
-)
-```
-
-For a long position entered at $100, take profit triggers at $102.
-
-### Stop Loss
-
-Closes position when price moves against you by the specified percentage.
-
-```python
-TripleBarrierConfig(
-    stop_loss=Decimal("0.01"),  # Close at 1% loss
-)
-```
-
-For a long position entered at $100, stop loss triggers at $99.
-
-### Time Limit
-
-Closes position after a maximum duration, regardless of P&L.
-
-```python
-TripleBarrierConfig(
-    time_limit=3600,  # Close after 1 hour
-)
-```
-
-### Trailing Stop
-
-A dynamic stop loss that follows the price as it moves in your favor.
-
-```python
-TripleBarrierConfig(
-    trailing_stop=TrailingStop(
-        activation_price=Decimal("0.01"),  # Start trailing at 1% profit
-        trailing_delta=Decimal("0.005"),   # Keep stop 0.5% behind
-    ),
-)
-```
-
-**How it works**:
-1. Position enters at $100
-2. Price rises to $101 (1% profit) → trailing stop activates
-3. Stop is placed at $100.50 (0.5% below current price)
-4. Price rises to $103 → stop moves to $102.49
-5. Price drops to $102.49 → trailing stop triggers, position closes
-
-The trailing stop locks in gains while letting winners run.
-
-## Parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `connector_name` | string | Exchange connector |
-| `trading_pair` | string | Market (e.g., "SOL-USDT") |
-| `side` | TradeType | `BUY` (long) or `SELL` (short) |
-| `amount` | Decimal | Position size in base asset |
-| `entry_price` | Decimal | Entry price (None for market order) |
-| `leverage` | int | Leverage for perpetual markets |
-| `triple_barrier_config` | TripleBarrierConfig | Exit conditions |
-| `activation_bounds` | List[Decimal] | Optional price bounds to activate |
-
-## Order Types
-
-You can configure which order type to use for each action:
-
-```python
-TripleBarrierConfig(
-    open_order_type=OrderType.LIMIT,       # Entry: limit order
-    take_profit_order_type=OrderType.LIMIT, # TP: limit order
-    stop_loss_order_type=OrderType.MARKET,  # SL: market order (fast exit)
-    time_limit_order_type=OrderType.MARKET, # Time: market order
-)
-```
-
-Use LIMIT for entries and take profits to get better fills. Use MARKET for stop losses to ensure execution.
-
-## Example: Scalp Trade
-
-```python
-scalp = PositionExecutorConfig(
-    controller_id="scalper",
+create_position_executor(
     connector_name="binance_perpetual",
     trading_pair="BTC-USDT",
-    side=TradeType.BUY,
-    amount=Decimal("0.01"),
-    leverage=10,
-    triple_barrier_config=TripleBarrierConfig(
-        take_profit=Decimal("0.003"),  # 0.3% profit
-        stop_loss=Decimal("0.002"),    # 0.2% stop
-        time_limit=300,                # 5 min max
-    ),
+    side=1,
+    amount=0.01,
+    leverage=5,
+    stop_loss=0.02,
+    take_profit=0.03,
+    time_limit=3600,
+    controller_id="my_agent.my_loop_1",
 )
 ```
 
-## Example: Swing Trade with Trailing Stop
+This opens a 0.01 BTC long at 5x leverage with a 2% stop loss, a 3% take profit and a one-hour time limit. In an agent session, `controller_id` must be the session ID (see [Session IDs](/trading-agents/sessions#session-ids)).
 
-```python
-swing = PositionExecutorConfig(
-    controller_id="swing-trader",
-    connector_name="binance",
-    trading_pair="ETH-USDT",
-    side=TradeType.BUY,
-    amount=Decimal("0.5"),
-    entry_price=Decimal("3200.0"),
-    triple_barrier_config=TripleBarrierConfig(
-        take_profit=Decimal("0.10"),   # 10% target
-        stop_loss=Decimal("0.03"),     # 3% stop
-        time_limit=86400,              # 24 hours
-        trailing_stop=TrailingStop(
-            activation_price=Decimal("0.05"),  # Trail after 5% profit
-            trailing_delta=Decimal("0.02"),    # 2% trail distance
-        ),
-    ),
-)
+<Warning>
+`amount` is in the **base** asset. For `BTC-USDT`, `amount=0.01` is 0.01 BTC, not $0.01 or $100. To size in USD, divide the USD value by the price.
+</Warning>
+
+### Parameters
+
+| Parameter | Required | Meaning |
+|---|---|---|
+| `connector_name` | Yes | Exchange connector, such as `binance` or `binance_perpetual` |
+| `trading_pair` | Yes | Trading pair, such as `BTC-USDT` |
+| `side` | Yes | `1` BUY (long), `2` SELL (short) |
+| `amount` | Yes | Position size in the base asset |
+| `entry_price` | No | Entry price. See [The entry order](#the-entry-order). |
+| `leverage` | No | Leverage for perpetuals. Default `1`. |
+| `stop_loss` | No | Close when the net loss reaches this fraction (`0.02` is 2%) |
+| `take_profit` | No | Close when the net profit reaches this fraction |
+| `time_limit` | No | Close after this many seconds, counted from when the executor was created |
+| `trailing_stop_activation_price` / `trailing_stop_trailing_delta` | No | Trailing stop, as profit fractions. Both are needed; one alone is dropped. See [Trailing stop](#trailing-stop). |
+| `open_order_type` | No | Entry order type: `1` MARKET, `2` LIMIT, `3` LIMIT_MAKER. Default `2`. |
+| `take_profit_order_type` | No | `1` MARKET (default), `2` LIMIT or `3` LIMIT_MAKER |
+| `stop_loss_order_type` / `time_limit_order_type` | No | Must be `1` MARKET, which is the default. Any other value is rejected. |
+| `level_id` | No | Optional tag for your own bookkeeping |
+| `account_name` | No | Account to trade from. Default `master_account`. |
+| `controller_id` | No | The tag that owns the executor. Default `main`. An agent passes its session ID. |
+| `save_as_default` | No | Save these arguments as your defaults for position executors. See [Saved defaults](/executors/overview#saved-defaults). |
+
+## The entry order
+
+The entry is a **LIMIT order by default**, even when you leave out `entry_price`:
+
+| You set | Entry order |
+|---|---|
+| `entry_price`, default order type | Limit order at `entry_price` |
+| No `entry_price`, default order type | Limit order at the best bid (long) or best ask (short) at the moment the executor is created. It may not fill if the price moves away. |
+| `open_order_type=1` | Market order |
+| `open_order_type=3` | Post-only order at `entry_price`, moved to the best bid (long) or best ask (short) if `entry_price` would cross the book |
+
+For an immediate market entry, pass `open_order_type=1`.
+
+## Exits
+
+Stop loss, take profit and trailing stop are checked once the entry has filled, and are measured on the position's **net** P&L, after fees, as a fraction of the entry value. The first exit to trigger closes the position with a market order.
+
+### Take profit
+
+With the default `take_profit_order_type=1`, the executor closes at market once the net profit reaches `take_profit`. For a long entered at $100 with `take_profit=0.02`, that is a little above $102, because fees count against the profit.
+
+With `take_profit_order_type` set to `2` or `3`, the executor instead rests a limit order at `entry price × (1 + take_profit)` for a long, or `entry price × (1 − take_profit)` for a short, as soon as the entry fills.
+
+### Stop loss
+
+The executor closes at market once the net loss reaches `stop_loss`. For a long entered at $100 with `stop_loss=0.01`, that is a little above $99, because fees count against the position.
+
+### Time limit
+
+The executor closes at market once `time_limit` seconds have passed **since it was created**, whether or not the entry has filled. If the time limit has already passed when the executor starts, it ends at once with close type `EXPIRED`.
+
+### Trailing stop
+
+A trailing stop locks in profit once the position is up by `trailing_stop_activation_price`:
+
+1. When the net profit first rises above the activation level, the executor sets a trigger at that profit minus `trailing_stop_trailing_delta`.
+2. As the profit grows, the trigger rises with it, always `trailing_stop_trailing_delta` behind the best profit seen.
+3. When the profit falls below the trigger, the executor closes at market.
+
+Both values are profit fractions, not prices. Ignoring fees, for a long entered at $100 with `trailing_stop_activation_price=0.01` and `trailing_stop_trailing_delta=0.005`:
+
+| Price | Profit | Trigger |
+|---|---|---|
+| $101 | 1% | Not yet active |
+| $101.50 | 1.5% | Active at 1% ($101) |
+| $103 | 3% | Moves up to 2.5% ($102.50) |
+| Falls below $102.50 | Below 2.5% | Position closes |
+
+## Via the API
+
+Create the executor with `POST /executors/`. Order types are numbers (`1` MARKET, `2` LIMIT, `3` LIMIT_MAKER) and `side` is `1` or `2`.
+
+```bash
+curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/executors/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_name": "master_account",
+    "controller_id": "main",
+    "executor_config": {
+      "type": "position_executor",
+      "connector_name": "binance_perpetual",
+      "trading_pair": "BTC-USDT",
+      "side": 1,
+      "amount": "0.01",
+      "leverage": 5,
+      "triple_barrier_config": {
+        "stop_loss": "0.02",
+        "take_profit": "0.03",
+        "time_limit": 3600,
+        "trailing_stop": {"activation_price": "0.015", "trailing_delta": "0.005"},
+        "open_order_type": 1
+      }
+    }
+  }'
 ```
 
-## Close Types
+The API also accepts `activation_bounds`, which the Condor tool doesn't expose: a list of fractions that keeps a limit entry order on the book only while it is close enough to the mid price.
 
-When the executor terminates, it reports which barrier was hit:
+## Close types
 
-| Close Type | Description |
-|------------|-------------|
-| `TAKE_PROFIT` | Price reached profit target |
-| `STOP_LOSS` | Price reached loss limit |
-| `TIME_LIMIT` | Maximum duration exceeded |
-| `TRAILING_STOP` | Trailing stop triggered |
-| `EARLY_STOP` | Manually stopped |
+| Close type | When |
+|---|---|
+| `TAKE_PROFIT` | The take profit triggered, or the take-profit limit order filled |
+| `STOP_LOSS` | The stop loss triggered |
+| `TRAILING_STOP` | The trailing stop triggered |
+| `TIME_LIMIT` | The time limit passed |
+| `EXPIRED` | The time limit had already passed when the executor started |
+| `EARLY_STOP` | You stopped it with `keep_position=false`, or with `keep_position=true` before anything filled |
+| `POSITION_HOLD` | You stopped it with `keep_position=true` after the entry filled |
+| `INSUFFICIENT_BALANCE` | The account couldn't fund the entry |
+| `FAILED` | Orders kept failing until the executor ran out of retries |
 
-## Position Handover
+## Stopping early
 
-If `keep_position=true` (set via early stop):
-- Position remains open in the account
-- Added to agent's Position Hold for later management
+Stop the executor with `stop_executor` or `POST /executors/{executor_id}/stop`:
 
-If `keep_position=false` (default for barrier exits):
-- Position fully closed
-- Realized P&L calculated and reported
+- `keep_position=false` (the default) cancels the open orders and closes the filled amount at market.
+- `keep_position=true` cancels the open orders and leaves the position open. The fills go to the Position Hold for this executor's `controller_id`. See [Position Handover](/executors/position-handover).
+
+## Learn more
+
+- [Executors overview](/executors/overview): lifecycle, close types and the API
+- [Order Executor](/executors/order-executor): one order with no managed exit
+- [DCA Executor](/executors/dca-executor): build the position over several price levels

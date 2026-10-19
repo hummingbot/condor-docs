@@ -1,506 +1,257 @@
 ---
-title: "Integrating your LLM"
-description: "Configure cloud and local LLM providers for Trading Agents"
+title: "LLM Integration"
+description: "Choose the model Condor and its agents think with: Claude, Gemini, Copilot, Codex, OpenRouter, Ollama, LM Studio or any OpenAI-compatible endpoint"
 ---
 
-Condor supports multiple LLM providers through two integration methods:
-- **ACP Protocol**: Native integration with Claude Code, Gemini, GitHub Copilot, and Codex
-- **PydanticAI**: Direct API access to OpenRouter and to local models via Ollama and LM Studio
+Condor needs a language model for chat and for its agents. You can use a coding-agent CLI you already log in to, a cloud API key, or a model running on your own machine.
 
-See [ACP documentation](https://agentclientprotocol.com/get-started/introduction) for the full protocol specification.
+Condor reaches models in two ways:
 
-<Note>
-<strong>Before installing Condor:</strong> Install and authenticate your LLM provider in the CLI first.<br />
-<strong>Already installed Condor?</strong> Set up your LLM provider, then restart Condor for the changes to take effect.
-</Note>
+- **ACP bridges**: Claude, Gemini, GitHub Copilot and Codex run as a separate process that speaks the [Agent Client Protocol](https://agentclientprotocol.com). You log in to each one once, with its own CLI.
+- **OpenAI-compatible APIs**: OpenRouter, Ollama, LM Studio and custom endpoints are called directly by Condor. They need an API key, a running local server, or both.
 
-## Using the `/agent` Command
+## The model options
 
-The `/agent` command in Telegram is how you connect Condor to your LLM and run autonomous Trading Agents. From the `/agent` menu you can:
+Every place that offers a model (the setup wizard, the dashboard pickers and Telegram) uses the same list:
 
-- **Change LLM** — pick which installed provider to use for new sessions
-- **Start** — launch an agent session with the currently selected LLM
-- **Stop** — end the active session
-- **Status** — view the currently active provider and model
+| Label | Agent key | How it runs |
+|---|---|---|
+| Claude Code | `claude-code` | Claude ACP bridge, using the bridge's own default model |
+| Claude (ACP) — Opus | `claude-acp:opus` | Claude ACP bridge, pinned to Opus |
+| Claude (ACP) — Sonnet | `claude-acp:sonnet` | Claude ACP bridge, pinned to Sonnet |
+| Claude (ACP) — Haiku | `claude-acp:haiku` | Claude ACP bridge, pinned to Haiku |
+| Gemini CLI | `gemini` | `npx @google/gemini-cli --acp` |
+| GitHub Copilot CLI | `copilot` | `npx @github/copilot --acp --stdio` |
+| ChatGPT Codex | `codex` | `npx @agentclientprotocol/codex-acp` |
+| Ollama — Default Model | `ollama:` or `ollama:<model>` | Ollama server, default `http://localhost:11434/v1` |
+| LM Studio — Default Model | `lmstudio:` or `lmstudio:<model>` | LM Studio server, default `http://localhost:1234/v1` |
+| OpenRouter — Pick Model | `openrouter:<slug>` | OpenRouter API. Opens a model list. |
+| Custom — OpenAI-compatible API | `custom@<nickname>:<model>` | An endpoint you saved. Opens a model list. |
 
-A typical first-time flow is: install and authenticate your provider in the CLI, then in Telegram run `/agent` → **Change LLM** → pick your provider → `/agent` → **Start**. Full step-by-step instructions are in [Configure in Telegram](#configure-in-telegram).
+The two "Pick Model" rows aren't models. They open a list, and your choice is stored as the full key, for example `openrouter:deepseek/deepseek-v4.1-flash`.
 
-## Supported Providers
+### The default model
 
-### Cloud Providers (ACP Protocol)
+The recommended model is **Claude (ACP) — Sonnet** (`claude-acp:sonnet`). `make pick-model` lists it first.
 
-| Provider | Agent Key | Installation |
-|----------|-----------|--------------|
-| **Claude Code** | `claude-code` | `curl -fsSL https://claude.ai/install.sh \| sh` |
-| **Gemini** | `gemini` | `npm install -g @google/gemini-cli` |
-| **GitHub Copilot** | `copilot` | `npm install -g @github/copilot-cli` |
-| **Codex** | `codex` | `npx @agentclientprotocol/codex-acp` |
+When you haven't picked a model yourself, Condor uses the first of these that is set:
 
-### API Key Providers (PydanticAI)
+1. `CONDOR_DEFAULT_AGENT` in `.env`
+2. The `agent_key` in Condor's own `agents/condor/AGENT.md`, which ships as `claude-acp:sonnet`
+3. `claude-code`
 
-| Provider | Agent Key | Setup |
-|----------|-----------|-------|
-| **OpenRouter** | `openrouter` | Set `OPENROUTER_API_KEY` — see [OpenRouter](#openrouter) |
+A model you pick in Telegram or on the dashboard chat page overrides this default for your chats.
 
-### Local Providers
+## Choose a model
 
-| Provider | Agent Key | Installation |
-|----------|-----------|--------------|
-| **Ollama** | `ollama` | `curl -fsSL https://ollama.com/install.sh \| sh` |
-| **LM Studio** | `lmstudio` | Download from [lmstudio.ai](https://lmstudio.ai) |
+<Tabs>
+  <Tab title="make pick-model">
+    Run this in the Condor folder:
 
-## Setup Instructions
+    ```bash
+    make pick-model
+    ```
 
-### Claude Code
+    It lists every option with a status for this machine: ready (✓), installed but login not confirmed (?), or not usable (✗) with the fix. Pick a number, and Condor saves it to `.env` as `CONDOR_DEFAULT_AGENT`.
 
-Claude Code is the default and most integrated option for Condor Trading Agents.
+    - If you pick a bridge that isn't installed, the wizard runs its `npm install -g` command for you.
+    - If the Claude bridge is outdated and you pick a Claude option (or Claude is your default), the wizard runs the upgrade.
+    - For Ollama or LM Studio, it lists the models the server has loaded. Press Enter to let the server choose at session start.
+    - For OpenRouter, it asks for your API key, checks it with OpenRouter, and lists the 20 cheapest models that support tool calling. It saves the key to `.env` as well.
+    - Custom endpoints aren't offered here. Add them from the dashboard or Telegram.
 
-**1. Install Claude Code:**
+    Restart Condor (`make restart`) so the new default takes effect. To print the report without changing anything, run `uv run python -m condor.setup_llm --status`. `make doctor` also checks the default model.
+  </Tab>
+  <Tab title="Dashboard">
+    - **Chat:** the model picker sits above the message box when you start a new chat.
+    - **Agent page:** the agent's model is shown next to its name. Click it to change the model the agent uses everywhere it runs. This writes `agent_key` into the agent's `AGENT.md`.
 
-Install via CLI:
+    Both pickers grey out options this machine can't run and show why, such as "not installed — npm install -g …". Saved custom endpoints appear in their own section.
+  </Tab>
+  <Tab title="Telegram">
+    Send `/agent` and tap **Change LLM**, then pick a model. Condor replies:
 
-```bash
-# macOS/Linux
-curl -fsSL https://claude.ai/install.sh | sh
-```
+    ```text
+    LLM set to <label>. New sessions will use this model.
+    ```
 
-**2. Authenticate:**
+    Picking a model ends the current session, so your next message starts a new one on the new model. Options this machine can't run are marked ⚠️. You can still pick them, for example before you start `ollama serve`, and Condor tells you what is missing.
 
-```bash
-claude auth login
-```
+    The `/agent` menu also has **Start**, **Talk to** and **Conversations**. While a session is running it shows **New**, **Compact** and **End session**.
+  </Tab>
+</Tabs>
 
-Follow the prompts to sign in with your Anthropic account.
+## Claude
 
-**3. Verify installation:**
+Condor runs Claude through the `claude-agent-acp` bridge from the npm package `@agentclientprotocol/claude-agent-acp`.
 
-```bash
-claude --version
-claude  # Run Claude and see if it starts up without issues
-```
+<Steps>
+  <Step title="Install the bridge">
+    ```bash
+    npm install -g @agentclientprotocol/claude-agent-acp
+    ```
+  </Step>
+  <Step title="Log in once">
+    Run `claude` and log in to your Anthropic account. Condor checks for the login in `~/.claude/.credentials.json` (or the macOS keychain). See the [Claude Code docs](https://docs.claude.com/en/docs/claude-code/overview) to install the `claude` CLI.
+  </Step>
+  <Step title="Pick a Claude option">
+    Choose **Claude (ACP) — Sonnet**, **Opus** or **Haiku** to pin a model, or **Claude Code** to use the bridge's own default model.
+  </Step>
+</Steps>
 
-**4. Configure in Telegram:**
+<Warning>
+**The bridge must be version 0.79.0 or newer.** The older package `@zed-industries/claude-agent-acp` still launches, but it is frozen at 0.23. Its bundled Claude CLI bills Sonnet 4.6 at Opus rates and doesn't know any model newer than the 4.6 family.
 
-Follow the [Configure in Telegram](#configure-in-telegram) steps and select the `Claude Code` label.
-
-### Gemini
-
-**1. Install Gemini CLI:**
-
-```bash
-npm install -g @google/gemini-cli
-```
-
-**2. Authenticate:**
-
-Start Gemini CLI — on first run it will prompt you to authenticate:
-
-```bash
-gemini
-```
-
-Select **Login with Google** and follow the OAuth flow in your browser. Your credentials are cached locally for future sessions. Alternatively, set a `GEMINI_API_KEY` environment variable from [Google AI Studio](https://aistudio.google.com/).
-
-**3. Verify:**
-
-```bash
-gemini --version
-```
-
-**4. Configure in Telegram:**
-
-Follow the [Configure in Telegram](#configure-in-telegram) steps and select the `Gemini CLI` label.
-
-### GitHub Copilot
-
-**1. Install prerequisites:**
+`make pick-model` and `make doctor` mark an old bridge as outdated and show the fix. `make pick-model` runs the upgrade when you choose a Claude option or when Claude is already your default, and a Condor update (`/update`) upgrades it automatically. To do it by hand:
 
 ```bash
-# Install Copilot CLI
-npm install -g @github/copilot-cli
+npm uninstall -g @zed-industries/claude-agent-acp
+npm install -g @agentclientprotocol/claude-agent-acp@latest
 ```
 
-**2. Authenticate:**
+The uninstall is needed because both packages install the same `claude-agent-acp` command.
+</Warning>
+
+## Gemini, GitHub Copilot and Codex
+
+Condor launches these bridges with `npx`, but it treats a bridge as installed only when its npm package is already on disk. Install each one globally:
+
+| Option | Install | Log in once |
+|---|---|---|
+| Gemini CLI | `npm install -g @google/gemini-cli` | Run `npx @google/gemini-cli` and log in, or set `GEMINI_API_KEY` |
+| GitHub Copilot CLI | `npm install -g @github/copilot` | Run `npx @github/copilot` and log in |
+| ChatGPT Codex | `npm install -g @agentclientprotocol/codex-acp` | Run `codex` and log in |
+
+Condor checks for a Gemini login in `~/.gemini/oauth_creds.json` (or `GEMINI_API_KEY`) and a Codex login in `~/.codex/auth.json`. It can't check a Copilot login, so Copilot shows as "login could not be verified" until your first chat works.
+
+**Updating Codex.** If a newer Codex model fails because the bridge is outdated, run:
 
 ```bash
-gh auth login
-copilot auth login
+make refresh-codex
 ```
 
-**3. Verify:**
+This updates `@agentclientprotocol/codex-acp` and the Codex CLI bundled with it. Start a new Codex session afterwards. Sessions that are already running keep the old bridge.
+
+## OpenRouter
+
+OpenRouter gives you many models through one API key. Condor lists only OpenRouter models that support tool calling, because its agents depend on tools.
+
+1. Create a key at [openrouter.ai/keys](https://openrouter.ai/keys).
+2. Add it to Condor's `.env`, or let `make pick-model` save it for you:
+
+   ```bash
+   OPENROUTER_API_KEY=sk-or-...
+   ```
+
+3. Pick a model:
+   - **Dashboard:** choose **OpenRouter — Pick Model** in the model picker.
+   - **Telegram:** `/agent` → **Change LLM** → **OpenRouter — Pick Model**. Page through the list, or tap **Enter model manually** and send a slug.
+   - **`make pick-model`:** choose OpenRouter.
+
+The model is stored as `openrouter:<slug>`, for example `openrouter:deepseek/deepseek-v4.1-flash`. You can browse the list without a key, but a session can't start until `OPENROUTER_API_KEY` is set.
+
+## Ollama and LM Studio
+
+Local models run on your own machine with no API cost.
+
+<Tabs>
+  <Tab title="Ollama">
+    1. Install Ollama from [ollama.com](https://ollama.com) and start it with `ollama serve`.
+    2. Pull a model, for example `ollama pull qwen3:32b`.
+    3. Choose **Ollama — Default Model**, or set a specific model as `ollama:<model>`, for example `ollama:qwen3:32b`.
+
+    Condor connects to `http://localhost:11434/v1`.
+  </Tab>
+  <Tab title="LM Studio">
+    1. Install LM Studio from [lmstudio.ai](https://lmstudio.ai), load a model and enable its local server.
+    2. Choose **LM Studio — Default Model**, or set a specific model as `lmstudio:<model>`.
+
+    Condor connects to `http://localhost:1234/v1`.
+  </Tab>
+</Tabs>
+
+**Which model the default option uses.** With a bare key (`ollama:` or `lmstudio:`), Condor picks the model when the session starts:
+
+1. `CONDOR_DEFAULT_LOCAL_MODEL` or `OLLAMA_MODEL`, if either is set
+2. Otherwise the first model the server lists at `/v1/models`
+3. For Ollama only, the first model from `/api/tags`
+
+If none of these finds a model, the session fails with "No local model found". Use an explicit key such as `ollama:qwen3:32b`, or set `CONDOR_DEFAULT_LOCAL_MODEL`.
+
+**Server on another address.** For a local server on a different host or port, the simplest option is to add it as a [custom endpoint](#custom-openai-compatible-endpoints). Chat sessions also read `LMSTUDIO_BASE_URL` from `.env` as their base URL for these models. Set it only when you use LM Studio: Condor applies it to every model of this kind in chat, including Ollama and OpenRouter, unless you choose a custom endpoint.
+
+**Slow first replies.** A local model can take a long time to load on its first request. Condor waits up to 600 seconds for a reply. Set `LOCAL_MODEL_READ_TIMEOUT` (in seconds) to change this.
+
+## Custom OpenAI-compatible endpoints
+
+You can connect any API that follows the OpenAI format, such as Venice AI, Together, Fireworks, or your own vLLM or LM Studio server. Endpoints are saved per user, and the dashboard and Telegram share the same list.
+
+<Tabs>
+  <Tab title="Dashboard">
+    1. Open **Settings → LLM Endpoints** and click **Add endpoint**.
+    2. Enter the **Base URL**, for example `https://api.venice.ai/api/v1`.
+    3. Enter an **API key**, or leave it blank if the endpoint doesn't need one.
+    4. Optionally enter a **Name**. If you leave it blank, Condor derives one from the URL.
+    5. Click **Validate & save**.
+  </Tab>
+  <Tab title="Telegram">
+    1. Send `/agent` → **Change LLM** → **Custom — OpenAI-compatible API** → **+ Add endpoint**.
+    2. Send the base URL as a message.
+    3. Send the API key as a message, or tap **No API key needed**. Condor deletes the message that contains your key.
+  </Tab>
+</Tabs>
+
+Condor checks the endpoint by fetching `<base URL>/models` and lists the chat models it finds. Pick one, and Condor stores it as `custom@<nickname>:<model>`, for example `custom@venice:llama-3.3-70b`.
+
+Optional `.env` variables:
 
 ```bash
-copilot --version
-copilot  # Run Copilot and see if it starts up without issues
+CUSTOM_LLM_BASE_URL=https://api.venice.ai/api/v1   # Used when no endpoint is saved in the UI
+CUSTOM_LLM_API_KEY=sk-...
+CUSTOM_LLM_BLOCK_PRIVATE_URLS=true                 # Refuse localhost and private-network URLs
 ```
 
-**4. Configure in Telegram:**
+Leave `CUSTOM_LLM_BLOCK_PRIVATE_URLS` unset on a personal install, so you can point at a server such as `http://localhost:8000/v1`. Turn it on for a Condor shared by several users. Cloud metadata addresses are always refused.
 
-Follow the [Configure in Telegram](#configure-in-telegram) steps and select the `Github Copilot CLI` label.
+## Models for agents and loops
 
-### Codex
-
-Condor connects to Codex through the Agent Client Protocol bridge (`@agentclientprotocol/codex-acp`). You'll need the Codex CLI installed and authenticated, plus the ACP bridge available for Condor to invoke.
-
-**1. Install the Codex CLI:**
-
-Download and install Codex from [openai.com/codex](https://openai.com/codex).
-
-**2. Sign in:**
-
-Open Codex and sign in with your ChatGPT account or an OpenAI API key.
-
-**3. Install the ACP bridge:**
-
-```bash
-npx @agentclientprotocol/codex-acp
-```
-
-Running this once fetches the package so Condor can invoke it via `npx`. You can also install it globally with `npm install -g @agentclientprotocol/codex-acp`.
-
-**4. Verify installation:**
-
-```bash
-codex --version
-codex  # Run Codex and see if it starts up without issues
-```
-
-**5. Configure in Telegram:**
-
-Follow the [Configure in Telegram](#configure-in-telegram) steps and select the `ChatGPT Codex` label.
-
-### OpenRouter
-
-OpenRouter routes requests to many models — including some free ones — through a single API key, often at lower cost than going to a provider directly. Condor connects to it through PydanticAI's OpenAI-compatible client, so no CLI install is required.
-
-**1. Get an API key:**
-
-Create a key at [openrouter.ai/keys](https://openrouter.ai/keys).
-
-**2. Set the environment variable:**
-
-Add your key to Condor's `.env`:
-
-```bash
-OPENROUTER_API_KEY=sk-or-...
-```
-
-**3. Configure in Telegram:**
-
-Run `/agent` → **Change LLM** → **OpenRouter — Pick Model**. Condor fetches the live OpenRouter catalog and lists only models that advertise tool-call support (Condor's agents depend on tool calling, so models without it are filtered out). Pick one from the list, or choose **Enter model manually** to provide a model slug.
-
-Your selection is stored as `openrouter:<model>` — for example `openrouter:anthropic/claude-sonnet-4-5`. To run at no cost, choose one of the `openrouter/free` models.
-
-<Note>
-If a request fails with an insufficient-credits error, add credits to your OpenRouter account or switch to a `openrouter/free` model.
-</Note>
-
-### Ollama (Local)
-
-Perfect for development, testing, and cost-effective experimentation.
-
-**1. Install Ollama:**
-
-Visit [ollama.com](https://ollama.com) and download for your platform.
-
-```bash
-# macOS/Linux
-curl -fsSL https://ollama.com/install.sh | sh
-```
-
-**2. Start Ollama service:**
-
-```bash
-ollama serve
-```
-
-**3. Pull a model:**
-
-```bash
-# Recommended for trading agents
-ollama pull llama3.1:70b        # Large, capable model
-ollama pull qwen2.5:32b         # Good balance
-ollama pull llama3.1:8b         # Fast, lightweight
-```
-
-Verify the downloaded model is listed
-
-```bash
-ollama list
-```
-
-**Model Selection:**
-
-When you don't specify an explicit model (e.g., `agent_key: ollama`), Condor automatically selects one:
-1. Checks environment variables (`CONDOR_DEFAULT_LOCAL_MODEL` or `OLLAMA_MODEL`)
-2. Queries the Ollama API (`/api/tags`) and uses the first available model
-3. If no model is found, prompts you to specify one explicitly
-
-**4. Configure in Telegram:**
-
-Follow the [Configure in Telegram](#configure-in-telegram) steps and select the `Ollama - Default Model` label.
-
-<Note>
-Local models have a reduced tool surface depending on parameter count — see [Tool Filter Modes](#tool-filter-modes).
-</Note>
-
-**Custom server (optional):**
-
-To point Condor at a specific model or a remote Ollama server, add the following to your Condor agent configuration (e.g., `config/agents.yaml`):
+Each agent has its own model, set by `agent_key` in its `AGENT.md`. Most shipped agents use `claude-acp:sonnet`, and a new agent starts with the model you're using. If `agent_key` is empty, a chat with that agent uses your chat's model, but its loops and delegations run on `claude-code`.
 
 ```yaml
-agent_key: ollama:llama3.1:70b
-model_base_url: http://your-server:11434/v1
+---
+name: Market Making Expert
+agent_key: claude-acp:sonnet
+---
 ```
 
-### LM Studio (Local)
+You can change it from the agent page (the model next to its name), or by editing `AGENT.md`.
 
-GUI-based local model hosting with OpenAI-compatible API.
+A loop run picks its model in this order:
 
-**1. Install LM Studio:**
+1. `agent_key` in the run's config
+2. `agent_key` in the loop's `loop.md` (`null` means "use the agent's model")
+3. The agent's `agent_key`
 
-Download from [lmstudio.ai](https://lmstudio.ai)
+**A loop won't start on a model that can't run.** Before it starts a loop, Condor checks the model and refuses with `Model '<key>' cannot run: <reason>`. Examples are an unknown provider, a key with no model id, a custom endpoint you never saved, or an OpenRouter model without `OPENROUTER_API_KEY`. A local server that is switched off isn't caught by this check, because it may be running by the first tick. That fails at run time instead.
 
-**2. Download a model:**
-
-- Open LM Studio
-- Browse the model library
-- Download a model (e.g., Qwen 2.5, Llama 3.1)
-
-**3. Start local server:**
-
-- Go to "Local Server" tab
-- Click "Start Server"
-- Default port: 1234
-- Make sure a model is loaded
-
-**4. Configure in Telegram:**
-
-Follow the [Configure in Telegram](#configure-in-telegram) steps and select the `LM Studio - Default Model` label.
-
-<Note>
-Local models have a reduced tool surface depending on parameter count — see [Tool Filter Modes](#tool-filter-modes).
-</Note>
-
-**Custom port or model (optional):**
-
-To target a specific model or a non-default port, add the following to your Condor agent configuration (e.g., `config/agents.yaml`):
-
-```yaml
-agent_key: lmstudio:your-model-name
-model_base_url: http://localhost:1234/v1
-```
-
-## Configure in Telegram
-
-Once your provider is installed and authenticated, connect it to Condor from Telegram.
-
-**1. Select your provider:**
-
-Run the `/agent` command and select `Change LLM`, then choose your provider using the label from the table below.
-
-You should see a confirmation message:
-
-```
-LLM set to <Provider Label>. New sessions will use this model.
-
-Use /agent to continue.
-```
-
-**2. Start the agent:**
-
-Run the `/agent` command again and click `Start`.
-
-Once the agent is ready you'll see:
-
-```
-Condor is ready. Send a message to start chatting.
-
-Use /agent to see options or any other command to exit.
-```
-
-You can now send a message to the agent and start chatting.
-
-### Provider labels
-
-| Provider | Telegram label |
-|----------|----------------|
-| Claude Code | `Claude Code` |
-| Gemini | `Gemini CLI` |
-| GitHub Copilot | `Github Copilot CLI` |
-| Codex | `ChatGPT Codex` |
-| OpenRouter | `OpenRouter — Pick Model` |
-| Ollama | `Ollama - Default Model` |
-| LM Studio | `LM Studio - Default Model` |
-
-## Tool Filter Modes
-
-Local models automatically adjust tool availability based on size:
-
-- **Essential** (≤8B params): Minimal tools, basic operations
-- **Moderate** (9-32B params): Common trading operations  
-- **Full** (>32B params, cloud): All available tools
-
-Larger models handle more complex tool interactions. Cloud providers always get full tool access.
-
-## Choosing the Right Provider
-
-### For Production Trading
-
-**Recommended:** Claude Code or ChatGPT Codex
-- High reliability and uptime
-- Strong reasoning capabilities
-- Full tool access
-- Consistent performance
-
-### For Development
-
-**Recommended:** Ollama or LM Studio
-- No API costs
-- Fast iteration
-- Full control over model
-- Privacy (runs locally)
-
-### Performance Comparison
-
-| Provider | Reasoning | Speed | Cost | Reliability |
-|----------|-----------|-------|------|-------------|
-| Claude Code | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | 💰💰 | ⭐⭐⭐⭐⭐ |
-| ChatGPT Codex | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 💰💰💰 | ⭐⭐⭐⭐⭐ |
-| Gemini CLI | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 💰 | ⭐⭐⭐⭐ |
-| GitHub Copilot CLI | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | 💰💰 | ⭐⭐⭐⭐ |
-| Ollama (70B) | ⭐⭐⭐⭐ | ⭐⭐⭐ | Free | ⭐⭐⭐ |
-| Ollama (8B) | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Free | ⭐⭐⭐ |
+**Fallback when an agent is asked for help.** When one agent delegates to another whose model is Ollama, LM Studio, OpenRouter or a custom endpoint, Condor first checks that backend. If it is unreachable, Condor answers with `AGENT_FALLBACK_MODEL` instead (default `claude-code`) and notes this in the answer. Set `AGENT_FALLBACK_MODEL=` (empty) in `.env` to turn the fallback off, so the request fails with the reason instead.
 
 ## Troubleshooting
 
-### "Command not found" errors
-
-If Condor can't find your LLM CLI:
-
-1. **Verify installation:**
-```bash
-which claude
-which gemini
-which copilot
-which codex
-```
-
-2. **Check PATH:**
-```bash
-echo $PATH
-```
-
-3. **Restart Condor** after installing LLM tools:
-```bash
-# If running via make
-make stop
-make run
-
-# If running via Docker
-docker compose restart
-```
-
-### Changed LLM but Condor still uses the old one
-
-`Change LLM` only affects **new sessions**. Stop any active agent session with `/agent` → `Stop` (or send any non-agent command), then run `/agent` → `Start` to pick up the new provider. If it still persists, restart Condor:
-
-```bash
-# If running via make
-make stop && make run
-
-# If running via Docker
-docker compose restart
-```
-
-### Authentication Issues
-
-**Claude Code:**
-```bash
-claude auth logout
-claude auth login
-```
-
-**Gemini:**
-
-Re-run `gemini` and select a different authentication method, or clear cached credentials and restart the interactive login:
-
-```bash
-rm -rf ~/.gemini/oauth_creds.json
-gemini
-```
-
-**Copilot:**
-```bash
-gh auth logout
-gh auth login
-copilot auth login
-```
-
-### Local Model Connection Errors
-
-**Ollama not running:**
-```bash
-# Check if Ollama is running
-curl http://localhost:11434/api/tags
-
-# Start Ollama
-ollama serve
-```
-
-**LM Studio not running:**
-- Open LM Studio app
-- Go to "Local Server" tab
-- Click "Start Server"
-
-### Model Not Found (Ollama)
-
-If you get "No local model found":
-
-```bash
-# List available models
-ollama list
-
-# Use exact model name in agent_key
-agent_key: ollama:llama3.1:70b-instruct-q4_0
-```
-
-Or set a default:
-```bash
-export CONDOR_DEFAULT_LOCAL_MODEL=llama3.1:70b
-```
-
-## Best Practices
-
-**Installation Order:**
-1. Install LLM provider CLIs first
-2. Authenticate with each provider
-3. Test the CLI tools independently
-4. Then install / start Condor
-
-**Security:**
-- Use CLI authentication tools (not environment variables when possible)
-- Never commit credentials to git
-- Use separate API keys for development and production
-
-**Model Selection:**
-- Start with Claude Code or ChatGPT Codex for best results
-- Use Ollama 70B+ for cost-effective alternatives
-- Avoid models under 8B for complex trading strategies
-
-## Additional Resources
-
-<CardGroup cols={2}>
-  <Card title="ACP Documentation" icon="link" href="https://agentclientprotocol.com">
-    Agent Client Protocol specification
-  </Card>
-  <Card title="Claude Code Guide" icon="book" href="https://claude.ai/code/docs">
-    Official Claude Code documentation
-  </Card>
-  <Card title="Ollama Library" icon="database" href="https://ollama.ai/library">
-    Browse available Ollama models
-  </Card>
-  <Card title="Trading Agents" icon="rocket" href="/trading-agents/overview">
-    Build your first Trading Agent
-  </Card>
-</CardGroup>
+<AccordionGroup>
+  <Accordion title="An option is greyed out or marked ⚠️">
+    Run `make pick-model` or `make doctor`. Each row says what is missing and the command that fixes it, for example `not installed — npm install -g @github/copilot` or `not reachable at http://localhost:11434/v1 — start it with ollama serve`.
+  </Accordion>
+  <Accordion title="A bridge is installed but the first chat fails">
+    The bridge needs its own login. Run the login command from the [Gemini, GitHub Copilot and Codex](#gemini-github-copilot-and-codex) table, or `claude` for Claude, then start a new session.
+  </Accordion>
+  <Accordion title="Claude bills too much or can't select a newer model">
+    You are probably running the old `@zed-industries/claude-agent-acp` bridge. See the warning in [Claude](#claude).
+  </Accordion>
+  <Accordion title="My new default from make pick-model isn't used">
+    Restart Condor with `make restart`. If you already picked a model in Telegram or on the dashboard chat page, that choice wins over `CONDOR_DEFAULT_AGENT` for your chats.
+  </Accordion>
+  <Accordion title="No local model found">
+    The local server is running but Condor couldn't find a model on it. Load a model, use an explicit key such as `ollama:qwen3:32b`, or set `CONDOR_DEFAULT_LOCAL_MODEL`.
+  </Accordion>
+</AccordionGroup>

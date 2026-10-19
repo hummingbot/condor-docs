@@ -1,81 +1,46 @@
 ---
 title: "Reports"
-description: "Generate HTML reports with interactive charts from routines"
+description: "Save HTML reports with KPIs, charts, tables and interactive filters from a routine"
 ---
 
-Routines can generate HTML reports with interactive Plotly charts and markdown content. Reports are viewable in the Condor web dashboard, providing a richer experience than Telegram messages for data visualization.
+A routine can save an **HTML report**: KPI tiles, Plotly charts, tables, markdown, and interactive filters that update charts and tables in the browser. Reports open on the [Routines page](/webui/routines) next to the routine that made them.
 
-## Why Reports?
+| Channel | Best for |
+|---|---|
+| **Telegram** | Short results and alerts on your phone |
+| **Reports** | Charts, large tables and anything you want to look back on |
 
-| Channel | Best For |
-|---------|----------|
-| **Telegram** | Quick notifications, mobile alerts, simple text |
-| **Reports** | Interactive charts, detailed analysis, scheduled outputs |
+If you schedule a routine every hour, a report per run is easier to browse than 24 Telegram messages a day.
 
-When you schedule a routine to run every hour, you may not want 24 Telegram messages per day. Instead, generate reports and check them in the dashboard when convenient.
+## Viewing reports
 
-## Viewing Reports
+There is no separate Reports tab. Select a routine on the **Routines** page and its latest report opens on the right. `/reports` redirects to `/routines`.
 
-Reports appear in the Condor web dashboard under **Routines** → **Reports**. Open one in the full-screen viewer and use the **left/right arrow keys** to step through a routine's report history.
+- **Step through a routine's reports** with the previous and next buttons, the time strip above the report, or the **←** and **→** keys. **↑** and **↓** move between routines.
+- **Download** saves the report as a standalone HTML file.
+- **Delete** removes one report after you confirm.
 
-Each report includes:
-- Title and creation time
-- Source routine name and tags
-- Interactive HTML content (zoomable charts, expandable sections)
+In Telegram, a run that saved a report shows a **📤 Share Report** button. It sends the report to the chat as an HTML file.
 
-<Note>
-Condor keeps a rolling buffer of the most recent reports (default 100, set by the `CONDOR_MAX_REPORTS` environment variable). Older reports are cleaned up automatically.
-</Note>
+You see the reports from runs you started. Admins see every report.
 
-## Creating Reports
+## Creating a report
 
-### 1. Import ReportBuilder
-
-```python
-from condor.reports import ReportBuilder
-```
-
-### 2. Generate Your Data
-
-Create figures and tables as you normally would:
+Import `ReportBuilder`, add sections, and `await save()`. Every method except `save()` returns the builder, so calls can be chained. `save()` returns the new report's ID.
 
 ```python
 import plotly.graph_objects as go
-
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=dates, y=prices, name="Price"))
-fig.update_layout(title="Market Analysis")
-```
-
-### 3. Build the Report
-
-`ReportBuilder` takes a title, and its methods are chainable. Tag the report with its source, add sections, then `await save()`:
-
-```python
-builder = ReportBuilder("Analysis Summary")
-builder.source("routine", "my_routine").tags(["analysis"])
-builder.markdown("## Analysis Summary\n\nKey findings from today's scan.")
-builder.plotly(fig)
-builder.table([{"symbol": "SOL", "change": "+4.2%"}])
-await builder.save()
-```
-
-## Complete Example
-
-```python
-# routines/price_snapshot.py
 from pydantic import BaseModel, Field
 from telegram.ext import ContextTypes
-import plotly.graph_objects as go
 
-from config_manager import get_client
 from condor.reports import ReportBuilder
+from config_manager import get_client
 
 
 class Config(BaseModel):
     """Snapshot prices for a set of pairs and save a report."""
 
-    exchange: str = Field(default="binance_perpetual", description="Exchange to query")
+    connector: str = Field(default="binance", description="Exchange connector")
     pairs: list[str] = Field(
         default=["BTC-USDT", "ETH-USDT", "SOL-USDT"],
         description="Trading pairs to snapshot",
@@ -83,97 +48,184 @@ class Config(BaseModel):
 
 
 async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
-    chat_id = context._chat_id if hasattr(context, "_chat_id") else None
+    chat_id = getattr(context, "_chat_id", None)
     client = await get_client(chat_id, context=context)
-
     if not client:
         return "No server available"
 
-    prices = await client.market_data.get_prices(config.exchange, config.pairs)
-    rows = [{"pair": pair, "price": price} for pair, price in prices.items()]
+    result = await client.market_data.get_prices(
+        connector_name=config.connector, trading_pairs=config.pairs
+    )
+    rows = [{"pair": pair, "price": price} for pair, price in result["prices"].items()]
 
     fig = go.Figure(go.Bar(x=[r["pair"] for r in rows], y=[r["price"] for r in rows]))
-    fig.update_layout(title=f"Prices on {config.exchange}")
+    fig.update_layout(title=f"Prices on {config.connector}", yaxis_type="log")
 
-    builder = ReportBuilder(f"Price Snapshot — {config.exchange}")
-    builder.source("routine", "price_snapshot").tags(["prices"])
-    builder.markdown(f"## Prices on {config.exchange}")
-    builder.plotly(fig)
-    builder.table(rows)
-    await builder.save()
-
-    # Return text for Telegram
-    return f"Saved price snapshot for {len(rows)} pairs"
+    report_id = await (
+        ReportBuilder(f"Price Snapshot: {config.connector}")
+        .source("routine", "price_snapshot")
+        .tags(["prices"])
+        .kpi("Pairs", str(len(rows)))
+        .section("Prices", "Last traded price per pair")
+        .plotly(fig)
+        .table(rows)
+        .save()
+    )
+    return f"Saved a snapshot of {len(rows)} pairs (report {report_id})"
 ```
 
-## ReportBuilder Methods
+<Note>
+You don't have to call `source()`. When Condor runs a routine, any report saved without a source is filed under that routine, so it still shows up on the Routines page. Condor also records which agent ran the routine and which user started it.
+</Note>
 
-All methods return the builder, so they can be chained.
+## ReportBuilder methods
 
-| Method | Description |
-|--------|-------------|
-| `source(source_type, source_name)` | Tag where the report came from (e.g. `"routine", "price_snapshot"`) |
+### Report settings
+
+| Method | What it does |
+|---|---|
+| `ReportBuilder(title="Report")` | Start a report with this title |
+| `source(source_type, source_name)` | File the report under a source, for example `("routine", "price_snapshot")` |
 | `tags(tags)` | Attach a list of string tags |
-| `kpi(label, value, delta=None, trend="neutral")` | Add a KPI tile |
-| `markdown(text)` | Add markdown-formatted text |
-| `plotly(fig)` | Add a Plotly figure (interactive in HTML) |
-| `table(rows, columns=None)` | Add a table from a list of dicts |
-| `await save(report_id=None)` | Write the report to disk; pass an existing id to update in place |
+| `subject(key)` | Record what the report is about, using a key built by `condor.reports.subjects` |
+| `manual_order()` | Keep sections in the order you added them. Without it, and without any `section()` heading, sections are sorted by type: filters, then KPIs and metrics, then charts, then tables, then markdown. A report with a `section()` heading always keeps your order. |
+| `auto_refresh(seconds)` | Refresh the open report in the browser every `seconds` (1 or more), with a Pause button. Pass `None` to turn it off. |
+| `await save(report_id=None)` | Write the report and return its ID. Pass an existing ID to overwrite that report. |
 
-## Use Cases
+### Static sections
 
-### Scheduled Market Analysis
+| Method | What it adds |
+|---|---|
+| `kpi(label, value, delta=None, trend="neutral")` | A KPI tile. `trend` is `"up"`, `"down"` or `"neutral"`. |
+| `markdown(text)` | Markdown text |
+| `section(title, description=None)` | A full-width section heading |
+| `plotly(fig, optimize=True)` | A Plotly figure. Large figures are compacted for display; pass `optimize=False` to keep the figure exactly as built. |
+| `table(rows, columns=None)` | A table from a list of dicts. Columns default to the first row's keys. |
 
-Run a routine every hour to analyze market conditions:
+### Interactive components
 
-```
-/routines → technical_analysis → Schedule → Every 1 hour
-```
+Interactive components read rows from a named **dataset** and react to filters in the browser. Register the dataset first.
 
-Instead of 24 Telegram messages, check the reports dashboard for the latest analysis with interactive charts.
+| Method | What it adds |
+|---|---|
+| `dataset(name, rows)` | Registers a list of dicts under `name`. Every component below takes it as `source`. |
+| `select_filter(name, source, field, label=None, multiple=True, width=4, help_text=None)` | A pick-list filter on one field |
+| `range_filter(name, source, field, label=None, value_type="auto", width=6, help_text=None)` | A range filter. `value_type` is `"auto"`, `"number"`, `"date"` or `"datetime"`. |
+| `metric(label, source, field=None, aggregate="first", format=None, prefix="", suffix="", width=3, component_id=None)` | A KPI recalculated from the filtered rows. `aggregate` is `count`, `sum`, `mean`, `min`, `max`, `median`, `first`, `last` or `change_pct`. |
+| `chart(chart_type, title, source, x, y=None, *, color=None, aggregate=None, selection_mode="filter", ...)` | A chart bound to the dataset. `chart_type` is `line`, `area`, `bar`, `horizontal_bar`, `scatter`, `treemap`, `box`, `histogram` or `candlestick` (which needs `open`, `high`, `low` and `close` keyword arguments). Clicking a chart filters the other components, or feeds a drilldown with `selection_mode="drilldown"`. |
+| `data_table(source, columns=None, *, title="", searchable=True, sortable=True, page_size=25, width=12, component_id=None)` | A table that follows the filters, with search, sorting, paging and CSV export |
+| `drilldown(source, columns=None, *, title="Selection Details", page_size=25, width=12, component_id=None)` | A table of the rows selected in a linked chart |
 
-### Agent Decision Logging
+`width` is a column span from 1 to 12.
 
-When an agent runs a routine for analysis, the report captures what the agent "saw" when making decisions:
-
-```python
-builder = ReportBuilder("Agent Analysis")
-builder.source("routine", "bb_trader_analysis").tags(["agent"])
-builder.markdown(f"## Agent Analysis\n\nCurrent price: ${price}\n\nSignal: {signal}")
-builder.plotly(indicator_chart)
-await builder.save()
-```
-
-This helps you understand and debug agent behavior by reviewing the data it analyzed.
-
-### Comparing Tokens
-
-Build research routines that compare multiple assets:
+This routine fetches hourly candles for three pairs and builds an interactive report from them:
 
 ```python
-builder = ReportBuilder("Solana DEX Token Comparison")
-builder.source("routine", "dex_comparison").tags(["solana", "dex"])
-builder.markdown("## Solana DEX Token Comparison")
-builder.plotly(market_cap_chart)
-builder.plotly(fee_revenue_chart)
-builder.table(comparison_rows)
-await builder.save()
+from datetime import datetime, timezone
+
+from pydantic import BaseModel, Field
+from telegram.ext import ContextTypes
+
+from condor.reports import ReportBuilder
+from config_manager import get_client
+
+
+class Config(BaseModel):
+    """Explore recent candles for several pairs with filters and linked charts."""
+
+    connector: str = Field(default="binance", description="Exchange connector")
+    pairs: list[str] = Field(
+        default=["BTC-USDT", "ETH-USDT", "SOL-USDT"], description="Trading pairs"
+    )
+    interval: str = Field(default="1h", description="Candle interval")
+    max_records: int = Field(default=48, description="Candles per pair")
+
+
+async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
+    chat_id = getattr(context, "_chat_id", None)
+    client = await get_client(chat_id, context=context)
+    if not client:
+        return "No server available"
+
+    rows = []
+    for pair in config.pairs:
+        candles = await client.market_data.get_candles(
+            connector_name=config.connector,
+            trading_pair=pair,
+            interval=config.interval,
+            max_records=config.max_records,
+        )
+        if isinstance(candles, dict):
+            candles = candles.get("data", [])
+        for c in candles:
+            open_, close = float(c["open"]), float(c["close"])
+            rows.append(
+                {
+                    "pair": pair,
+                    "time": datetime.fromtimestamp(c["timestamp"], timezone.utc).isoformat(),
+                    "close": close,
+                    "return_pct": round((close - open_) / open_ * 100, 3),
+                    "quote_volume": round(float(c["quote_asset_volume"]), 2),
+                }
+            )
+
+    builder = ReportBuilder(f"Candle Explorer ({config.interval})")
+    builder.source("routine", "candle_explorer").tags(["candles"])
+    builder.dataset("candles", rows)
+    builder.select_filter("pair_filter", "candles", "pair", label="Pair")
+    builder.range_filter("time_filter", "candles", "time", value_type="datetime")
+    builder.metric("Candles", "candles", aggregate="count")
+    builder.metric("Avg return", "candles", "return_pct", aggregate="mean", suffix="%")
+    builder.metric("Quote volume", "candles", "quote_volume", aggregate="sum", prefix="$")
+    builder.chart("histogram", "Return distribution", "candles", "return_pct", color="pair")
+    builder.chart(
+        "bar", "Volume by pair", "candles", "pair", "quote_volume",
+        aggregate="sum", selection_mode="drilldown",
+    )
+    builder.drilldown("candles", ["pair", "time", "close", "return_pct"])
+    builder.data_table("candles", title="All candles", page_size=20)
+    report_id = await builder.save()
+    return f"Saved {len(rows)} candles (report {report_id})"
 ```
 
-## Report Storage
+For every component and option in one place, run the shipped `report_component_gallery` routine and open its report.
 
-Reports are written as HTML files to the `reports/` directory in your Condor install (`~/condor/reports/`), with an index in `reports_index.json`. The web dashboard reads from this directory.
+## Live reports
 
-```bash
-ls ~/condor/reports/
-# 20260115_143000_price-snapshot_a1b2c3.html
-# 20260115_150000_market-scanner_d4e5f6.html
+A [continuous routine](/routines/creating-routines#continuous-routines) can keep **one** report up to date instead of saving a new one on every loop. Use `LiveReport`. This excerpt is from the full, tested example on that page:
+
+```python
+from condor.reports import LiveReport
+
+report = LiveReport("Price Ticker: BTC-USDT", source_name="price_ticker", tags=["live"])
+
+# on each loop:
+report.clear()                      # start a fresh builder
+report.builder.kpi("Price", "81,714.00")
+report.builder.table(history[-50:])
+await report.update()               # first call saves, later calls overwrite
 ```
 
-To clean up reports manually:
+- `LiveReport(title, source_name="", tags=None, auto_refresh_seconds=None)` sets the source to `("routine", source_name)` for you.
+- `report.builder` is a normal `ReportBuilder`. `report.clear()` replaces it with an empty one.
+- `await report.update()` saves the first time and overwrites the same report after that. It returns the report ID. If someone deletes the report while the routine runs, the next update creates a new one.
 
-```bash
-rm ~/condor/reports/*.html
+## Where reports are stored
+
+Reports are HTML files in the `reports/` folder of your Condor install, with an index in `reports/reports_index.json`:
+
+```text
+<condor>/reports/
+  reports_index.json
+  20261014_161807_price_snapshot_binance_1e5e29.html
+  20261014_161816_candle_explorer_1h_093c63.html
 ```
 
-Or use the dashboard's cleanup function under **Routines** → **Reports** → **Clean**.
+File names are `<UTC timestamp>_<title slug>_<report ID>.html`.
+
+| Environment variable | Default | What it does |
+|---|---|---|
+| `CONDOR_REPORTS_DIR` | `<condor>/reports` | Moves the reports folder |
+| `CONDOR_MAX_REPORTS` | `100` | How many reports to keep. When a save goes over the limit, the least recently updated reports are deleted. |
+
+To remove a report, use **Delete** on the Routines page. Deleting files by hand leaves stale rows in `reports_index.json`.

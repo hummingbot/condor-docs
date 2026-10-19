@@ -1,54 +1,121 @@
 ---
 title: "Bots"
-description: "Deploy, monitor, edit, backtest, and archive long-running Hummingbot bots"
+description: "Browse every bot, controller and executor on a server, deploy new bots, and edit controllers and configs"
 ---
 
-The **Bots** page manages long-running, containerized Hummingbot bots — always-on strategies with no LLM in the loop. Five tabs cover a bot's whole life: **Active**, **Runs**, **Editor**, **Backtest**, and **Archived**.
-
-## Active
-
-Live bots, with a stat strip for total PNL, volume, active bot count, and running controllers. **Deploy Bot** launches a new bot from a controller config.
+The **Bots** page is a performance browser for everything trading on the selected server: Hummingbot bots, the controllers inside them, and the executors those controllers (or you and your agents) opened. A **Scope** sidebar on the left picks what to look at, and the report pane on the right shows the numbers, chart and actions for that scope.
 
 <Frame>
-  <img src="/images/webui/bots-active.jpg" alt="The Active tab: stat strip and Deploy Bot" />
+  <img src="/images/webui/bots.jpg" alt="The Bots page: the Scope sidebar with Running/Terminated, Owner/Bot/Pair/Type and Both/Controllers/Executors toggles, and the report pane with Deploy bot, Editor and the KPI strip" />
 </Frame>
 
-## Runs
+## The Scope sidebar
 
-Every bot run, past and present: status (**Deployed** or **Archived**), PNL, volume, start time, and duration. This is the audit trail — click a run to inspect its performance.
+Three toggles at the top of the sidebar decide what the tree below them lists.
 
-<Frame>
-  <img src="/images/webui/bots-runs.jpg" alt="The Runs tab: bot run history with PNL and duration" />
-</Frame>
+| Toggle | Options | What it changes |
+|--------|---------|-----------------|
+| Population | **Running** · **Terminated** | **Running** shows live controllers and the executors working under them. **Terminated** shows executors that have closed and bot runs that have finished. |
+| Group by | **Owner** · **Bot** · **Pair** · **Type** | How the tree is nested. **Owner** (the default) groups by the agent that created each record, Condor included, then by bot. **Bot** gives one row per bot. **Pair** gives one row per trading pair across the server. **Type** gives one row per controller class, such as `pmm_simple` or `grid_strike`. |
+| Records | **Both** · **Controllers** · **Executors** | **Both** shows controllers with their executors under them. **Controllers** shows controller records only. **Executors** shows executors only, with each controller row summing the executors that ran under it. |
+
+With **Terminated** selected, a fourth strip sets how far back to look: **1W**, **1M**, **3M** or **All**.
+
+Below the toggles you can narrow the tree further:
+
+- **Filter pair…** matches trading pairs.
+- **Controller type**, **Executor type** and **Agent** chips appear when there is more than one value to choose from. **Executor type** is hidden in **Controllers** mode. **Clear all filters** resets them.
+
+**Select all** at the top of the tree reports on everything in scope combined. Click any row to report on just that bot, controller, executor or group. The ↑ and ↓ arrows (or the arrow buttons in the header) step through the rows.
+
+The scope, population and grouping are kept in the URL, so you can bookmark or share a view.
+
+## The report pane
+
+### KPI strip
+
+Every scope shows the same eight tiles: **Net PnL**, **Realized**, **Unrealized**, **Win rate**, **Volume**, **Fees**, **Capital** and **Runtime**. **Fees** counts executor fees only, so treat it as a lower bound. When executors in scope have closed, a row of close-type counts (for example take profit, stop loss, early stop) sits under the tiles.
+
+Below the strip is the PnL chart for the scope. For a single executor you can switch the chart between **Price** (candles with the executor's entry, exit and levels) and **PnL**.
+
+### Bottom tabs
+
+When the scope has records, tabs under the chart open:
+
+- **Positions held** — every open position in scope.
+- **Executors** — one row per executor: ID, type, connector, pair, side, PnL, PnL%, volume, fees, **Close Type** and age. Tick rows to **Export CSV** or **Stop Selected**.
+- **Breakdown** — the scope's totals split by instrument and venue.
+
+### Actions
+
+The buttons in the header depend on the scope you selected.
+
+| Scope | Actions |
+|-------|---------|
+| Everything (**Select all**) | **Deploy bot** |
+| A running bot | **Stop bot** (asks you to confirm), **Logs** |
+| A running controller | **Pause** / **Start**, **Config** |
+| An open executor | **Stop** |
+| A finished bot run | **Open archive** (the run's archived database), **Delete run** |
+| Any scope | **Editor** |
+
+- **Stop bot** stops the bot's container and archives its data. The bot then appears under **Terminated**.
+- **Pause** turns on the controller's kill switch: it cancels its orders and stops quoting, but keeps its config and any position it holds. **Start** turns it back on. Other controllers in the same bot keep running.
+- **Config** opens the running controller's config as YAML. **Save** pushes the change to the live bot. Only fields the controller marks as updatable take effect; see [Updating a running controller](/bots/controllers#updating-a-running-controller).
+
+## Deploy bot
+
+**Deploy bot** opens a dialog that starts a new bot from one or more saved controller configs.
+
+1. Search for and click configs to select them. They're grouped by controller type.
+2. Each selected config opens in an inline editor. Changes are saved to the config before the bot starts, and the button changes to **Save & Deploy**.
+3. Optionally open **Advanced Settings**:
+
+   | Field | Default | Meaning |
+   |-------|---------|---------|
+   | **Bot Name** | `bot_` plus a timestamp | Name of the bot instance. The Hummingbot API adds a timestamp to it. |
+   | **Account** | `master_account` | Credentials profile the bot trades with. |
+   | **Image** | `hummingbot/hummingbot:latest` | Hummingbot Docker image. |
+   | **Max Global Drawdown** | empty | Optional loss cap for the whole bot, in quote currency. |
+   | **Max Controller Drawdown** | empty | Optional loss cap for each controller, in quote currency. |
+
+4. Click **Deploy**.
 
 ## Editor
 
-A code editor for the strategy files on the server: **Controllers** (`.py`, grouped into directional trading, market making, and generic) and their **Configs** (`.yml`). Edit in the browser, save to the server, and the next deploy uses your version. New files and uploads happen from the explorer header.
+**Editor** opens the **Controllers & configs** window, a code editor for the files on the server.
 
 <Frame>
-  <img src="/images/webui/bots-editor.jpg" alt="The Editor tab: controller and config file explorer" />
+  <img src="/images/webui/bots-editor.jpg" alt="The Controllers & configs editor with the Controllers view open, listing controller files grouped into directional_trading, market_making and generic" />
 </Frame>
 
-## Backtest
+- The **Explorer** switches between **Configs** (`.yml`, grouped by controller) and **Controllers** (`.py`, grouped into `directional_trading`, `market_making` and `generic`). **Search files…** filters the list.
+- Open files in tabs and edit them. **Save** writes the file to the server, **Reset** discards your edits, and **Delete** removes the file. With two or more tabs open you can split the view.
+- The upload button opens **Upload**: choose **Config (.yml)** or **Controller (.py)**, then drop or paste the file.
+- The **+** button creates a **New Config** from a controller's template.
+- Right-click a config to **Clone** or **Delete** it.
 
-Replay a controller config against historical candles before it touches capital: pick the config, a time range (`1D/1W/1M/3M` presets), candle resolution, and a trade cost, then **Run Backtest**. Runs land in the **Tasks** list with their results.
+Editing a config here changes the saved file, not a running bot. To change a running controller, use **Config** on its scope.
 
-<Frame>
-  <img src="/images/webui/bots-backtest.jpg" alt="The Backtest tab: config, time range, resolution, and trade cost" />
-</Frame>
+## Executors
 
-## Archived
-
-Stopped bots whose databases were archived — each card shows its trades and orders, and opens into the full performance breakdown.
-
-<Frame>
-  <img src="/images/webui/bots-archived.jpg" alt="The Archived tab: archived bot run cards" />
-</Frame>
+Executors no longer have their own page. They are part of this browser: choose **Executors** in the records toggle, or set **Group by** to **Type**, to see them across the server. To open a new executor, use the [Trade](/webui/trade) page.
 
 ## Using Telegram
 
-**`/bots`** lists active bots with real-time status and metrics; each bot opens into **📋 Logs**, **📊 Chart**, and **🛑 Stop Bot**, with **📜 Historical** for past runs (stop-and-archive included). **`/new_bot`** walks through creating a bot configuration from a controller.
+**`/bots`** lists your running bots, one button per bot, plus **📜 Historical** for archived runs, **🔄 Refresh** and **❌ Close**.
+
+- Open a bot to see its controllers. Each controller row has a button to open it and a quick ⏸ / ▶️ toggle. The bot itself has **📋 Logs** and **🛑 Stop Bot**, which stops and archives it.
+- Open a controller for its detail. Every controller can be stopped and started. `grid_strike` controllers also get **📊 Chart**, and `pmm_mister` controllers get **📋 Clone**.
+
+**`/new_bot`** opens your controller configs for the types Condor has Telegram forms for: `grid_strike`, `pmm_mister` and `pmm_v1`. Select one or more and choose **🚀 Deploy**, then answer the prompts for instance name, credentials profile, the two drawdown limits and the Docker image. The same menu has **➕ New** to create a config, **✏️ Edit**, **🗑️ Delete** and **📤 Upload** (YAML configs).
+
+**`/executors`** lists open executors and has two creation wizards, **📐 Create Grid** and **🎯 Create Position**, plus **📜 History**.
 
 ## Learn more
 
-- [Bots Overview](/bots/overview) · [Controllers](/bots/controllers) · [Scripts](/bots/scripts) · [Backtesting](/bots/backtesting)
+- [How Bots Work](/bots/overview)
+- [Controllers](/bots/controllers)
+- [Scripts](/bots/scripts)
+- [Backtesting](/bots/backtesting)
+- [Executors Overview](/executors/overview)

@@ -46,6 +46,8 @@ Prefer Tailscale over opening port **8000** on a public firewall — see [Secure
 | Connection refused | On the API server: `make tailscale-status` and `make deploy` again |
 | Login fails (401) | Use the same username/password as in the API `.env` — a mistyped password is the usual cause, since it isn't echoed as you type |
 | Still reachable on public IP | Remove port **8000** from your cloud provider's firewall / security group |
+| Dashboard not reachable at `http://<tailnet-ip>:8088` (Telegram mode) | Condor could not read the tailnet address when it started, so it bound `127.0.0.1`. `make doctor` warns about this. Check `tailscale status`, then `make restart` |
+| Dashboard not reachable over Tailscale (Local mode) | Expected. Local mode never listens on the tailnet. See [Local mode: dashboard is not reachable from another device](#local-mode-dashboard-is-not-reachable-from-another-device) below |
 
 See also: [Hummingbot API Tailscale guide](https://hummingbot.org/hummingbot-api/tailscale/)
 
@@ -76,7 +78,9 @@ See also: [Hummingbot API Tailscale guide](https://hummingbot.org/hummingbot-api
   <Accordion title="Dashboard or API fails to start: address already in use">
     Something else is already listening on the port Condor or the API is trying to bind — a previous instance that didn't fully stop, or an unrelated process. Neither side currently checks for this before binding, so the error is a raw one from the process crashing, not a friendly message.
 
-    Find and stop whatever holds the port (`lsof -i :8088` for the dashboard, `:8000` for the API), or change the port — `WEB_HOST`/dashboard port in Condor's `.env`, `API_BIND` in `hummingbot-api/.env`.
+    Find and stop whatever holds the port (`lsof -i :8088` for the dashboard, `:8000` for the API).
+
+    To move the dashboard instead, change the port in `WEB_URL` in Condor's `.env`. `WEB_URL` sets the port Condor listens on and wins over `WEB_PORT`, so changing only `WEB_PORT` does nothing when `WEB_URL` is set. A `WEB_URL` with no port makes Condor listen on 80 (`http://`) or 443 (`https://`), which often collides with a web server. The API's port 8000 is fixed in `hummingbot-api`'s `docker-compose.yml`; `API_BIND` changes the address, not the port.
   </Accordion>
 </AccordionGroup>
 
@@ -88,8 +92,9 @@ See also: [Hummingbot API Tailscale guide](https://hummingbot.org/hummingbot-api
        - *Quick Start / deploy:* `tmux attach -t condor` and look for tracebacks or exit messages.
        - *Manual install:* Check the terminal where `make run` is running.
     2. **Check `condor/.env`** on the machine that runs Condor: `TELEGRAM_TOKEN` must match [@BotFather](https://t.me/botfather), and `ADMIN_USER_ID` must be your numeric Telegram user id (from [@userinfobot](https://t.me/userinfobot)).
-    3. **Access still pending:** New users must be approved. An admin should use **`/admin`** (or the admin flow from **`/start`**) to approve you.
-    4. **Deploy installer hint:** If admins never see *"Condor is online and ready."*, attach to tmux (above) and fix errors shown there; the installer also reminds you to verify `.env` when that message is missing.
+    3. **Access still pending:** New users must be approved. An admin approves you with **`/admin`** in Telegram or **Settings → Admin** in the dashboard.
+    4. **Another bot's token:** If the log shows a warning that `TELEGRAM_TOKEN is set in the environment Condor was started from and overrides .env`, Condor is running as a different bot. This often happens inside a tmux server started from another project. Unset it (`unset TELEGRAM_TOKEN`, or `tmux set-environment -gu TELEGRAM_TOKEN`) and restart. See [Environment overrides](/getting-started/configuration#environment-overrides).
+    5. **Deploy installer hint:** If admins never see *"Condor is online and ready."*, attach to tmux (above) and fix errors shown there; the installer also reminds you to verify `.env` when that message is missing.
   </Accordion>
 
   <Accordion title="No servers configured / Server not found / No servers available">
@@ -102,11 +107,10 @@ See also: [Hummingbot API Tailscale guide](https://hummingbot.org/hummingbot-api
   <Accordion title="Local mode: dashboard is not reachable from another device">
     That is intended. Local mode has **no login**, so it binds `127.0.0.1` and is reachable only from the machine running Condor.
 
-    If you need it from elsewhere, put something that authenticates in front of it rather than setting `WEB_HOST=0.0.0.0` on its own:
+    Tailscale does not change this: Local mode stays on `127.0.0.1` even with Tailscale on. Don't set `WEB_HOST=0.0.0.0` to work around it. Instead:
 
-    - **Tailscale** — re-run `make setup` and enable it. Condor then binds loopback and lets `tailscale serve` expose the dashboard to your tailnet only.
     - **SSH tunnel** — `ssh -L 8088:localhost:8088 you@host`, then open `http://localhost:8088` locally.
-    - **Switch to Telegram mode** — re-run `make setup`; `/web` then issues time-limited login links that work from any device.
+    - **Switch to Telegram mode** — re-run `make setup`. `/web` then issues time-limited login links. With Tailscale on, the dashboard is reachable at `http://<tailnet-ip>:8088` from your tailnet.
   </Accordion>
 </AccordionGroup>
 
@@ -122,20 +126,26 @@ See also: [Hummingbot API Tailscale guide](https://hummingbot.org/hummingbot-api
   </Accordion>
 
   <Accordion title="After an update, `make run` or `make restart` fails in the frontend build">
-    `make run` rebuilds the dashboard before starting, but it only installs frontend packages when `frontend/node_modules` is missing **entirely**. After a `git pull` or `/update` that added a new frontend dependency, the stale `node_modules` fails the build with an error naming the missing package.
+    `make run` and `make restart` rebuild the dashboard before starting. They reinstall the frontend packages with `npm ci` first whenever `frontend/package-lock.json` is newer than what is installed, so a pull that adds a dependency is picked up on its own.
+
+    If the build still fails, the error is printed before Condor starts. Read it in the terminal where you ran the command. To retry the install by hand:
 
     ```bash
-    cd frontend && npm install
+    cd frontend && npm ci
     cd .. && make run
     ```
-
-    `make doctor` warns when `node_modules` is absent, but cannot tell a stale one from a fresh one — a build error naming a package you never heard of is this case.
   </Accordion>
 
   <Accordion title="Preferences or agent conversations reset unexpectedly">
-    Condor's dashboard preferences, chat state, and agent conversations persist to a pickle file (`data/condor_bot_data.pickle`) with a `.bak` backup. If the main file is corrupted, Condor recovers from `.bak` automatically; if both are corrupted (for example after a hard crash or a full disk), it silently starts with empty state instead of failing to boot — the only trace is a warning in the logs, not an error you'd notice at the time.
+    Condor keeps these in different places:
 
-    There's no way to recover state once both copies are gone. If this happens repeatedly, check for disk space issues or anything killing Condor mid-write.
+    - **Preferences** and server settings: `config.yml`.
+    - **Agent conversations**: `.condor/users/<user-id>/conversations/`.
+    - **Telegram session state**: `data/condor_bot_data.pickle`, with a `.bak` copy.
+
+    The most common cause is a changed user id. Everything is keyed to the id you log in as, so a Local install (user `1`) that switches to Telegram starts with an empty history under your Telegram id. The old conversations are still under `.condor/users/1/`. See [Add Telegram to a Local install](/getting-started/installing#add-telegram-to-a-local-install).
+
+    If the pickle file is unreadable, Condor recovers from `.bak`. If both are unreadable, it starts with empty Telegram session state and logs the error `Both pickle and backup are corrupt/unreadable. Starting with empty state.` This doesn't affect conversations or `config.yml`. If it happens repeatedly, check for a full disk or anything killing Condor mid-write.
   </Accordion>
 </AccordionGroup>
 
@@ -164,7 +174,7 @@ The commands worth reaching for before reading anything above. All are safe to r
 | `make logs` | Condor dir | Attach to the running session (detach with <kbd>Ctrl+B</kbd> then <kbd>D</kbd>) |
 | `make restart` | Condor dir | Rebuild the frontend and restart — the fix for a stale dashboard |
 | `tailscale status` | Either host | Whether this machine is on the tailnet at all |
-| `tailscale serve status` | Condor host | What is actually published to the tailnet, including the dashboard |
+| `tailscale ip -4` | Condor host | This machine's tailnet address, where a Telegram-mode dashboard listens with Tailscale on |
 | `docker compose ps` | `hummingbot-api` dir | Whether the API, broker and database containers are up |
 | `make emqx-audit` | `hummingbot-api` dir | Broker listeners, auth, ACL and any rule-engine rules |
 

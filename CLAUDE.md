@@ -7,7 +7,7 @@
 
 ## Project context
 
-This documentation covers **Condor** (Telegram interface) and **Hummingbot API** (backend server). It is a focused subset of the main Hummingbot documentation, not a complete replacement.
+This documentation covers **Condor** (web dashboard, Telegram bot and LLM trading agents) and the **Hummingbot API** (the backend server Condor drives). It is a focused subset of the main Hummingbot documentation, not a complete replacement.
 
 ### Source repositories
 - **Condor**: https://github.com/hummingbot/condor
@@ -27,40 +27,49 @@ This documentation covers **Condor** (Telegram interface) and **Hummingbot API**
 ## Architecture overview
 
 ```
-Telegram User
-     |
-  Condor Bot (Telegram interface)
-     |
-     +---> Hummingbot API (FastAPI server)
-     |          |
-     |          +---> PostgreSQL (trading data)
-     |          +---> EMQX (message broker for bots)
-     |          +---> Exchange connectors (CEX trading)
-     |
-     +---> Gateway (DEX trading via Uniswap, Jupiter, etc.)
+Browser (web dashboard)      Telegram user
+            \                  /
+     Condor (web dashboard + Telegram bot + LLM trading agents)
+            |         \
+            |          +---> LLM providers (agent and assistant models)
+            |
+     Hummingbot API (FastAPI server)
+            |
+            +---> PostgreSQL (trading data)
+            +---> EMQX (message broker for bots)
+            +---> Exchange connectors (CEX trading)
+            +---> Gateway (DEX trading; started and managed by the API)
 ```
 
+Condor never talks to Gateway directly: every DEX action goes through the Hummingbot API.
+
 ### Key concepts
-- **Condor**: Telegram bot providing mobile-friendly interface to Hummingbot infrastructure
+- **Condor**: Web dashboard, Telegram bot and LLM trading agents on top of Hummingbot infrastructure
 - **Hummingbot API**: RESTful API for managing trading operations, bot orchestration, and exchange connectivity
-- **Gateway**: Separate service for DEX trading (swaps, liquidity pools)
+- **Gateway**: Separate service for DEX trading (swaps, liquidity pools), reached through the Hummingbot API
 - **Controllers**: Trading strategy components running inside bot instances
 
 ## Repository structure
 
 ```
-├── docs.json                    # Mintlify config (navigation, theme, OpenAPI)
-├── introduction.mdx             # Homepage
-├── quickstart.mdx               # Quickstart guide
-├── getting-started/
-│   ├── installing.mdx           # Installation guide (Condor + Hummingbot API)
-├── developer-guide.mdx          # Developer guide (API usage)
-├── api-reference.mdx            # API Reference overview
-├── api-reference/openapi.json   # Hummingbot API spec
-├── condor/                      # Condor Telegram docs
-├── dashboard/                   # Condor Dashboard docs
-├── openapi-sources/             # Raw specs from source servers
-└── scripts/                     # Build scripts
+├── docs.json            # Mintlify config (navigation, theme, redirects, OpenAPI)
+├── introduction.mdx     # Homepage (other root pages: learning-path, motivation,
+│                        #   feedback, llm-integration, api-reference)
+├── getting-started/     # Install, configure, Telegram, web dashboard, first agent
+├── examples/            # Shipped agents and step-by-step agent guides
+├── webui/               # Web dashboard pages
+├── bots/                # Controllers, scripts, backtesting
+├── executors/           # Executor types
+├── routines/            # Routines and reports
+├── trading-agents/      # Agent architecture, sessions, MCP tools
+├── condor-agent/        # The Condor assistant and Agent Builder
+├── api-reference/       # Hummingbot API pages + openapi.json (generated)
+├── videos/              # Videos overview, Agent Builders Cup, The Bot Pod
+├── snippets/            # Reusable MDX snippets
+├── images/              # Screenshots and diagrams (images/webui/ for dashboard)
+├── logo/                # Logos and favicon
+├── openapi-sources/     # Raw spec fetched from the Hummingbot API
+└── scripts/             # OpenAPI generate/update scripts
 ```
 
 ## OpenAPI spec maintenance
@@ -77,7 +86,9 @@ The API Reference is auto-generated from the OpenAPI spec. When endpoints change
 
 1. Start the Hummingbot API server:
    ```bash
-   cd ~/hummingbot-api && make run        # localhost:8000
+   cd ~/hummingbot-api
+   make setup    # first time only: writes .env with your credentials
+   make deploy   # API on localhost:8000 (`make run` runs it from source; also needs .env)
    ```
 
 2. Generate spec:
@@ -87,17 +98,14 @@ The API Reference is auto-generated from the OpenAPI spec. When endpoints change
 
 3. Preview and verify:
    ```bash
-   mintlify dev
+   npx mint@latest dev
    ```
 
 4. Commit both `openapi-sources/hummingbot-api.json` and `api-reference/openapi.json`
 
 ### Fixing issues
 
-If changes to router docstrings aren't appearing:
-1. Ensure docstrings are description-only (no Args/Returns/Raises sections)
-2. Restart the source server
-3. Re-fetch the spec
+If changes to router docstrings aren't appearing, restart the source server and re-fetch the spec.
 
 ## Content strategy
 - Document just enough for user success - not too much, not too little
@@ -145,11 +153,16 @@ description: "Concise summary for SEO/navigation (1-2 sentences)"
 
 ## Mintlify dev server
 ```bash
-# Start local preview
-mintlify dev
+# Start local preview (available at http://localhost:3000)
+npx mint@latest dev
 
-# Available at http://localhost:3000
+# Before committing: check config/frontmatter, then links and anchors
+npx mint@latest validate
+npx mint@latest broken-links --check-anchors
 ```
+
+If `npx mint@latest` fails to install, run a copy already in the npx cache
+(`ls ~/.npm/_npx/*/node_modules/.bin/mint`) with the same arguments.
 
 ## Common documentation patterns
 

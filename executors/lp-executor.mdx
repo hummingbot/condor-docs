@@ -1,142 +1,207 @@
 ---
 title: "LP Executor"
-description: "Concentrated liquidity provision on CLMM DEXs"
+description: "Open, monitor and close a concentrated-liquidity position on a CLMM DEX through Gateway"
 ---
 
-The **LP Executor** automates liquidity provision on Concentrated Liquidity Market Maker (CLMM) DEXs like Meteora, Raydium, Orca, and Uniswap V3.
+The **LP Executor** manages one concentrated-liquidity (CLMM) position through Gateway. It opens the position inside a price range, tracks whether the price is in range, accrues fees, and closes the position when the price crosses a limit price or when you stop it.
+
+For a complete agent built on it, see [Run the Solana LP Expert](/examples/solana-lp).
 
 ## Overview
 
 | Property | Value |
-|----------|-------|
-| Position Type | LP |
-| P&L Calculation | Fees earned - impermanent loss - tx fees |
-| keep_position | Configurable |
-| Use Cases | Earning LP fees, concentrated liquidity, range trading |
+|---|---|
+| Position type | CLMM liquidity position |
+| Venues | CLMM pools reached through Gateway, such as Meteora, Orca and Raydium on Solana |
+| P&L | Position value + fees earned − value deposited − transaction fees |
+| `keep_position` | Decides what happens to the net token change when the position closes |
 
-## Configuration
+## Create one from Condor
+
+Agents and the Condor chat open LP positions with the `create_lp_executor` tool. Find the pool and its current price with `explore_dex_pools` first.
 
 ```python
-from hummingbot.strategy_v2.executors.lp_executor.data_types import LPExecutorConfig
-
-config = LPExecutorConfig(
-    controller_id="my-agent",
-    connector_name="meteora",
-    pool_address="5Q544fK...",
+create_lp_executor(
+    connector_name="solana-mainnet-beta",
+    lp_provider="meteora/clmm",
     trading_pair="SOL-USDC",
-    lower_price=Decimal("140.0"),
-    upper_price=Decimal("160.0"),
-    base_amount=Decimal("1.0"),
-    quote_amount=Decimal("150.0"),
-    side=0,  # 0=both, 1=buy only, 2=sell only
-    auto_close_above_range_seconds=3600,
-    auto_close_below_range_seconds=3600,
-    keep_position=True,
+    pool_address="<pool address>",
+    lower_price=150.0,
+    upper_price=170.0,
+    side=3,
+    base_amount=0.5,
+    quote_amount=80.0,
+    lower_limit_price=145.0,
+    upper_limit_price=175.0,
+    keep_position=False,
 )
 ```
 
-## Parameters
+This opens a two-sided position between 150 and 170, and closes it if the price falls to 145 or rises to 175.
 
-| Parameter | Description |
-|-----------|-------------|
-| `connector_name` | DEX connector (meteora, raydium, orca, uniswap) |
-| `pool_address` | On-chain pool address |
-| `trading_pair` | Token pair (e.g., SOL-USDC) |
-| `lower_price` | Price range lower bound |
-| `upper_price` | Price range upper bound |
-| `base_amount` | Base token to deposit |
-| `quote_amount` | Quote token to deposit |
-| `side` | 0=both sides, 1=buy only, 2=sell only |
-| `auto_close_above_range_seconds` | Close if above range for N seconds |
-| `auto_close_below_range_seconds` | Close if below range for N seconds |
+### Parameters
 
-## Lifecycle States
+| Parameter | Required | Meaning |
+|---|---|---|
+| `connector_name` | Yes | The **network**, not the DEX. For example `solana-mainnet-beta`. |
+| `lp_provider` | Yes | The DEX and trading type as `dex/clmm`: `meteora/clmm`, `orca/clmm` or `raydium/clmm` |
+| `trading_pair` | Yes | Token pair, for example `SOL-USDC` |
+| `pool_address` | Yes | The pool's address, from `explore_dex_pools` |
+| `lower_price` / `upper_price` | Yes | The position's range. `lower_price` must be below `upper_price`. |
+| `side` | Yes | Which tokens you supply. See [Side](#side). |
+| `base_amount` / `quote_amount` | At least one | Base and quote tokens to deposit |
+| `lower_limit_price` / `upper_limit_price` | No | Close the position when the price reaches this level. See [Auto-close](#auto-close). |
+| `keep_position` | No | What to do with the net token change when the executor closes itself. Default `false`. See [Closing](#closing-a-position). |
+| `swap_provider` | No | Swap route for the close-out swap when `keep_position` is `false`, for example `jupiter/router`. Defaults to the network's swap provider in Gateway. |
+| `extra_params` | No | Connector-specific settings. Meteora takes `{"strategyType": 0}`: `0` Spot (uniform), `1` Curve (concentrated at the price), `2` Bid-Ask (at the range edges). |
+| `account_name` | No | Account to trade from. Default `master_account`. |
+| `controller_id` | No | The tag that owns the executor. Default `main`. An agent passes its own ID. |
+| `save_as_default` | No | Save these arguments as the defaults for future LP executors |
 
-| State | Description |
-|-------|-------------|
-| `NOT_ACTIVE` | Initial state |
-| `OPENING` | Adding liquidity |
-| `IN_RANGE` | Position active, price within range |
-| `OUT_OF_RANGE` | Price moved outside range |
-| `CLOSING` | Removing liquidity |
-| `COMPLETE` | Position closed |
-| `FAILED` | Failed after retries |
+<Warning>
+`connector_name` is the network. Passing the DEX there, such as `meteora/clmm`, is the most common mistake. The API rejects it with "Invalid network format".
+</Warning>
 
-## How It Works
+The tool watches the new executor for a few seconds and reports what happened. An executor ID alone doesn't mean a position is open: check that the executor is running before relying on it.
 
-1. **Open**: Deploys liquidity at configured price range
-2. **Monitor**: Tracks if current price is within range
-3. **Fees**: Accumulates trading fees while in range
-4. **Close**: Removes liquidity when conditions met
+### Side
 
-## P&L Tracking
+`side` decides which tokens you deposit, and the range has to agree with it:
 
-The executor tracks:
+| `side` | Deposit | Where to put the range |
+|---|---|---|
+| `1` (BUY) | Quote only | Below the current price. Quote converts to base as the price falls into the range. |
+| `2` (SELL) | Base only | Above the current price. Base converts to quote as the price rises into the range. |
+| `3` (RANGE) | Both | Around the current price |
 
-| Metric | Description |
-|--------|-------------|
-| `base_fee` | Fees earned in base token |
-| `quote_fee` | Fees earned in quote token |
-| `position_rent` | Solana rent for position NFT |
-| `tx_fee` | Transaction fees |
-| `impermanent_loss` | Value loss from price movement |
+### Auto-close
 
-## Example: SOL-USDC LP
+The executor closes the position when the price rises to `upper_limit_price` or falls to `lower_limit_price`. The limits must sit outside the range: `upper_limit_price` at or above `upper_price`, and `lower_limit_price` at or below `lower_price`.
 
-```python
-sol_lp = LPExecutorConfig(
-    controller_id="sol-lp",
-    connector_name="meteora",
-    pool_address="5Q544fK...",
-    trading_pair="SOL-USDC",
-    lower_price=Decimal("130"),
-    upper_price=Decimal("170"),
-    base_amount=Decimal("5.0"),
-    quote_amount=Decimal("750.0"),
-    side=0,
-    auto_close_above_range_seconds=7200,  # 2 hours
-    auto_close_below_range_seconds=3600,  # 1 hour
-)
-```
+Set both if you want the position to close on its own in either direction. Without a limit on one side, the position stays open out of range on that side until you stop it.
 
-## Example: Single-Sided LP
+## Via the API
 
-```python
-# Only provide sell-side liquidity (sell SOL as price rises)
-sell_side_lp = LPExecutorConfig(
-    controller_id="sell-lp",
-    connector_name="raydium",
-    pool_address="...",
-    trading_pair="SOL-USDC",
-    lower_price=Decimal("150"),
-    upper_price=Decimal("200"),
-    base_amount=Decimal("10.0"),
-    quote_amount=Decimal("0"),
-    side=2,  # Sell only
-)
-```
-
-## Via API
+Create the executor with `POST /executors/`. The executor's settings go in `executor_config`, with `"type": "lp_executor"`. `side` is the number `1`, `2` or `3`.
 
 ```bash
-POST /executors/create
-{
-  "type": "lp_executor",
-  "connector_name": "meteora",
-  "trading_pair": "SOL-USDC",
-  "total_amount_quote": 0.30,
-  "side": 2,
-  "width_percent": 0.4
-}
+curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/executors/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_name": "master_account",
+    "controller_id": "main",
+    "executor_config": {
+      "type": "lp_executor",
+      "connector_name": "solana-mainnet-beta",
+      "lp_provider": "meteora/clmm",
+      "trading_pair": "SOL-USDC",
+      "pool_address": "<pool address>",
+      "lower_price": 150,
+      "upper_price": 170,
+      "side": 3,
+      "base_amount": 0.5,
+      "quote_amount": 80,
+      "lower_limit_price": 145,
+      "upper_limit_price": 175,
+      "extra_params": {"strategyType": 0},
+      "keep_position": false
+    }
+  }'
 ```
 
-## Position Handover
+Find executors with `POST /executors/search`, and stop one with `POST /executors/{executor_id}/stop`:
 
-When `keep_position=true` and executor closes:
+```bash
+curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/executors/EXECUTOR_ID/stop \
+  -H "Content-Type: application/json" \
+  -d '{"keep_position": false}'
+```
 
-1. LP position is **always closed on-chain** (liquidity withdrawn)
-2. Net token change tracked in Position Hold
-3. ADD events → SELL (tokens deposited)
-4. REMOVE events → BUY (tokens + fees returned)
+The API also accepts these settings, which the Condor tool doesn't expose:
 
-This allows agents to track LP performance as standard trades.
+| Setting | Default | Meaning |
+|---|---|---|
+| `slippage_pct` | `0.05` | Starting slippage tolerance, in percent |
+| `slippage_multiplier` | `5` | How much the tolerance widens after each failure caused by slippage |
+| `max_slippage_pct` | `5` | The most the tolerance can widen to, in percent |
+| `position_refresh_interval` | `1.0` | Minimum seconds between on-chain position reads |
+
+## Lifecycle states
+
+| State | Meaning |
+|---|---|
+| `NOT_ACTIVE` | No position yet |
+| `OPENING` | Adding liquidity |
+| `IN_RANGE` | Position open, price inside the range |
+| `OUT_OF_RANGE` | Position open, price outside the range |
+| `CLOSING` | Removing liquidity |
+| `SWAPPING` | Swapping the net token change back (`keep_position` is `false`) |
+| `COMPLETE` | Position closed |
+| `FAILED` | Stopped without a position, after the open failed |
+
+## Closing a position
+
+Stopping or auto-closing an LP executor **always removes the liquidity on-chain**. `keep_position` only decides what happens to the net token change afterwards.
+
+Which `keep_position` applies depends on how the executor closes:
+
+- **It closes itself** (a limit price is hit): the `keep_position` in its config, default `false`.
+- **You or an agent stop it** (`stop_executor` or `POST /executors/{executor_id}/stop`): the `keep_position` passed with the stop, default `false`. The config's value is ignored.
+
+Then:
+
+| `keep_position` | What happens | Close type |
+|---|---|---|
+| `false` | The executor enters `SWAPPING` and swaps only the net base change back through `swap_provider`, so it ends with the same balance it started with. If the base amount didn't change, no swap is needed. | `EARLY_STOP` |
+| `true` | No swap. The net change is kept and recorded as a held position. See [Position Handover](/executors/position-handover). | `POSITION_HOLD` |
+
+### What gets recorded
+
+With `keep_position` set to `true`, the executor records **one net trade** for the whole round trip. It compares what came back (tokens plus fees) with what was deposited:
+
+- More base and less quote than deposited: a **BUY** of the base difference
+- Less base and more quote: a **SELL** of the base difference
+- No meaningful change: a zero-amount record that carries only the transaction fees
+
+The trade's fee is the total transaction fee of the open and the close.
+
+### When a close fails
+
+The executor retries a failed close with backoff and wider slippage. If every retry fails, it ends as `POSITION_HOLD` with `hold_reason: close_retries_exhausted`, and the position is still on-chain. If the close-out swap fails repeatedly, it keeps the withdrawn tokens as a held position with `hold_reason: closeout_swap_failed`.
+
+A position left on-chain is an **orphan**. Stopping the executor again won't close it. Find it with `list_orphaned_positions`, close it with `manage_clmm`, then mark it recovered with `resolve_orphaned_position`.
+
+## What it reports
+
+The API returns these fields in the executor's `custom_info`, from `GET /executors/{executor_id}` and `POST /executors/search`:
+
+| Field | Meaning |
+|---|---|
+| `state` | Current [lifecycle state](#lifecycle-states) |
+| `position_address` | On-chain address of the position |
+| `current_price` | Pool price |
+| `lower_price` / `upper_price` | The position's range |
+| `base_amount` / `quote_amount` | Tokens currently in the position |
+| `initial_base_amount` / `initial_quote_amount` | Tokens deposited at open |
+| `base_fee` / `quote_fee` | Fees earned, in each token |
+| `fees_earned_quote` | Fees earned, valued in the quote token |
+| `total_value_quote` | Position value in the quote token, excluding fees |
+| `unrealized_pnl_quote` | Net P&L in the quote token |
+| `position_rent` | Rent paid to open the position, in SOL |
+| `position_rent_refunded` | Rent refunded when the position closed, in SOL |
+| `tx_fee` | Transaction fees paid on the open and close, in the network's native token |
+| `out_of_range_seconds` | Seconds the price has been out of range, or `null` while in range |
+| `held_position_orders` | The net trade recorded on close |
+| `hold_reason` | Why the executor ended in a hold, if it did |
+
+### P&L
+
+Net P&L is the position's current value plus the fees earned, minus the value deposited at open, minus transaction fees. The deposit is valued at the price when the position opened; everything else at the current price.
+
+Rent isn't part of P&L. On Solana, opening a position locks rent in SOL, and closing the position refunds it. Meteora positions, for example, lock about 0.057 SOL each (see [Run the Solana LP Expert](/examples/solana-lp)).
+
+## Learn more
+
+- [Run the Solana LP Expert](/examples/solana-lp): an agent that opens and rotates LP positions
+- [Position Handover](/executors/position-handover): how a held position reaches the agent's inventory
+- [MCP Tools](/trading-agents/mcp-tools): `create_lp_executor`, `stop_executor` and the orphan tools

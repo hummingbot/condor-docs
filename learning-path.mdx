@@ -23,18 +23,18 @@ The installer asks how you will drive Condor, and where it runs. Three paths, al
 |---|---|---|---|
 | **Runs on** | Your machine | Your machine | A VPS, 24/7 |
 | **You need** | Nothing extra | A bot token and your Telegram user id | The above, plus [Tailscale](#do-i-need-tailscale) |
-| **How you drive it** | Dashboard at `localhost:8088` | Telegram commands, plus `/web` | Telegram from anywhere; dashboard over the tailnet |
+| **How you drive it** | Dashboard at `localhost:8088` | Telegram commands, plus `/web` | Telegram from anywhere; dashboard over the tailnet (Telegram mode) |
 | **Login** | **None at all** — whoever reaches the port has full trading control | Telegram authenticates you | Same, with the tailnet as the outer boundary |
-| **Alerts and approvals** | Only while the dashboard is open | Pushed to your phone | Pushed to your phone |
+| **Alerts** | The dashboard bell, plus browser notifications you turn on in [Settings → Notifications](/webui/settings#notifications) | Pushed to Telegram, plus the bell | Pushed to Telegram, plus the bell |
 | **Survives closing the laptop** | No | No | Yes |
 | **Best for** | Trying it out | Most people | Anything holding real capital |
 
 <Warning>
   **Local mode has no login.** It binds `127.0.0.1` so only that machine can
-  reach it. Exposing it (setting `WEB_HOST=0.0.0.0`) puts full trading control
-  in reach of anyone who can hit the port—only do that behind something that
-  authenticates, such as [Tailscale](#do-i-need-tailscale), an SSH tunnel, or
-  an authenticating reverse proxy.
+  reach it, even with Tailscale on. To use it from another device, open an SSH
+  tunnel or switch to Telegram mode. Setting `WEB_HOST=0.0.0.0` puts full
+  trading control in reach of anyone who can hit the port, so only do that
+  behind something that authenticates, such as an authenticating reverse proxy.
 </Warning>
 
 You are not locked in: the usual route is Local first, Telegram alerts when
@@ -67,7 +67,7 @@ What Condor actually does, and where each is documented. Most people arrive want
 | **Agent Builder** | Build a custom agent — its playbooks, tools and risk limits — without writing the harness | [Agent Builder](/condor-agent/agent-builder) |
 | **Hummingbot bots** | Always-on market making, grid and directional strategies via controllers and scripts, no LLM in the loop | [Bots](/bots/overview) · [Controllers](/bots/controllers) |
 | **Backtesting** | Replay a controller config against historical candles before it touches capital | [Backtesting](/bots/backtesting) |
-| **Executors** | Single operations — a trade, a stop-loss, a TWAP, an LP position — driven by you or an agent | [Executors](/executors/overview) |
+| **Executors** | Single operations — a trade, a position with stop-loss and take-profit, a grid, a DCA, an LP position — driven by you or an agent | [Executors](/executors/overview) |
 | **Routines** | Deterministic Python on a schedule or trigger: indicators, alerts, rebalances. No LLM cost | [Routines](/routines/overview) |
 | **Reports** | Build and schedule HTML reports with charts, tables and KPIs, then read them in the dashboard | [Reports](/routines/reports) |
 | **Research** | Ask an agent about markets, positions or a strategy, with your live portfolio as context | [MCP Tools](/trading-agents/mcp-tools) |
@@ -77,7 +77,7 @@ What Condor actually does, and where each is documented. Most people arrive want
 | **Web dashboard** | Browser UI for bots, agents, portfolio and a live trade panel covering CEX and DEX | [Web Dashboard](/getting-started/web-dashboard) |
 | **Agent sessions** | Inspect, steer and stop running agents; see what each one decided and why | [Sessions](/getting-started/sessions) |
 | **Multiple servers** | Drive several Hummingbot API instances — separate accounts, venues or strategies — from one Condor | [Servers](/webui/settings#servers) |
-| **Your choice of LLM** | Claude, Gemini, Codex, Copilot, OpenRouter, or a local model via Ollama/LM Studio | [LLM Integration](/llm-integration) |
+| **Your choice of LLM** | Claude (through the Claude ACP bridge), Gemini, Codex, Copilot, OpenRouter, a local model via Ollama or LM Studio, or any OpenAI-compatible endpoint | [LLM Integration](/llm-integration) |
 
 ## By use case
 
@@ -116,9 +116,11 @@ What Condor actually does, and where each is documented. Most people arrive want
 | Same VPS, both services together | **No** — the API binds `127.0.0.1` by default; still worth it if anything ever needs off-box access |
 | Different machines (for example, laptop + VPS) | **Yes** |
 | A team or multiple devices need access | **Yes** |
+| The web dashboard from another device, in Telegram mode | **Yes**: the dashboard listens on the machine's tailnet address |
+| The web dashboard from another device, in Local mode | Tailscale does not help. Use an SSH tunnel, or switch to Telegram mode |
 
 <Warning>
-  **Installed before the API's port lockdown? Check it.** Hummingbot API used to publish port **8000 on every interface**, including a VPS's public IP. It now binds `127.0.0.1` by default (`${API_BIND:-127.0.0.1}` in `docker-compose.yml`), and so do Postgres and the EMQX broker — but an existing stack keeps its old bindings until the containers are recreated. Run `make deploy` in `hummingbot-api`, then `make doctor`, which flags any of those ports still sitting on a public interface.
+  **Installed before the API's port lockdown? Check it.** Hummingbot API used to publish port **8000 on every interface**, including a VPS's public IP. It now binds `127.0.0.1` by default (`${API_BIND:-127.0.0.1}` in `docker-compose.yml`), and so do Postgres and the EMQX broker — but an existing stack keeps its old bindings until the containers are recreated. Run `make deploy` in `hummingbot-api`, then `make doctor` in the same directory. Hummingbot API's doctor flags any of those ports still sitting on a public interface; Condor's own `make doctor` checks only the dashboard port.
 
   If you *do* need the API reachable off-box, widen it deliberately with `API_BIND` in `hummingbot-api/.env` — prefer a specific interface over `0.0.0.0`, and with the Tailscale overlay `API_BIND=<your-tailscale-ip>` keeps MagicDNS working without publishing anything to the internet. Note that Docker's published ports are *not* blocked by `ufw`: its rules are evaluated before ufw's, so `ufw deny 8000` leaves a widened port reachable unless you write `DOCKER-USER` rules yourself. Close the port in your cloud provider's firewall instead — that is enforced off-host.
 </Warning>

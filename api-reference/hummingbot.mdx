@@ -1,127 +1,60 @@
 ---
 title: "Hummingbot"
-description: "The open source, institutional-grade crypto trading framework"
+description: "The open source crypto trading framework under Hummingbot API"
 ---
 
-**Hummingbot** is an open source trading framework used by thousands of individual and institutional traders worldwide. Hummingbot API uses the Hummingbot Python library for exchange connectivity, and bots are Docker containers running Hummingbot instances.
+**Hummingbot** is an open source framework for building and running automated trading strategies. Hummingbot API loads the Hummingbot Python library in-process for exchange connectivity, market data and executors. Bots that the API deploys are Docker containers running the Hummingbot client.
 
-## Why Trust Hummingbot?
+## Why Hummingbot?
 
-### Security
-
-- **Battle-tested**: Running in production since 2019
-- **Open source**: All code is auditable on GitHub
-- **Self-hosted**: Your keys never leave your infrastructure
-- **No custody**: Direct exchange API connections, no intermediaries
-
-### Reliability
-
-- **50+ exchange connectors** actively maintained
-- **Standardized interfaces** across all exchanges
-- **Automatic reconnection** on network failures
-- **Order tracking** with fill reconciliation
-
-### Scalability
-
-- **Multi-instance**: Run hundreds of bots on one server
-- **Docker isolation**: Each bot in its own container
-- **Shared infrastructure**: Bots share market data connections
-- **Enterprise-ready**: Used by trading firms and funds
-
-### Open Source
-
-- **Apache 2.0 license**: Use commercially without restrictions
-- **Active community**: 10,000+ Discord members
-- **Regular updates**: Monthly releases with new features
-- **Extensible**: Add custom connectors and strategies
+- **Open source:** Apache 2.0 licensed. All code is on [GitHub](https://github.com/hummingbot/hummingbot).
+- **In production since 2019:** CoinAlpha open-sourced Hummingbot in April 2019.
+- **Self-hosted:** your API keys and wallet keys stay on your server. The API encrypts exchange credentials with your `CONFIG_PASSWORD`.
+- **No intermediary:** connectors talk to each exchange's API directly.
+- **Standardized connectors:** every exchange is reached through the same interface, so the API's trading, market data and executor endpoints work the same across them.
+- **Isolated bots:** each bot runs in its own container, with its own configuration, data and logs.
 
 ## How Hummingbot API Uses It
 
-Hummingbot API wraps the Hummingbot Python library to provide:
+### Exchange connectors
 
-### Exchange Connectors
-
-The Hummingbot library provides standardized connectors to exchanges:
+The API builds a Hummingbot connector for each account and exchange you add credentials for, and uses it for trading, balances and market data. These are the same classes the Hummingbot client uses, for example:
 
 ```python
-# Hummingbot API uses these connectors internally
-from hummingbot.connector.exchange.binance import BinanceExchange
-from hummingbot.connector.exchange.hyperliquid import HyperliquidExchange
+from hummingbot.connector.exchange.binance.binance_exchange import BinanceExchange
+from hummingbot.connector.exchange.hyperliquid.hyperliquid_exchange import HyperliquidExchange
 ```
 
-**Supported exchange types:**
-- **Spot**: Binance, Coinbase, Kraken, KuCoin, Gate.io, etc.
-- **Perpetual**: Binance Futures, Bybit, OKX, Hyperliquid, dYdX
-- **AMM/DEX**: Via Gateway (Uniswap, Jupiter, Raydium)
-
-### Bot Containers
-
-Bots are Docker containers running Hummingbot instances:
-
-```bash
-# Hummingbot API deploys bots as containers
-docker run -d \
-  --name hummingbot-mm-bot \
-  hummingbot/hummingbot:latest \
-  --config-file mm_strategy.yml
-```
-
-Each bot:
-- Runs in isolated container
-- Has its own configuration
-- Streams logs to API
-- Can be started/stopped remotely
+You don't import these yourself. Call the API's endpoints with the connector's name (`binance`, `hyperliquid`, and so on).
 
 ### Executors
 
-Executors use Hummingbot's order management:
+Executors run inside the API, using Hummingbot's executor classes. No bot container is needed. You create one with `POST /executors/` and a config such as a `position_executor` config. See [Executors](/executors/overview), and [Position Executor](/executors/position-executor#via-the-api) for a full API example.
 
-```python
-# Position Executor uses Hummingbot's order tracking
-executor = PositionExecutor(
-    connector=binance_connector,
-    trading_pair="SOL-USDT",
-    side=TradeType.BUY,
-    entry_price=150.0,
-    amount=10
-)
-```
+### Bot containers
+
+When you deploy a bot (`POST /bot-orchestration/deploy-v2-controllers` or `deploy-v2-script`), the API:
+
+- Names the bot `<instance_name>-<timestamp>` and creates its folder under `bots/instances/`, with its own `conf`, `data` and `logs`
+- Starts a container from the `hummingbot/hummingbot:latest` image by default
+- Passes it your `CONFIG_PASSWORD` so it can decrypt the exchange credentials
+- Gives it the broker credentials and the Gateway client certificates
+
+Each bot reports its status and performance to the API through the EMQX broker. You can start, stop and archive bots through the API.
 
 ## Connector Coverage
 
-### CEX Spot
+The API's `GET /connectors/` lists every connector your server supports. On the current image that is more than 40 exchange connectors, not counting testnets, plus one entry per Gateway network.
 
-| Exchange | Status |
-|----------|--------|
-| Binance | Active |
-| Coinbase | Active |
-| Kraken | Active |
-| KuCoin | Active |
-| Gate.io | Active |
-| OKX | Active |
-| Bybit | Active |
-| MEXC | Active |
+Some of the connector names it returns:
 
-### CEX Perpetual
+| Type | Connector names |
+|------|-----------------|
+| **Spot** | `binance`, `bybit`, `coinbase_advanced_trade`, `gate_io`, `hyperliquid`, `kraken`, `kucoin`, `mexc`, `okx` |
+| **Perpetual** | `binance_perpetual`, `bybit_perpetual`, `dydx_v4_perpetual`, `gate_io_perpetual`, `hyperliquid_perpetual`, `okx_perpetual` |
+| **DEX (via Gateway)** | Jupiter, Meteora, Raydium, Orca, Uniswap, PancakeSwap and more. See [Gateway](/api-reference/gateway#supported-connectors). |
 
-| Exchange | Status |
-|----------|--------|
-| Binance Futures | Active |
-| Bybit Perpetual | Active |
-| OKX Perpetual | Active |
-| Hyperliquid | Active |
-| dYdX | Active |
-| Gate.io Perpetual | Active |
-
-### DEX (via Gateway)
-
-| Protocol | Chains |
-|----------|--------|
-| Uniswap | Ethereum, Arbitrum, Base, Polygon |
-| Jupiter | Solana |
-| Raydium | Solana |
-| PancakeSwap | BSC |
-| Orca | Solana |
+To connect one, see [Exchange Credentials](/getting-started/credentials).
 
 ## Resources
 

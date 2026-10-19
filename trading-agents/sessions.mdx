@@ -1,202 +1,108 @@
 ---
 title: "Sessions"
-description: "Session management, journal structure, and cross-interface continuity"
+description: "What a loop session is, how session IDs isolate executors, and what Condor records for each run"
 ---
 
-Each time you start a Trading Agent, it creates a new **session** that tracks all activity, decisions, and state changes.
+A **session** is one run of a loop in **Loop** mode. It starts when you start the loop and ends when you stop it, it shuts down, or it reaches its `max_ticks` limit. Everything the agent does in that run is recorded under the session, and every executor it opens is tagged with the session's ID.
 
-## Session Structure
+To watch and control sessions in the dashboard or Telegram, see [Managing Agent Sessions](/getting-started/sessions).
 
-Sessions are stored in the agent's `trading_sessions/` directory:
+## Session IDs
 
-```
-trading_agents/my-strategy/
-└── trading_sessions/
-    ├── session_1/
-    │   ├── journal.md
-    │   └── snapshots/
-    ├── session_2/
-    │   ├── journal.md
-    │   └── snapshots/
-    └── session_3/
-        ├── journal.md
-        └── snapshots/
-```
+Each run gets an ID made from the agent, the loop and a number:
 
-## journal.md
+| Run | ID format | Example |
+|---|---|---|
+| Loop session | `{agent}.{loop}_{N}` | `market_making_expert.pmm_mister_operator_3` |
+| Dry Run or Run Once | `{agent}.{loop}_e{N}` | `market_making_expert.pmm_mister_operator_e2` |
 
-The journal is the agent's working memory for the session. It contains:
+`N` is one more than the highest number already used by that loop's sessions (or, for `_e{N}`, its dry runs).
 
-### Summary Section
+The ID is also the `controller_id` on every executor the run creates. The risk gate refuses an executor create that doesn't carry this exact ID, so every position can be traced back to the session that opened it.
 
-High-level overview updated each tick:
+### Executors stay with the session that opened them
 
-```markdown
-## Summary
+Because ownership follows the session ID, a new session can't see or stop the executors an earlier session opened:
 
-- **Session Start**: 2026-03-27 14:00 UTC
-- **Current Tick**: 47
-- **Active Executors**: 2
-- **Session P&L**: +$127.50
-- **Status**: Running
-```
+- Each tick's executor and position state is fetched for the current session's ID only.
+- `stop_executor` on an executor tagged with another ID is refused.
 
-### Decisions Section
+This holds after a restart too. If you stop a loop with positions open and start it again, the new session won't manage the old positions. Close or hand them over first, or use an [emergency shutdown](/trading-agents/architecture#stopping-a-loop) to wind them down before stopping.
 
-Key decisions made during the session:
+<Note>
+Bots work differently. On its first tick, a new session of the same loop adopts the still-running bots it recognizes as its own, either by name or because an earlier session of that loop recorded deploying them.
+</Note>
 
-```markdown
-## Decisions
+## Dry Run and Run Once
 
-### Tick 45 - 2026-03-27 15:32 UTC
-**Decision**: Open long position on SOL-USDT
-**Reasoning**: Price broke above 20-period high with increasing volume
-**Action**: Created PositionExecutor (ID: exec_045)
+Dry Run and Run Once each run a single tick and then stop. They don't create a session folder or a journal. Each writes one file to `loops/<loop>/dry_runs/experiment_N.md`, with the same sections as a tick snapshot (see below).
 
-### Tick 38 - 2026-03-27 15:10 UTC
-**Decision**: Close grid executor
-**Reasoning**: Volatility exceeded threshold, grid levels too tight
-**Action**: Stopped GridExecutor (ID: exec_032)
-```
+| Mode | What the risk gate allows |
+|---|---|
+| `dry_run` | Reads only. Every action that would change anything is refused, including routines and code. |
+| `run_once` | The same per-call checks as a live loop. It can open real positions. |
 
-### Ticks Section
+Neither mode keeps a journal, so neither one triggers a drawdown pause or an emergency shutdown.
 
-Record of each OODA loop iteration:
+## What a session records
 
-```markdown
-## Ticks
+A loop session writes to `loops/<loop>/sessions/session_N/`. The folder layout is on the [Architecture](/trading-agents/architecture#sessions-journals-and-learnings) page; this section explains what's inside.
 
-### Tick 47 - 2026-03-27 15:35 UTC
-- **Portfolio Value**: $10,127.50
-- **Open Positions**: 1 (SOL-USDT long 10 @ 152.30)
-- **Active Executors**: 2
-- **Market Context**: SOL +2.3% 1h, funding 0.01%
-- **Action Taken**: Monitoring, no changes
-```
+### journal.md
 
-### Executors Section
+The journal is the session's running record. It has four sections:
 
-Active and completed executor states:
+| Section | Contents |
+|---|---|
+| **Summary** | One status block, rewritten each tick: last tick, status, PnL, open executors and the last action |
+| **Decisions** | One line per action the agent took, plus errors, skipped ticks and refused actions with their reasons |
+| **Ticks** | One line per tick: number, time, action count and a short summary of the response |
+| **Snapshots** | One metrics line per tick: PnL, volume, open executors and exposure |
 
-```markdown
-## Executors
+The sections are capped (20 lines for Decisions, 1,000 for Ticks and Snapshots). Older lines aren't deleted. They move to `journal_archive.md` beside the journal, and a marker line records what was moved.
 
-### Active
-| ID | Type | Pair | Side | Entry | Current | P&L |
-|----|------|------|------|-------|---------|-----|
-| exec_045 | Position | SOL-USDT | BUY | 152.30 | 154.10 | +$18.00 |
+The agent reads and writes its own journal with `trading_agent_journal_read` and `trading_agent_journal_write`.
 
-### Completed This Session
-| ID | Type | Close Type | P&L | Duration |
-|----|------|------------|-----|----------|
-| exec_032 | Grid | EARLY_STOP | +$45.20 | 2h 15m |
-```
+### Snapshots
 
-## snapshots/
+`snapshots/snapshot_N.md` is the complete record of tick `N`:
 
-Full tick snapshots for debugging and replay. This is one of the most important parts of the system: **observability**.
+| Section | Contents |
+|---|---|
+| **System Prompt** | The full prompt the agent received, collapsed by default |
+| **Executor State** | The session's executors at the start of the tick |
+| **Risk State** | Exposure, executor count, drawdown and limits |
+| **Agent Response** | The agent's reasoning and decision |
+| **Tool Calls** | Each tool called, with its status and output |
+| **Stats** | How long the tick took |
 
-Each snapshot captures the complete state of a tick:
+Condor keeps the 100 most recent snapshots per session and deletes older ones. The dashboard's **Runs** tab reads these files.
 
-```json
-{
-  "tick": 47,
-  "timestamp": "2026-03-27T15:35:00Z",
-  "system_prompt": "...",
-  "agent_response": {
-    "text": "Trend flip bullish. All conditions met, opening long.",
-    "decision": "create_executor",
-    "reasoning": "Price within 2% of S1, EMAs aligned bullish"
-  },
-  "tool_calls": [
-    {"tool": "run_routine", "args": {...}, "result": {...}},
-    {"tool": "create_executor", "args": {...}, "result": {...}}
-  ],
-  "portfolio": {
-    "total_value_quote": 10127.50,
-    "positions": [...],
-    "balances": {...}
-  },
-  "market_data": {
-    "SOL-USDT": {
-      "price": 154.10,
-      "volume_24h": 1250000000,
-      "funding_rate": 0.0001
-    }
-  },
-  "executors": [...],
-  "risk_state": {
-    "daily_pnl": 127.50,
-    "total_exposure": 1541.00,
-    "is_blocked": false
-  }
-}
-```
+## Restarts
 
-This lets you:
-- **Debug** exactly what the agent was thinking when it made a decision
-- **Understand** why a trade was placed or not placed
-- **Replay** the prompt that was passed to the agent
-- **Audit** all reasoning and tool calls
+If Condor restarts while a loop is running, the old session is closed. It is never resumed.
 
-**Retention**: Maximum 100 snapshots per session. Older snapshots are pruned automatically.
+- By default, the loop stays stopped. If Condor exited unexpectedly, the session is marked interrupted and the journal notes it.
+- If the loop has `restart_on_boot` set (**Resume after Condor restarts** in the Start dialog, or the toggle in the **Playbook** tab), Condor starts a **fresh session** with a new number, using the loop's config as it stands at that moment.
 
-## Session Continuity
+The fresh session is a new ID, so the [executor rule above](#executors-stay-with-the-session-that-opened-them) applies.
 
-The `~/condor` directory stores all agent state. Combined with ACP (Agent Client Protocol), this enables seamless continuity across interfaces:
+## Learnings carry across sessions
 
-| Interface | How to Connect |
-|-----------|---------------|
-| **Telegram** | `/agent` → Select agent → Resume session |
-| **Claude Code** | `claude --agent ~/condor/trading_agents/my-strategy` |
-| **Web Dashboard** | Select agent from dashboard (coming soon) |
+The journal belongs to one session. `loops/<loop>/learnings.md` belongs to the loop and outlives every session.
 
-When you switch interfaces:
-- Same session continues
-- Full conversation history preserved
-- Agent state unchanged
+| Section | Used for |
+|---|---|
+| **Market Observations** | Lessons about the market |
+| **Execution Notes** | Lessons about executing trades |
+| **Retired Insights** | Lessons that no longer apply |
 
-## Starting a New Session
+Each new learning is checked against the existing ones and skipped if it's a near-duplicate. Each section keeps its 20 most recent entries. Every tick's prompt includes the **Market Observations** and **Execution Notes** sections; **Retired Insights** is not sent to the agent.
 
-To start a fresh session instead of resuming:
+You can edit learnings in the agent page's **Playbook** tab or in the file itself.
 
-**Telegram**: `/agent` → Select agent → **New Session**
+## Learn more
 
-**CLI**:
-```bash
-claude --agent ~/condor/trading_agents/my-strategy --new-session
-```
-
-## Injecting Directives
-
-You can send real-time instructions to a running agent using **directives**. The directive will be included in the agent's next tick prompt under a `USER DIRECTIVES` section, then cleared.
-
-**Telegram**: `/agent` → Select running agent → **Inject Directive**
-
-**Programmatic**:
-```python
-engine.inject_directive("Reduce exposure, news event in 10 min.")
-```
-
-Common directive use cases:
-- Alert the agent to upcoming news events
-- Request exposure reduction before volatility
-- Override normal behavior temporarily
-- Provide market context the agent can't observe
-
-The agent sees the directive verbatim and decides how to act on it based on its strategy rules.
-
-## Session Lifecycle
-
-```mermaid
-stateDiagram-v2
-    [*] --> Created: Start agent
-    Created --> Running: First tick
-    Running --> Running: Each tick
-    Running --> Paused: User pause
-    Paused --> Running: User resume
-    Running --> Completed: User stop
-    Running --> Blocked: Risk limit hit
-    Blocked --> Running: Limits reset
-    Completed --> [*]
-```
+- [Architecture](/trading-agents/architecture): folder layout, the tick pipeline and the risk engine
+- [Managing Agent Sessions](/getting-started/sessions): watching and controlling sessions
+- [Inventory](/trading-agents/inventory): how a session's positions and PnL are tracked

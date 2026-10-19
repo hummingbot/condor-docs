@@ -1,180 +1,121 @@
 ---
 title: "Position Handover"
-description: "How executors transfer positions to the agent's inventory"
+description: "When an executor ends without closing its position, and how that position reaches the agent's inventory"
 ---
 
-**Position Handover** is the mechanism by which executors transfer their positions to the agent's inventory (Position Hold) when they terminate with `keep_position=true`.
-
-## How It Works
-
-When an executor terminates, it can either:
-- **Close the position** and report realized P&L
-- **Hand over the position** to the agent's inventory for later management
+**Position handover** is what happens when an executor ends without closing its position. The executor terminates with close type `POSITION_HOLD`, and the Hummingbot API adds its fills to the **Position Hold** for the executor's account, connector, trading pair and `controller_id`. The tokens stay in the account, and an agent can manage the position later with a new executor.
 
 ```mermaid
 flowchart TB
-    E[Executor Terminates] --> KP{keep_position?}
-    KP -->|true| Hold[Add to Inventory]
-    KP -->|false| Close[Close & Report P&L]
-    Hold --> Next[Agent manages on next tick]
-    Close --> Done[P&L attributed]
+    E[Executor ends] --> Q{Position kept?}
+    Q -->|Yes| H[Close type POSITION_HOLD]
+    H --> P[Fills added to the Position Hold<br/>for its controller_id]
+    P --> N[Agent sees it on the next tick<br/>of the same session]
+    Q -->|No| C[Position closed at market]
+    C --> D[P&L reported by the executor]
 ```
 
-## keep_position Behavior
+## When an executor hands over
 
-| Setting | Behavior |
-|---------|----------|
-| `true` | Position added to inventory, no P&L attributed yet |
-| `false` | Position closed, realized P&L calculated and reported |
+A handover happens only when an executor ends with `POSITION_HOLD`. `keep_position` is a config field on two executors only, the grid and the LP executor. For every type it is also a parameter of the stop call.
 
-## Executor Defaults
+| Executor | Hands over when | Never hands over when |
+|---|---|---|
+| [Order](/executors/order-executor) | Always, once anything has filled | — |
+| [Position](/executors/position-executor) | You stop it with `keep_position=true` after the entry filled | A take profit, stop loss, trailing stop or time limit triggers. These always close at market. |
+| [Grid](/executors/grid-executor) | The price crosses `limit_price` and the config's `keep_position` is `true`, or you stop it with `keep_position=true` | The price leaves the range on the winning side, or the time limit passes. A grid `stop_loss` or `trailing_stop` set through the API also always closes, even with `keep_position=true`. |
+| [LP](/executors/lp-executor) | It closes itself (a limit price is hit) with the config's `keep_position` `true`, you stop it with `keep_position=true`, or a close keeps failing | — |
 
-| Executor | keep_position | Rationale |
-|----------|---------------|-----------|
-| Order Executor | `true` (always) | Builds positions for other executors |
-| Position Executor | Configurable | Usually closes on barrier hit |
-| Grid Executor | Configurable | Can accumulate or close per-level |
-| DCA Executor | Configurable | Often accumulates across levels |
-| LP Executor | Configurable | Always closes on-chain, optionally tracks tokens |
+When you stop an executor, the `keep_position` you pass with the stop decides. A grid's or LP executor's config value applies only when the executor closes itself.
 
-## The Handover Flow
+If there turns out to be nothing to hold (the entry never filled), the executor ends as `EARLY_STOP` instead.
 
-### 1. Executor Creates Trades
+### Executors whose holds are not recorded
+
+The DCA, TWAP, XEMM and arbitrage executors don't hand over to the Position Hold:
+
+- **DCA, XEMM and arbitrage:** a stop with `keep_position=true` ends them as `POSITION_HOLD` and leaves the fills in the account, but the current Hummingbot API doesn't record those fills in the Position Hold.
+- **TWAP:** a stopped TWAP always ends as `COMPLETED`, so nothing is handed over.
+
+Anything they leave in the account is invisible to `list_positions_held` and to an agent's held positions. Track it yourself.
+
+## What gets recorded
+
+For each handover, the API adds the executor's filled orders to the Position Hold keyed by:
+
+```text
+(account_name, connector_name, trading_pair, controller_id)
+```
+
+Buys and sells are added separately. When a hold has both, the matched amount becomes realized P&L and only the unmatched amount stays open. See [Inventory](/trading-agents/inventory) for the fields and the P&L arithmetic.
+
+For an LP executor the connector is the network, such as `solana-mainnet-beta`, and the executor records one net trade for the whole position. See [LP Executor](/executors/lp-executor#what-gets-recorded).
+
+## Held positions belong to one session
+
+The `controller_id` in the key is the agent session's ID, such as `my_agent.my_loop_3`. So:
+
+- On each tick, the agent sees the held positions for its own session ID only.
+- A new session of the same loop has a new ID, and can't see what an earlier session held.
+
+Before you stop a loop that holds positions, close them or decide to manage them by hand. See [Executors stay with the session that opened them](/trading-agents/sessions#executors-stay-with-the-session-that-opened-them).
+
+## Example: a grid that crosses its limit price
+
+An agent runs a long grid that holds what it bought if SOL falls through 138:
 
 ```python
-# Position Executor entry
-entry_order = {
-    "connector_name": "binance",
-    "trading_pair": "SOL-USDT",
-    "side": "BUY",
-    "amount": 10.0,
-    "price": 150.0,
-}
-```
-
-### 2. Executor Terminates
-
-When the executor terminates (e.g., stop loss hit with `keep_position=true`):
-
-```python
-# Executor reports
-close_type = "STOP_LOSS"
-held_position = {
-    "connector_name": "binance",
-    "trading_pair": "SOL-USDT",
-    "side": "BUY",
-    "amount": 10.0,
-    "entry_price": 150.0,
-}
-```
-
-### 3. Position Added to Inventory
-
-The Position Hold aggregates with any existing position:
-
-```python
-# Agent's inventory for (binance, SOL-USDT)
-{
-    "buy_amount_base": 10.0,
-    "buy_amount_quote": 1500.0,
-    "breakeven_price": 150.0,
-    "unrealized_pnl_quote": -50.0,  # At current price $145
-}
-```
-
-### 4. Agent Manages on Next Tick
-
-On the next tick, the agent sees the position:
-
-```
-Current Positions:
-- binance SOL-USDT: Long 10 SOL @ $150 (unrealized: -$50)
-```
-
-The agent can then:
-- Wait for recovery
-- Spawn a new executor to exit
-- Hedge with another position
-- Add to the position
-
-## Example: Grid Stop-Loss Recovery
-
-```python
-# Grid Executor hits stop loss
-grid_config = GridExecutorConfig(
-    keep_position=True,  # Keep accumulated inventory
-    triple_barrier_config=TripleBarrierConfig(
-        stop_loss=Decimal("0.05"),
-    ),
-)
-
-# After stop loss:
-# - Grid executor terminates
-# - Net inventory (e.g., 0.5 BTC) stays in account
-# - Position added to agent's inventory
-
-# On next tick, agent sees:
-# "Held position: Long 0.5 BTC @ $62,500"
-
-# Agent decides to wait for recovery
-# Later, spawns Order Executor to exit at better price:
-exit_config = OrderExecutorConfig(
-    side=TradeType.SELL,
-    amount=Decimal("0.5"),
-    execution_strategy=ExecutionStrategy.LIMIT,
-    price=Decimal("64000"),  # Better exit
+create_grid_executor(
+    connector_name="binance",
+    trading_pair="SOL-USDT",
+    side=1,
+    start_price=140,
+    end_price=150,
+    limit_price=138,
+    total_amount_quote=500,
+    take_profit=0.002,
+    keep_position=True,
+    leverage=1,
+    controller_id="my_agent.my_loop_3",
 )
 ```
 
-## LP Position Handover
-
-LP positions work differently:
-
-1. **On-chain position always closes** when executor terminates
-2. If `keep_position=true`, the **net token change** is tracked
-3. ADD events → SELL (tokens left wallet)
-4. REMOVE events → BUY (tokens + fees returned)
+1. SOL falls to 138. The grid cancels its open orders and ends as `POSITION_HOLD`.
+2. The SOL it bought and hadn't sold yet is added to the Position Hold for `(master_account, binance, SOL-USDT, my_agent.my_loop_3)`.
+3. On the next tick, the agent sees the held SOL with its breakeven price.
+4. When it decides to exit, it sells with an order executor under the same `controller_id`:
 
 ```python
-# LP Executor closes
-lp_result = {
-    "initial_base": 10.0,
-    "initial_quote": 1500.0,
-    "final_base": 9.5,      # Less base (sold some)
-    "final_quote": 1600.0,  # More quote (fees earned)
-    "fees_earned_base": 0.1,
-    "fees_earned_quote": 15.0,
-}
-
-# If keep_position=True:
-# Net change tracked in inventory as spot position
+create_order_executor(
+    connector_name="binance",
+    trading_pair="SOL-USDT",
+    side=2,
+    amount="2.5",
+    execution_strategy="LIMIT",
+    price=145.0,
+    controller_id="my_agent.my_loop_3",
+)
 ```
 
-## Position Accumulation
+When the sell fills, the order executor hands it over too. It nets against the held buys in the same Position Hold, and the matched amount becomes realized P&L.
 
-Multiple executors can add to the same position:
+## Positions add up
 
+Every handover under the same key adds to one position:
+
+```text
+Order executor: buy 10 SOL at $150
+Order executor: buy  5 SOL at $145
+Grid level:     buy  5 SOL at $140
+
+Position Hold: long 20 SOL, buy breakeven $146.25
 ```
-Trade 1 (Order Executor): Buy 10 SOL @ $150
-Trade 2 (Order Executor): Buy 5 SOL @ $145
-Trade 3 (Grid level):     Buy 5 SOL @ $140
 
-Inventory: Long 20 SOL @ $146.25 (weighted average)
-```
+## Clearing a held position
 
-Each executor adds to the Position Hold, creating a single aggregated position.
-
-## When to Use keep_position
-
-| Scenario | Setting | Why |
-|----------|---------|-----|
-| Building a position over time | `true` | Accumulate across multiple executors |
-| Quick scalp trade | `false` | Clean exit, immediate P&L |
-| Grid accumulation | `true` | Keep inventory for later exit |
-| Range trading grid | `false` | Lock in profits per level |
-| Recovery from stop loss | `true` | Allow agent to manage exit |
+If a held position was closed somewhere else, such as on the exchange's own site, clear the record with `clear_position_held` or `DELETE /executors/positions/{connector_name}/{trading_pair}`. Pass the position's `controller_id` and `account_name`: they default to `main` and `master_account`. This changes only the record; it moves no funds. To close a position that is still open, trade it with an executor.
 
 ## Related
 
-- [Inventory](/trading-agents/inventory) - The virtual portfolio concept
-- [Executors Overview](/executors/overview) - All executor types
+- [Inventory](/trading-agents/inventory): the Position Hold fields and P&L
+- [Executors overview](/executors/overview): stop calls and close types

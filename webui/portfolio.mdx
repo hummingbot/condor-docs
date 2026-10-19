@@ -1,31 +1,60 @@
 ---
 title: "Portfolio"
-description: "Balances, positions, and P&L across every connected exchange and chain"
+description: "Balances, open positions and LP ranges across every account on the selected server"
 ---
 
-The **Portfolio** page is the one-glance answer to "what do I hold and how is it doing?" — aggregated across every account, exchange, and chain connected to the selected server.
+The **Portfolio** page shows what you hold and what you're in, across every account, exchange and Gateway wallet on the server selected in the top bar. To see a different account set, switch servers there.
 
 <Frame>
-  <img src="/images/webui/portfolio.jpg" alt="The Portfolio page: stat strip, evolution chart, top holdings, and token table" />
+  <img src="/images/webui/portfolio.jpg" alt="The Portfolio page: KPI strip with Portfolio, Bots, Executors and Agents, the Portfolio Evolution chart, Top Holdings, and the Assets table grouped by connector" />
 </Frame>
 
-## Reading the page
+## The KPI strip
 
-- **Stat strip** — total portfolio value with its change over the selected window, plus live counts for **Bots**, **Executors** (with week volume), and **Agents**. Each card is a shortcut into its page.
-- **Time range** — the `1D / 1W / 1M` toggle (top right) drives the change figures and the chart. The **Keys** and **Servers** buttons jump straight to the matching [Settings](/webui/settings) tabs.
-- **Portfolio Evolution** — your total value over time; the toggle switches between a single line and a stacked per-source view.
-- **Top Holdings** — allocation bars for your largest tokens.
-- **Token table** — every balance, grouped by network or connector (`solana-mainnet-beta`, `ethereum-mainnet`, …) with amount, price, value, and allocation. Groups collapse.
+Four figures sit across the top. They're summaries, not links.
 
-Balances come from the Hummingbot API server selected in the top bar — switch servers there to see a different account set. If a token or network is missing, check that its credentials or wallet are configured under [Settings → Keys and Wallets](/webui/settings#keys-and-wallets).
+| Card | Shows |
+|---|---|
+| **Portfolio** | Total value, its change over the selected period, and the number of assets and connectors |
+| **Bots** | Number of bots, their combined PnL, controller count and traded volume |
+| **Executors** | How many are active, plus the count, PnL and volume of executors in the selected period |
+| **Agents** | How many are running, their latest-session PnL, total agents and sessions |
+
+At the right end of the strip:
+
+- **1D / 1W / 1M** sets the period for the change figures, the executor stats and the chart. The page opens on **1W**.
+- **Keys** opens [Settings → Keys and Wallets](/webui/settings#keys-and-wallets).
+- **Servers** opens [Settings → Servers](/webui/settings#servers).
+
+## Charts
+
+- **Portfolio Evolution** plots total value over the selected period. The two buttons in its header switch between a **line chart** and a **stacked area chart**, which splits the total by token.
+- **Top Holdings** shows your eight largest balances as bars.
+
+## Assets and Positions
+
+A toggle below the charts switches the table.
+
+- **Assets** lists every balance, grouped by connector or network (for example `binance` or `solana-mainnet-beta`). Each group shows its token count, total value and share of the portfolio, and collapses when you click it. Each token row shows amount, price, value and allocation.
+- **Positions** shows what you're in, with a count on the tab:
+  - **Holds**: perpetual and spot positions held by executors and bot controllers, with side, size, entry, mark, unrealized PnL, leverage and source. Click a row to open that pair on the [Trade](/webui/trade) page.
+  - **Liquidity**: open LP positions, with state, a bar showing where the price sits in the range, value, fees and PnL. Click a row to open the pool on the [DEX](/webui/dex) page.
+
+  Nothing on the Positions tab closes or stops anything. Each row links to the page that does.
+
+## Display currency
+
+The currency selector in the top bar (next to the server selector) sets the currency for every value on the page: **USDT**, **BTC**, **BRL** or **EUR**.
+
+If a token or network is missing, check that its credentials or wallet are set up under [Settings → Keys and Wallets](/webui/settings#keys-and-wallets). See [Exchange Credentials](/getting-started/credentials).
 
 ## Using Telegram
 
-**`/portfolio`** renders the same dashboard as a message: total value with PNL indicators, token holdings with 24h changes, positions, LP positions, and open orders. Buttons drill into each connected connector (one per exchange or network), **🔄 Refresh** re-pulls live balances, and the settings flow changes the graph period (1d–30d).
+**`/portfolio`** sends a text summary: the total value and a balance table for each connector. See [Seeing Your Portfolio](/getting-started/portfolio). Telegram has no period selector or charts.
 
 ## Using Hummingbot API
 
-The page renders `POST /portfolio/state` — the same call works directly, and takes `account_names` / `connector_names` filters:
+The page reads two Hummingbot API endpoints: `POST /portfolio/state` for balances and `POST /portfolio/history` for the chart. You can call them directly. `/portfolio/state` takes `account_names` and `connector_names` filters:
 
 ```bash
 curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/portfolio/state \
@@ -33,8 +62,9 @@ curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/portfolio/stat
   -d '{"connector_names": ["binance", "hyperliquid_perpetual"]}'
 ```
 
-`POST /portfolio/history` and `POST /portfolio/distribution` back the chart and the allocation views — see the [API reference](/api-reference).
+See the [API reference](/api-reference).
 
 ## Learn more
 
-- [Seeing Your Portfolio](/getting-started/portfolio) — first-run walkthrough
+- [Seeing Your Portfolio](/getting-started/portfolio): the Telegram summary
+- [LP Executor](/executors/lp-executor): what's behind the Liquidity rows

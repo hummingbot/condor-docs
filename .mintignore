@@ -1,0 +1,4 @@
+# Repo files that are not documentation pages.
+# README.md is already excluded by Mintlify by default.
+CLAUDE.md
+condor_notes.md

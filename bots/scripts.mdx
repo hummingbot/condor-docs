@@ -1,170 +1,144 @@
 ---
 title: "Scripts"
-description: "V1 scripts for simpler trading automation"
+description: "Single-file Hummingbot strategies, and how to deploy them through the Hummingbot API"
 ---
 
-**Scripts** are V1 Python scripts that run inside bot containers for simpler automation tasks. They're ideal for straightforward strategies that don't require the full controller framework.
+**Scripts** are single-file Hummingbot strategies. A script is a Python file with a config class and a strategy class. It runs inside a bot container, like a controller, but it's one self-contained program rather than a component that the bot hosts.
+
+<Warning>
+Condor has no way to deploy a script. Telegram, the dashboard and the agent tools (`manage_bots`) only deploy controller configs. To run a script, call the Hummingbot API directly, as shown in [Deploying a script](#deploying-a-script).
+</Warning>
 
 ## Scripts vs Controllers
 
 | Aspect | Scripts | Controllers |
 |--------|---------|-------------|
-| **Complexity** | Simple, single-file | Complex, multi-component |
-| **Framework** | V1 (legacy) | V2 (current) |
-| **Best For** | Quick automation | Full strategies |
-| **Executor Management** | Manual | Automatic |
+| **Shape** | One file: config class + strategy class | Config + controller class, hosted by a bot |
+| **Several per bot** | No, one script per bot | Yes, several controllers per bot |
+| **Deploy from Condor** | No (Hummingbot API only) | Yes (dashboard, Telegram, agents) |
+| **Live config updates** | No | Yes, for fields marked updatable |
+| **Best for** | Quick automation, experiments | Strategies you run and tune over time |
 
-## Built-in Scripts
+A controller bot is itself a script: the Hummingbot API deploys controllers by generating a config for the `v2_with_controllers.py` script.
+
+## Example scripts
+
+The [Hummingbot repository](https://github.com/hummingbot/hummingbot/tree/master/scripts) ships example scripts, including:
 
 | Script | Description |
 |--------|-------------|
-| `simple_pmm` | Basic pure market making |
+| `simple_pmm` | Places a bid and an ask around the mid or last price and refreshes them on a timer |
 | `simple_xemm` | Cross-exchange market making |
-| `spot_perpetual_arbitrage` | Spot-perp basis trading |
-| `twap` | Time-weighted average price execution |
+| `simple_vwap` | Buys or sells a target amount in slices, VWAP style |
+| `v2_funding_rate_arb` | Funding-rate arbitrage across perpetual venues |
 
-## Script Structure
+<Note>
+The Hummingbot API mounts its own `bots/scripts` folder into each bot container, which replaces the scripts bundled in the image. Out of the box that folder holds only `v2_with_controllers.py`. Upload any other script before you deploy it (step 1 below).
+</Note>
+
+## Script structure
+
+A script has a config class that subclasses `StrategyV2ConfigBase` and a strategy class that subclasses `StrategyV2Base`. The config's `script_file_name` ties a config file to its script, and `update_markets()` declares which connectors and pairs the bot needs.
 
 ```python
-# scripts/simple_strategy.py
-from hummingbot.strategy.script_strategy_base import ScriptStrategyBase
+# scripts/mid_price_logger.py
+import os
 
-class SimpleStrategy(ScriptStrategyBase):
-    """
-    A simple trading script.
-    """
+from pydantic import Field
 
-    # Configuration
-    trading_pair = "SOL-USDT"
-    exchange = "binance"
-    order_amount = 10
+from hummingbot.core.data_type.common import MarketDict
+from hummingbot.strategy.strategy_v2_base import StrategyV2Base, StrategyV2ConfigBase
+
+
+class MidPriceLoggerConfig(StrategyV2ConfigBase):
+    script_file_name: str = os.path.basename(__file__)
+    exchange: str = Field(default="binance_paper_trade")
+    trading_pair: str = Field(default="SOL-USDT")
+
+    def update_markets(self, markets: MarketDict) -> MarketDict:
+        markets[self.exchange] = markets.get(self.exchange, set()) | {self.trading_pair}
+        return markets
+
+
+class MidPriceLogger(StrategyV2Base):
+    def __init__(self, connectors, config: MidPriceLoggerConfig):
+        super().__init__(connectors, config)
+        self.config = config
 
     def on_tick(self):
-        """Called every tick."""
-        # Get current price
-        price = self.connectors[self.exchange].get_mid_price(self.trading_pair)
-
-        # Simple logic
-        if self.should_buy(price):
-            self.buy(
-                connector_name=self.exchange,
-                trading_pair=self.trading_pair,
-                amount=self.order_amount,
-                order_type=OrderType.MARKET
-            )
-
-    def should_buy(self, price):
-        """Determine if we should buy."""
-        # Your logic here
-        return False
+        connector = self.connectors[self.config.exchange]
+        mid_price = connector.get_mid_price(self.config.trading_pair)
+        self.logger().info(f"{self.config.trading_pair} mid price: {mid_price}")
 ```
 
-## Running Scripts
+`on_tick()` runs on every clock tick (once per second by default). To place orders, call `self.buy(...)` or `self.sell(...)` with a connector name, trading pair, `Decimal` amount and an `OrderType` (from `hummingbot.core.data_type.common`). See `simple_pmm.py` in the Hummingbot repository for a full order-placing example.
 
-### Via Telegram
+If you override `on_stop()`, make it `async` and call `await super().on_stop()`, because the base class uses it to shut down executors and market data.
 
-```
-/bots → Create New Bot → Script
-→ Select script
-→ Configure
-→ Start
-```
+## Deploying a script
 
-### Via API
+You need three things on the Hummingbot API server: the script, a script config, and a deploy call. All three are API calls.
 
-```bash
-curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/bot-orchestration/deploy-v2-script \
-  -H "Content-Type: application/json" \
-  -d '{
-    "instance_name": "my-script-bot",
-    "credentials_profile": "master_account",
-    "script": "simple_pmm",
-    "script_config": "simple_pmm"
-  }'
-```
+<Steps>
+  <Step title="Upload the script">
+    `POST /scripts/{script_name}` saves `bots/scripts/{script_name}.py`. The body is JSON with the file's source in `content`:
 
-## Script Configuration
+    ```bash
+    python3 -c 'import json,sys; print(json.dumps({"content": open(sys.argv[1]).read()}))' mid_price_logger.py \
+      | curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/scripts/mid_price_logger \
+          -H "Content-Type: application/json" -d @-
+    ```
+  </Step>
+  <Step title="Save a script config">
+    `POST /scripts/configs/{config_name}` saves `bots/conf/scripts/{config_name}.yml`. The config must include `script_file_name`, because that's how Hummingbot knows which script to run:
 
-Scripts use a simpler configuration format:
+    ```bash
+    curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/scripts/configs/mid_price_logger_sol \
+      -H "Content-Type: application/json" \
+      -d '{
+        "script_file_name": "mid_price_logger.py",
+        "exchange": "binance_paper_trade",
+        "trading_pair": "SOL-USDT"
+      }'
+    ```
+  </Step>
+  <Step title="Deploy the bot">
+    `POST /bot-orchestration/deploy-v2-script` starts a container that runs the config:
 
-```yaml
-# config/simple_pmm.yml
-script_name: simple_pmm
+    ```bash
+    curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/bot-orchestration/deploy-v2-script \
+      -H "Content-Type: application/json" \
+      -d '{
+        "instance_name": "sol-logger",
+        "credentials_profile": "master_account",
+        "script_config": "mid_price_logger_sol.yml"
+      }'
+    ```
 
-# Exchange settings
-exchange: binance
-trading_pair: BTC-USDT
+    | Field | Required | Meaning |
+    |-------|----------|---------|
+    | `instance_name` | Yes | Bot name. The API appends a timestamp and returns the full name as `unique_instance_name`. |
+    | `credentials_profile` | Yes | Account whose exchange keys the bot uses. |
+    | `script_config` | Yes, in practice | File name of the config in `bots/conf/scripts`. The bot reads the script to run from this file's `script_file_name`. |
+    | `image` | No | Docker image. Defaults to `hummingbot/hummingbot:latest`. |
+    | `headless` | No | Run the bot without its terminal UI. Defaults to `false`. |
+    | `script` | No | Recorded in the bot-run history only. It doesn't choose the script. |
+  </Step>
+</Steps>
 
-# Strategy parameters
-bid_spread: 0.001
-ask_spread: 0.001
-order_amount: 0.001
-order_refresh_time: 15
-```
+<Note>
+Starting a bot from a script config requires the Hummingbot API's config password (`CONFIG_PASSWORD`) to be set. Without it the deploy fails with "Password not provided".
+</Note>
 
-## Creating Custom Scripts
+To stop a script bot, call `POST /bot-orchestration/stop-and-archive-bot/{bot_name}` with the full bot name.
 
-1. Create a Python file in `scripts/`
-2. Inherit from `ScriptStrategyBase`
-3. Implement `on_tick()` method
+## When to use scripts
 
-```python
-# scripts/my_script.py
-from hummingbot.strategy.script_strategy_base import ScriptStrategyBase
-from hummingbot.core.data_type.common import OrderType
+**Use scripts for:**
+- Quick, self-contained automation
+- Experiments and learning the Hummingbot framework
 
-class MyScript(ScriptStrategyBase):
-    """
-    My custom trading script.
-    """
-
-    # Default configuration
-    markets = {"binance": {"SOL-USDT"}}
-
-    def on_tick(self):
-        """Main strategy logic."""
-        for connector_name, trading_pairs in self.markets.items():
-            for trading_pair in trading_pairs:
-                self.process_pair(connector_name, trading_pair)
-
-    def process_pair(self, connector_name, trading_pair):
-        """Process a single trading pair."""
-        connector = self.connectors[connector_name]
-        mid_price = connector.get_mid_price(trading_pair)
-
-        # Your logic here
-        self.logger().info(f"{trading_pair} mid price: {mid_price}")
-```
-
-## Script Lifecycle
-
-Scripts have a simpler lifecycle than controllers:
-
-```python
-def __init__(self):
-    """Initialize the script."""
-    super().__init__()
-    # Setup code
-
-def on_tick(self):
-    """Called every tick interval."""
-    # Main logic
-
-def on_stop(self):
-    """Called when script stops."""
-    # Cleanup code
-```
-
-## When to Use Scripts
-
-**Use Scripts for:**
-- Simple market making
-- Basic arbitrage
-- One-off automation tasks
-- Learning/prototyping
-
-**Use Controllers for:**
-- Complex multi-executor strategies
-- Advanced risk management
-- Production trading systems
-- Strategies requiring state management
+**Use controllers for:**
+- Strategies you want to deploy and manage from Condor
+- Running several strategies in one bot with shared drawdown limits
+- Changing parameters while the bot runs

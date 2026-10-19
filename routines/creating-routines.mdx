@@ -1,218 +1,232 @@
 ---
 title: "Creating Routines"
-description: "Build custom routines for your trading agents"
+description: "Write a routine, test it, and use it from an agent"
 ---
 
-Create custom routines to extend agent capabilities with deterministic Python code.
+This page walks through writing a one-shot routine and a continuous one, then using a routine from an agent.
 
-## Routine Requirements
+**Before you start:** Condor is installed and connected to a Hummingbot API server. You can open the [Routines page](/webui/routines) or use `/routines` in Telegram.
 
-Every routine module needs:
+## What a routine needs
 
-1. **Config** - A Pydantic BaseModel with parameters (docstring becomes the description)
-2. **run(config, context)** - Async function that executes the routine and returns a string
-3. **CONTINUOUS = True** (optional) - Mark as continuous routine with internal loop
+| Part | Required | What it is |
+|---|---|---|
+| `Config` | Yes | A Pydantic `BaseModel`. Its fields are the routine's settings. The first line of its docstring is the description. |
+| `run(config, context)` | Yes | An async function that returns a `str` or a `RoutineResult` |
+| `CONTINUOUS = True` | No | Makes the routine loop until stopped |
+| `CATEGORY` | No | A category label for the Routines page |
 
-## Create a Custom Routine
+Telegram-only hooks (`handle_callback`, `handle_message`, `MESSAGE_STATES`, `cleanup`) are listed in the [overview](/routines/overview#optional-module-attributes).
 
-### 1. Create the File
+## 1. Choose the folder
 
-In your agent's `routines/` folder:
+| Who should run it | Folder |
+|---|---|
+| Condor chat and every agent | `.condor/agents/_shared/routines/` |
+| One agent | `.condor/agents/<slug>/routines/` |
+| Condor chat only | `routines/` |
+
+All paths are relative to the folder you installed Condor into. Create the folder if it doesn't exist. File names must be valid Python module names, such as `momentum_scanner.py`. Files that start with `_` are skipped in agent and shared folders.
+
+## 2. Write the routine
+
+This routine measures momentum and volume on recent candles for a few pairs. It returns a `RoutineResult`, so the dashboard shows a table and Telegram shows the one-line summary.
 
 ```python
-# trading_agents/sol_scalper/routines/momentum_scanner.py
 from pydantic import BaseModel, Field
 from telegram.ext import ContextTypes
 
 from config_manager import get_client
+from routines.base import RoutineResult
+
+CATEGORY = "Market Data"
 
 
 class Config(BaseModel):
-    """Scan for momentum breakouts on a trading pair."""
+    """Measure momentum and volume surge on recent candles."""
 
-    connector_name: str = Field(default="binance_perpetual", description="Exchange connector")
-    trading_pair: str = Field(default="SOL-USDT", description="Market to analyze")
-    lookback: int = Field(default=20, description="Number of candles")
-
-
-async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Scan for momentum breakouts."""
-    chat_id = context._chat_id if hasattr(context, "_chat_id") else None
-    client = await get_client(chat_id, context=context)
-
-    if not client:
-        return "No server available"
-
-    # Get candles via Hummingbot API
-    candles = await client.market_data.get_candles(
-        connector_name=config.connector_name,
-        trading_pair=config.trading_pair,
-        interval="1m",
-        limit=config.lookback
+    connector: str = Field(default="binance", description="Exchange connector")
+    pairs: list[str] = Field(
+        default=["BTC-USDT", "ETH-USDT", "SOL-USDT"], description="Trading pairs"
     )
+    interval: str = Field(default="5m", description="Candle interval")
+    lookback: int = Field(default=24, description="Number of candles")
 
-    # Calculate momentum
-    closes = [c["close"] for c in candles["candles"]]
-    momentum = (closes[-1] - closes[0]) / closes[0] * 100
 
-    # Volume confirmation
-    volumes = [c["volume"] for c in candles["candles"]]
-    avg_volume = sum(volumes) / len(volumes)
-    volume_surge = volumes[-1] > avg_volume * 1.5
+async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> RoutineResult:
+    chat_id = getattr(context, "_chat_id", None)
+    client = await get_client(chat_id, context=context)
+    if not client:
+        return RoutineResult(text="No server available")
 
-    # Generate signal
-    if momentum > 2 and volume_surge:
-        signal = "🟢 STRONG BULLISH"
-    elif momentum > 1:
-        signal = "🟡 Bullish"
-    elif momentum < -2 and volume_surge:
-        signal = "🔴 STRONG BEARISH"
-    elif momentum < -1:
-        signal = "🟠 Bearish"
-    else:
-        signal = "⚪ Neutral"
+    rows = []
+    for pair in config.pairs:
+        candles = await client.market_data.get_candles(
+            connector_name=config.connector,
+            trading_pair=pair,
+            interval=config.interval,
+            max_records=config.lookback,
+        )
+        if isinstance(candles, dict):
+            candles = candles.get("data", [])
+        if len(candles) < 2:
+            continue
 
-    return (
-        f"**Momentum Scanner** - {config.trading_pair}\n"
-        f"Signal: {signal}\n"
-        f"Momentum: {momentum:+.2f}%\n"
-        f"Volume surge: {'Yes' if volume_surge else 'No'}\n"
-        f"Price: ${closes[-1]:,.2f}"
+        closes = [float(c["close"]) for c in candles]
+        volumes = [float(c["volume"]) for c in candles]
+        momentum = (closes[-1] - closes[0]) / closes[0] * 100
+        surge = volumes[-1] > 1.5 * sum(volumes) / len(volumes)
+        rows.append(
+            {
+                "pair": pair,
+                "price": round(closes[-1], 4),
+                "momentum_pct": round(momentum, 2),
+                "volume_surge": "yes" if surge else "no",
+            }
+        )
+
+    if not rows:
+        return RoutineResult(text="No candle data returned")
+
+    best = max(rows, key=lambda r: abs(r["momentum_pct"]))
+    return RoutineResult(
+        text=f"Strongest move: {best['pair']} {best['momentum_pct']:+.2f}%",
+        table_data=rows,
+        table_columns=["pair", "price", "momentum_pct", "volume_surge"],
     )
 ```
 
-### 2. Register the Routine
+A few things to know about the API client:
 
-Add to your agent's config or the routine will be auto-discovered.
+- `get_candles` takes `max_records`, not `limit`. The server returns a list of candles, each with `timestamp`, `open`, `high`, `low`, `close`, `volume` and `quote_asset_volume`.
+- `get_prices` returns `{"connector": ..., "prices": {"BTC-USDT": 81714.0, ...}, "timestamp": ...}`. Read the prices from `result["prices"]`.
 
-### 3. Use in Agent
+## 3. Test it
 
-Update your `agent.md`:
+Condor picks up the file without a restart. Then run it from any of these:
+
+- **Dashboard:** open **Routines**, select `momentum scanner`, open **Config** to change settings, and click **Run**. Switch to **Output** to see the table.
+- **Telegram:** `/routines` → **⚡ Momentum Scanner** → **▶️ Run**. Send `key=value` lines, such as `lookback=48`, to change the config first. Telegram lists only the general and shared routines, so a routine in an agent's folder doesn't appear there.
+- **Chat:** ask Condor *"run momentum_scanner with interval=1h"*.
+
+If the routine doesn't appear, the file failed to load. Check Condor's log for `Failed to load routine` or `Failed to load agent routine`. In Telegram, **🔄 Reload** retries files that failed before.
+
+<Warning>
+Condor refuses to load a routine whose `Config` defaults or descriptions look like a credential, such as an API key or a password. Read secrets inside `run()` from the environment instead.
+</Warning>
+
+## 4. Use it from an agent
+
+If the routine is in the agent's own `routines/` folder or in `_shared/routines/`, the agent can run it. When the agent runs a loop, its prompt lists the routine and tells it to call:
+
+```text
+manage_routines(action="run", name="momentum_scanner", agent="<slug>", config={...})
+```
+
+Name the routine in your `loop.md` so the agent knows when to use it:
 
 ```markdown
-## Entry Rules
-
-1. Run momentum_scanner routine
-2. If signal is "strong_bullish" → Open long
-3. If signal is "strong_bearish" → Open short
-4. Otherwise → Wait
+1. Run the momentum_scanner routine for SOL-USDT on 5m candles.
+2. If momentum_pct is above 2 and volume_surge is "yes", consider a long.
+3. Otherwise, wait.
 ```
 
-### 4. Test
+A blocking `run` waits up to 120 seconds. A longer run keeps going in the background, and the agent reads the result later with `action="get_instance"`. A **Dry Run** refuses routine runs, so test the routine on its own first.
 
-Run a dry run to verify:
+See [MCP Tools](/trading-agents/mcp-tools) for the agent tool list and [Architecture](/trading-agents/architecture) for how loops work.
 
-```
-/agent → SOL Scalper → Dry Run
+<Note>
+A routine that agents run has no Telegram chat behind it. Don't rely on `context.bot.send_message` to deliver results. Return a `RoutineResult` or save a [report](/routines/reports) instead.
+</Note>
 
-Dry Run Result:
-- Ran momentum_scanner
-- Result: {signal: "strong_bullish", momentum: 2.5%}
-- Decision: Would open LONG
-```
+## Continuous routines
 
-## Creating with Condor
+A continuous routine sets `CONTINUOUS = True` and loops until you stop it. Condor stops it by cancelling the task, so catch `asyncio.CancelledError` and return a summary.
 
-You can ask Condor to create routines for you via natural language:
-
-```
-You: Create a routine that analyzes support and resistance levels
-     using EMAs of 7, 25, and 99 on 1-minute candles.
-```
-
-Condor generates the routine:
+This one checks a price every few seconds and rewrites a single [live report](/routines/reports#live-reports) each time:
 
 ```python
-# routines/support_resistance_ema_levels.py
+import asyncio
+from datetime import datetime, timezone
+
 from pydantic import BaseModel, Field
 from telegram.ext import ContextTypes
 
+from condor.reports import LiveReport
 from config_manager import get_client
+
+CONTINUOUS = True
+CATEGORY = "Monitoring"
 
 
 class Config(BaseModel):
-    """Analyze support/resistance levels and EMA alignment."""
+    """Track one price in a live report until stopped."""
 
-    connector_name: str = Field(default="binance_perpetual", description="Exchange connector")
+    connector: str = Field(default="binance", description="Exchange connector")
     trading_pair: str = Field(default="BTC-USDT", description="Trading pair")
-    candle_count: int = Field(default=100, description="Number of candles to analyze")
-    lookback: int = Field(default=20, description="Lookback for S/R detection")
+    interval_sec: int = Field(default=10, description="Seconds between checks")
 
 
 async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Identify support/resistance levels and EMA alignment."""
-    chat_id = context._chat_id if hasattr(context, "_chat_id") else None
-    client = await get_client(chat_id, context=context)
-
-    candles = await client.market_data.get_candles(
-        connector_name=config.connector_name,
-        trading_pair=config.trading_pair,
-        interval="1m",
-        limit=config.candle_count
+    chat_id = getattr(context, "_chat_id", None)
+    report = LiveReport(
+        f"Price Ticker: {config.trading_pair}",
+        source_name="price_ticker",
+        tags=["live"],
     )
+    history = []
 
-    closes = [c["close"] for c in candles["candles"]]
+    try:
+        while True:
+            client = await get_client(chat_id, context=context)
+            result = await client.market_data.get_prices(
+                connector_name=config.connector, trading_pairs=config.trading_pair
+            )
+            price = result["prices"].get(config.trading_pair)
+            if price is not None:
+                now = datetime.now(timezone.utc).strftime("%H:%M:%S")
+                history.append({"time": now, "price": price})
 
-    # Calculate EMAs
-    ema_7 = calculate_ema(closes, 7)
-    ema_25 = calculate_ema(closes, 25)
-    ema_99 = calculate_ema(closes, 99)
+                report.clear()
+                report.builder.kpi("Price", f"{price:,.2f}")
+                report.builder.kpi("Checks", str(len(history)))
+                report.builder.table(history[-50:])
+                await report.update()
 
-    # Determine trend from EMA alignment
-    if ema_7 > ema_25 > ema_99:
-        trend = "🟢 Bullish"
-    elif ema_7 < ema_25 < ema_99:
-        trend = "🔴 Bearish"
-    else:
-        trend = "🟡 Mixed"
-
-    # Find support/resistance levels
-    supports, resistances = find_sr_levels(closes, config.lookback)
-
-    return (
-        f"**EMA Analysis** - {config.trading_pair}\n"
-        f"Trend: {trend}\n"
-        f"EMA 7: ${ema_7:,.2f}\n"
-        f"EMA 25: ${ema_25:,.2f}\n"
-        f"EMA 99: ${ema_99:,.2f}\n"
-        f"Support: ${supports[0]:,.2f}\n"
-        f"Resistance: ${resistances[0]:,.2f}"
-    )
+            await asyncio.sleep(config.interval_sec)
+    except asyncio.CancelledError:
+        return f"Stopped after {len(history)} checks"
 ```
 
-The routine is auto-discovered and immediately available via `/routines`.
+Start it with **Run** on the Routines page or **▶️ Start** in Telegram. Stop it from the **Runs** list on the Routines page, or with **⏹ Stop All** in Telegram. Continuous routines can't be scheduled.
 
-## Routine Best Practices
+## Let Condor write it
+
+You can describe the routine in the chat instead:
+
+```text
+Create a routine that ranks the top 20 binance_perpetual pairs by 24h
+volume and shows each pair's 1h ATR as a percent of price.
+```
+
+Condor writes the file with `manage_routines(action="create_routine")`, checks that it loads, and runs it to test it. It saves to `routines/` unless you ask for a shared routine, which goes to `.condor/agents/_shared/routines/`. An agent asked to write a routine saves it to its own `routines/` folder.
+
+## Best practices
 
 <AccordionGroup>
   <Accordion title="Keep routines deterministic">
-    Same input should always produce same output. Avoid randomness or time-based logic that would make results unpredictable.
+    The same config and the same market data should give the same result. Put judgment in the agent's skills and loop instructions, not in the routine.
   </Accordion>
-  <Accordion title="Return formatted strings">
-    Return human-readable strings for Telegram display. Use markdown formatting for clarity.
+  <Accordion title="Return errors as results">
+    Return a short message such as `"No server available"` when something expected is missing. An exception marks the run as failed and the dashboard shows the error.
   </Accordion>
-  <Accordion title="Handle errors gracefully">
-    Return error messages rather than raising exceptions:
-    ```python
-    if not client:
-        return "No server available"
-    if not candles:
-        return "No candle data available"
-    ```
+  <Accordion title="Describe every field">
+    The `Config` docstring and each `Field(description=...)` are what you, Condor and agents read to decide how to run the routine.
   </Accordion>
-  <Accordion title="Use Config docstrings">
-    The Config class docstring becomes the routine description in the UI. Use `Field(description=...)` to document each parameter.
+  <Accordion title="Keep routines read-only unless you mean it">
+    A routine runs with the full API client. Nothing stops it from placing orders or deploying bots, so keep trading actions in the agent, where the risk engine checks them.
   </Accordion>
   <Accordion title="Handle cancellation in continuous routines">
-    Continuous routines must catch `asyncio.CancelledError` to clean up gracefully when stopped.
+    Catch `asyncio.CancelledError` around the loop and return a summary.
   </Accordion>
 </AccordionGroup>
-
-## Global vs Agent-Specific
-
-| Location | Scope |
-|----------|-------|
-| `~/condor/routines/` | Available to all agents |
-| `trading_agents/{slug}/routines/` | Specific to one agent |
-
-Agent-specific routines override global ones with the same name.

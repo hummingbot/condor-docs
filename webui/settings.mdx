@@ -1,133 +1,196 @@
 ---
 title: "Settings"
-description: "Servers, Gateway, keys and wallets, LLM endpoints, voice, privacy, and admin"
+description: "Configure the selected Hummingbot API server, Gateway, keys, LLM endpoints, voice, notifications, privacy, users and updates"
 ---
 
-**Settings** (the gear in the top bar) is where the install itself is configured, across seven tabs. **Logout** sits top right.
+**Settings** is the last tab in the top bar. Its sidebar has four groups. **Logout** is at the top right.
+
+| Group | Tabs |
+|---|---|
+| **Server · \<name\>** | Hummingbot API, Gateway, Keys and Wallets |
+| **Condor** | Servers, LLM Endpoints, Voice & AI |
+| **Account** | Notifications, Privacy |
+| **Admin** | Admin, Updates |
+
+The **Server** group applies to the server selected in the top bar, and its heading shows that server's name. The **Admin** group only appears for Condor's admin.
+
+Each tab has its own link: `/settings?tab=<key>`, where the key is `api`, `gateway`, `keys`, `servers`, `llm`, `voice`, `notifications`, `privacy`, `admin` or `updates`. Without a `tab`, Settings opens on **Servers**.
+
+<Note>
+**Owner-only actions.** Each server has one owner. Others can be given **trader** access in [Admin](#admin). A trader can read a server's state and trade on it. Changing the server's configuration needs the owner: keys and wallets, Gateway deploy, restart and stop, RPC settings, bot defaults and the API upgrade. For anyone else, those controls are disabled. Admins can do everything.
+</Note>
+
+## Hummingbot API
+
+What the selected server runs, and the defaults for bots deployed from it.
+
+<Frame>
+  <img src="/images/webui/settings-hummingbot-api.jpg" alt="Settings → Hummingbot API: the Version card with hummingbot-api and hummingbot versions, image and digest, the Upgrade card, and the Bot defaults form" />
+</Frame>
+
+- **Version**: the `hummingbot-api` and `hummingbot` versions, the Docker image, its digest (or **locally built**), and the Compose project. If the image is pinned, the card says so and why.
+- **Upgrade**: replaces the API container with the published image. Bots keep running and only the API container is recreated. Click **Upgrade**, then **Upgrade now**. If executors are running, you must first tick a box agreeing that they will be closed and not restored. If the server isn't back within 3 minutes, check `docker compose logs hummingbot-api` on the server. There is no rollback.
+- **Bot defaults**: the **Rate oracle source**, **Global token** and **Token symbol**, and the **Rate limit share (%)**. They apply to bots deployed after you save. Running bots keep their current settings.
+- **Market data**: the server's `MARKET_DATA_*` settings, read-only. You change them in the server's `.env`, and they apply when the API restarts.
+
+If the server's API is older than these features, the panel shows a notice instead.
+
+## Gateway
+
+The Gateway container on the selected server. Gateway gives the API its DEX access. You use it from the [DEX page](/webui/dex).
+
+<Frame>
+  <img src="/images/webui/settings-gateway.jpg" alt="Settings → Gateway: Gateway running with Restart and Stop buttons, and the Pull Image, Networks & RPC and Logs sections" />
+</Frame>
+
+- **When Gateway is stopped**, **Deploy Gateway** starts it. Pick the image (**Development**, **Latest** or a custom `org/image:tag`) and the port (default `15888`). Gateway runs with TLS and mTLS. The Hummingbot API manages the certificates and passphrase, so you don't enter one.
+- **When it is running**, you see its image and creation time, with **Restart** and **Stop**. **Stop** asks you to confirm.
+- **Pull Image** downloads a Gateway image (**Development**, **Latest** or custom) and shows progress.
+- **Networks & RPC** lists each chain's networks. Expand a network to edit its settings, then click **Save**. Gateway must be running. Non-owners see the values read-only, with secrets masked.
+- **Logs** shows Gateway's recent logs.
+
+## Keys and Wallets
+
+Exchange API keys and Gateway wallets for the selected server. Keys are stored on the Hummingbot API server, not in Condor.
+
+<Frame>
+  <img src="/images/webui/settings-keys-wallets.jpg" alt="Settings → Keys and Wallets: exchange API keys by type and Gateway wallets by chain" />
+</Frame>
+
+- **Add API Key** adds an exchange key. Hyperliquid has a one-click **Connect Hyperliquid** wallet flow instead.
+- **Add Wallet** adds a Solana or EVM wallet to Gateway. It needs Gateway to be running. You can mark one wallet per chain as the default.
+
+For the full steps, what Connect Hyperliquid asks you to approve, and troubleshooting, see [Exchange Credentials](/getting-started/credentials).
+
+<Warning>
+Give exchange keys **read** and **trade** permissions only. Never enable withdrawals or transfers.
+</Warning>
 
 ## Servers
 
-The Hummingbot API servers this Condor drives. Each entry shows its health dot, host and port, an **OWNER** badge, and a **DEFAULT** star — the server new work goes to. **Add Server** takes a name, host, port, and the API's username and password; the pencil edits an entry and the trash removes it. This is the tab to use when you [add a VPS API to a local Condor](/getting-started/installing#keep-condor-local-put-the-api-on-a-server).
+The Hummingbot API servers this Condor can use.
 
 <Frame>
-  <img src="/images/webui/settings-servers.jpg" alt="Settings → Servers: configured servers with default star" />
+  <img src="/images/webui/settings-servers.jpg" alt="Settings → Servers: configured servers with their status, permission and Default badge" />
 </Frame>
 
-Multiple servers let one Condor drive separate accounts, venues, or strategies — the top-bar selector switches which one every page reads from. To check a server by hand, its root endpoint answers an authenticated request with its name, version, and status:
+Each server shows whether it is online, your permission on it (**owner** or **trader**), its host and port, and a **Default** badge. The owner also sees who the server is **Shared with**.
+
+- **Add Server** asks for a name, host, port, username and password.
+- The star sets the **default server**. Telegram uses the same default.
+- **Edit** and **Delete** are only shown to the owner.
+
+To run Condor on your machine with the API on a VPS, see [Keep Condor local, put the API on a server](/getting-started/installing#keep-condor-local-put-the-api-on-a-server).
+
+To check a server by hand, call its root endpoint:
 
 ```bash
 curl -u YOUR_USERNAME:YOUR_PASSWORD http://localhost:8000/
 ```
 
-## Gateway
-
-The Gateway container on the selected server: its status, image, and age, with **Restart** and **Stop**. Below, three drawers: **Pull Image** (upgrade Gateway), **Networks & RPC** (per-network RPC endpoints), and **Logs**.
-
-<Frame>
-  <img src="/images/webui/settings-gateway.jpg" alt="Settings → Gateway: container status and management drawers" />
-</Frame>
-
-Gateway is the separate service that gives the API its DEX reach — swaps and liquidity on Jupiter, Orca, Raydium, Meteora, and Uniswap, across Solana and EVM networks. You use it from the [DEX page](/webui/dex); this tab manages the service itself. The [API reference](/api-reference/gateway) covers what runs underneath.
-
-## Keys and Wallets
-
-Two stores in one tab: **exchange API credentials** (per account, added with **Add API Key**) and **DEX wallets** (per chain, added with **Add Wallet**, with a default badge per chain). Secrets are write-only — entered here, stored by the API server, never displayed back.
-
-<Frame>
-  <img src="/images/webui/settings-keys-wallets.jpg" alt="Settings → Keys and Wallets: credentials and wallets" />
-</Frame>
-
-<Warning>
-  Give exchange keys **read + trade** permissions only — never withdrawal or transfer. DEX wallet private keys are stored encrypted by the API server.
-</Warning>
-
-Connector names follow the `exchange` / `exchange_perpetual` convention (`binance`, `binance_perpetual`, `hyperliquid_perpetual`, …). Credentials can also be managed over the API — one call per operation:
-
-```bash
-# List an account's configured connectors
-curl -u YOUR_USERNAME:YOUR_PASSWORD http://localhost:8000/accounts/master_account/credentials
-
-# Add credentials
-curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/accounts/add-credential/master_account/binance \
-  -H "Content-Type: application/json" \
-  -d '{"binance_api_key": "your-api-key", "binance_api_secret": "your-api-secret"}'
-```
-
-Multiple **accounts** (`/accounts/add-account`) keep credential sets apart — paper vs. live, one strategy per account, or per-teammate keys.
-
 ## LLM Endpoints
 
-Custom OpenAI-compatible endpoints — Venice AI, Together, Fireworks, or your own vLLM / LM Studio server. **Add endpoint** takes a base URL and optional key, validates it by listing its models, and saves it under a nickname; saved endpoints appear in the chat model picker and in the Telegram bot. See [LLM Integration](/llm-integration).
+Custom OpenAI-compatible endpoints, such as Venice AI, Together, Fireworks, or your own vLLM or LM Studio server.
 
 <Frame>
-  <img src="/images/webui/settings-llm-endpoints.jpg" alt="Settings → LLM Endpoints: custom OpenAI-compatible endpoints" />
+  <img src="/images/webui/settings-llm-endpoints.jpg" alt="Settings → LLM Endpoints: saved custom OpenAI-compatible endpoints and the Add endpoint button" />
 </Frame>
 
-## Voice & AI
+**Add endpoint** asks for a base URL, an optional API key and an optional name. Condor checks the endpoint by listing its models, then saves it. Saved endpoints appear in the chat's model picker and in Telegram's `/agent` menu. The API key stays on the machine running Condor and is never sent back to the browser. To remove an endpoint, use **Forget**.
 
-Voice input for the chat box: which local **Whisper model** transcribes (tiny → large-v3, accuracy vs. speed), the language (auto-detect by default), and whether a transcription **auto-sends** or lands in the input for editing. The keyboard shortcut for push-to-talk is shown here.
+See [Custom OpenAI-compatible endpoints](/llm-integration#custom-openai-compatible-endpoints).
+
+## Voice and AI
+
+The **Voice & AI** tab sets how voice messages in the chat are handled. Condor transcribes them locally with Whisper.
 
 <Frame>
-  <img src="/images/webui/settings-voice-ai.jpg" alt="Settings → Voice & AI: Whisper model, language, and auto-send" />
+  <img src="/images/webui/settings-voice-ai.jpg" alt="Settings → Voice & AI: Whisper model choice, language and auto-send" />
 </Frame>
+
+- **Whisper Model**: Tiny, Base, Small, Medium or Large v3. Larger models are more accurate but slower.
+- **Language**: **Auto-detect**, or a fixed language for better accuracy.
+- **Auto-send after transcription**: when on, the message is sent as soon as it's transcribed. When off, the text goes into the message box so you can edit it.
+
+Click **Save Voice Settings** to apply.
+
+## Notifications
+
+Desktop notifications for this browser on this device, using Web Push. Anything that appears in the bell also appears as a system notification, even when Condor isn't open.
+
+<Frame>
+  <img src="/images/webui/settings-notifications.jpg" alt="Settings → Notifications: the Turn on for this device button and the list of subscribed devices" />
+</Frame>
+
+- Click **Turn on for this device** and allow notifications when the browser asks.
+- **Devices** lists every device subscribed on your account. Remove one to stop notifying it.
+
+Web Push needs a secure connection. It works on `localhost` and over HTTPS, but not on a plain `http://<host>:8088` address. On such an address the tab explains this instead of showing the switch. If you also use Telegram, you get both notifications.
 
 ## Privacy
 
-Both privacy switches, readable by every seat and changeable by the admin:
-
-- **Telemetry** — `usage` / `ping` / `off`, with the **never sent** list right on the page. This is also where an install running without Telegram answers the consent prompt in the first place.
-- **Conversation sharing** — **Off** / **Ask me** / **Always**, what is currently shared, and the install-wide veto that hides the share button for everyone.
-
-The full story: [Privacy: telemetry and sharing](/getting-started/installing#privacy-telemetry-and-sharing).
+Two separate settings: anonymous telemetry for the whole install, and sharing of your own conversations.
 
 <Frame>
-  <img src="/images/webui/settings-privacy.jpg" alt="Settings → Privacy: telemetry consent and conversation sharing" />
+  <img src="/images/webui/settings-privacy.jpg" alt="Settings → Privacy: the telemetry levels with the Never sent list, and conversation sharing choices" />
 </Frame>
+
+**Telemetry.** The tab lists what Condor sends and what it never sends. Anyone can read it. Only the admin can change it:
+
+- **Usage summaries and install count (default)**
+- **Only count my install**
+- **Nothing at all — stop reporting this install**
+
+Telemetry is opt-out. Until the admin has seen the notice, Condor only counts the install. After the notice, it sends usage summaries unless you turn them off. Turning it off is remembered across upgrades. If `CONDOR_TELEMETRY` is set in the environment, it overrides this setting and the tab says so.
+
+**Conversation sharing.** You choose whether your conversations are shared with the Condor project:
+
+- **Off**: nothing is shared.
+- **Ask me**: you share one conversation at a time with the **Share** button, after reading the redacted transcript.
+- **Always**: conversations are shared automatically once they have been idle for 30 minutes, redacted the same way. This covers only chats started after you choose it, where you are the only person talking, and never one you excluded.
+
+Below that, **Currently shared** lists what you have shared. You can **Unshare** each one, or **Delete everything I've shared**. The admin can also turn sharing off for everyone on the install, which hides the Share button. `CONDOR_SHARING` in the environment overrides that switch.
+
+For the full details, see [Privacy: telemetry and sharing](/getting-started/installing#privacy-telemetry-and-sharing).
 
 ## Admin
 
-Users and roles (admin, user, pending, blocked), and the **code execution** grant — `code_run` lets a non-admin run arbitrary Python inside the bot process, so the tab spells out exactly what that reaches before you grant it. Grants and revocations are recorded in the audit log and take effect immediately.
+Admin only. Everyone who has contacted the bot, and the servers each person can reach.
 
 <Frame>
-  <img src="/images/webui/settings-admin.jpg" alt="Settings → Admin: users, roles, and the code execution grant" />
+  <img src="/images/webui/settings-admin.jpg" alt="Settings → Admin: the people list with each person's role and server access" />
 </Frame>
+
+- **People**: search by name, `@handle` or id. Open a person to set them to **Approved** or **Blocked**, or to **Reject** a pending request. The admin is set by `ADMIN_USER_ID`, not here.
+- **Server access**: for each server, set the person to **No access** or **Trader**. Ownership is shown but can't be transferred here. A person must be approved before you can grant access.
+- **Capabilities**: the `code_run` grant lets a non-admin run arbitrary Python in the bot process. That code can reach every server's credentials, the dashboard's JWT secret and the environment, so treat it as admin access.
+- **Refresh names** asks Telegram for the names of people with no stored name.
+- **Audit log**: the recent approvals, blocks and grants, with who made them.
+
+Changes take effect immediately, with no restart.
 
 ## Updates
 
-Admin only. Shows what **Condor** and the **Hummingbot API** are each running
-and what is available — for the API that is both its git checkout and its
-container image, since the repo governs the compose file and the bind-mounted
-`bots/` while the image governs the API's own code. **Refresh** re-checks past
-the 60-second cache.
+Admin only. Updates Condor and the Hummingbot API. This is the same update engine as Telegram's `/update`, and only one update runs at a time. A run started in one place shows in the other. On a Local mode install, which has no Telegram bot, this tab is how you update.
 
-Starting a run reports its **blockers** first, with a resolution where one
-exists: a checkout with local changes offers **discard** or **stash** without
-leaving the panel, while a diverged checkout or an unreachable registry can only
-be cancelled and fixed by hand. **Warnings** are shown but never refuse —
-restarting the API stops its executors, and Condor keeps running the code it
-booted with until you relaunch.
+<Frame>
+  <img src="/images/webui/settings-updates.jpg" alt="Settings → Updates: the installed and available versions of Condor and the Hummingbot API" />
+</Frame>
 
-The run is journalled at every step, so the panel survives the restart it
-causes: it keeps polling, picks the result back up, and the next boot says
-whether the update worked. **Done** clears a finished run.
-
-This is the same engine behind Telegram's `/update`, and there is one run at a
-time — start it in either place and watch it in the other. On a **Local mode**
-install, where there is no bot, this panel is the update surface.
+- The tab shows what each component runs and what is available. Version checks are cached for 60 seconds. **Refresh** checks again.
+- Before a run, Condor lists **blockers** and **warnings**. A checkout with local changes can be fixed from the tab with **Discard** or **Stash**. Other blockers must be fixed by hand. Warnings don't stop the run.
+- While it runs, the tab shows each step. Updating the API recreates its containers, so the API may stop answering for a while. The tab keeps checking and picks the run back up. **Done** clears a finished run.
 
 <Warning>
-  An update stops one step short of running the new code: it lands the code,
-  syncs dependencies, rebuilds the dashboard, and then asks you to relaunch
-  (`make restart`). Condor is rarely the top of its own process tree, so
-  re-execing itself would race the parent into a second Condor on the same port
-  and token. Until you relaunch, every seat sees a **relaunch to apply** banner
-  — the browser is running the new bundle against the old API.
+Updating Condor doesn't restart it. The new code is installed and the dashboard is rebuilt, then you relaunch Condor yourself with `make restart`. Until you do, every page shows a relaunch banner.
 </Warning>
+
+See [Keeping Condor updated](/getting-started/installing#keeping-condor-updated).
 
 ## Using Telegram
 
-- **`/servers`** — the same server list: **➕ Add Server**, then set **📝 Name**, **🌐 Host**, **🔌 Port**, **👤 User**, **🔑 Pass** field by field; pick the default; live status per server.
-- **`/keys`** — **read-only**: it lists connected exchanges, and connecting or removing keys happens here in the dashboard — the command hands you a **🌐 Open Web Dashboard** login link, valid for 5 minutes.
-- **`/gateway`** — Gateway status and DEX connector configuration.
-- **`/admin`** — the user list and role approvals (Admin tab equivalent).
-- **`/update`** — the same update flow as **Settings → Updates**, over the same engine: a run started in either place is visible in the other. See [Keeping Condor updated](/getting-started/installing#keeping-condor-updated).
+- **`/servers`**: the same server list. **➕ Add Server**, then set **📝 Name**, **🌐 Host**, **🔌 Port**, **👤 User** and **🔑 Pass**.
+- **`/keys`**: read-only. It lists connected exchanges and gives you a **🌐 Open Web Dashboard** link, valid for 5 minutes, to add or remove keys here.
+- **`/gateway`**: Gateway status and configuration.
+- **`/admin`**: users and access requests.
+- **`/update`**: the same update flow as **Updates**.

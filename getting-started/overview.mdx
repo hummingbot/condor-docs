@@ -20,7 +20,7 @@ This guide walks you through setting up Condor from scratch and building your fi
     Access the browser-based interface for managing bots and agents
   </Step>
   <Step title="Integrating your LLM">
-    Connect Claude, Gemini, Codex, OpenRouter, or a local model for Trading Agents
+    Connect Claude, Gemini, Copilot, Codex, OpenRouter, a local model, or any OpenAI-compatible endpoint for Trading Agents
   </Step>
   <Step title="Adding Credentials">
     Connect your exchange accounts via API keys
@@ -40,16 +40,16 @@ This guide walks you through setting up Condor from scratch and building your fi
 
 Before starting, ensure you have:
 
-- A Linux server (Ubuntu 20.04+) or macOS machine
+- A Linux server (Ubuntu 20.04+), a Mac, or Windows with WSL2 (Ubuntu)
 - 4 GB RAM minimum (8 GB recommended)
 - Exchange API keys with trade permissions
 - A **Telegram** account and bot token — unless you install in [Local](/getting-started/installing#local), which needs neither
-- Access to an LLM provider (Claude, Gemini, Copilot, Codex, OpenRouter, or a local model) for agent reasoning
+- Access to an LLM provider (Claude, Gemini, Copilot, Codex, OpenRouter, Ollama or LM Studio, or a custom OpenAI-compatible endpoint) for agent reasoning. See [LLM Integration](/llm-integration)
 - **[Tailscale](https://tailscale.com) account** (free tier is enough) — recommended when Condor and Hummingbot API run on different machines or any production VPS setup
 
 ## Time to Complete
 
-Most users complete this guide in under 30 minutes.
+Most users complete this guide in 30 to 45 minutes.
 
 <CardGroup cols={2}>
   <Card title="Start Here" icon="play" href="/getting-started/installing">

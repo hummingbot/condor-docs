@@ -5,41 +5,79 @@ description: "Complete REST API reference for Hummingbot API"
 
 ## What is Hummingbot API?
 
-**Hummingbot API** is a RESTful API server that provides programmatic access to all [Hummingbot](https://hummingbot.org) exchange connectors and trading strategies. It serves as the deterministic execution layer for Condor, handling:
+**Hummingbot API** is a RESTful API server that provides programmatic access to [Hummingbot](https://hummingbot.org) exchange connectors and trading strategies. It is the execution layer under Condor, and it handles:
 
-- **Data collection**: Standardized access to order books, candles, balances, and positions across 50+ exchanges
-- **Market access**: Connectors to spot, perpetual, and AMM exchanges, along with Solana and EVM networks
-- **Trade execution**: Place orders, manage positions, and track fills
-- **Bot management**: Deploy and manage containerized bots for long-running strategies
+- **Data collection**: standardized access to order books, candles, balances and positions across many exchanges
+- **Market access**: connectors to spot and perpetual exchanges, plus DEXs on Solana and EVM networks through [Gateway](/api-reference/gateway)
+- **Trade execution**: place orders, manage positions and track fills
+- **Bot management**: deploy and manage containerized bots for long-running strategies
 
 ## Base URL
 
-```
+```text
 http://localhost:8000
 ```
 
-For remote deployments, replace `localhost` with your server's address.
+The API listens on `127.0.0.1` only by default, so it is reachable from the machine it runs on and nowhere else. To reach it from another machine, you have two options:
+
+- **Tailscale (recommended):** `make setup` asks whether to use Tailscale. See [Secure Remote Access with Tailscale](/getting-started/installing#secure-remote-access-with-tailscale).
+- **`API_BIND`:** set `API_BIND` in the API's `.env` to the address to publish port 8000 on, then run `make deploy` again. Prefer a specific interface, such as your Tailscale IP, over `0.0.0.0`. Anyone who reaches this API can move your funds.
+
+`API_BIND` applies to the Docker install (`make deploy`). For where every service binds, see [What binds where by default](/getting-started/installing#what-binds-where-by-default).
 
 ## Authentication
 
-All endpoints require HTTP Basic Authentication:
+Every REST endpoint except three requires HTTP Basic authentication:
 
 ```bash
 curl -u YOUR_USERNAME:YOUR_PASSWORD http://localhost:8000/accounts/
 ```
 
-The username and password are the `USERNAME` and `PASSWORD` you set when you
-installed Hummingbot API — they are stored in that install's `.env`, and in
-Condor's `config.yml` under `servers:`. There are **no default credentials**:
-setup requires you to choose them, and an API left without them answers `401`.
+A missing or wrong username or password returns `401` with `{"detail": "Incorrect username or password"}`.
+
+These three paths need no credentials:
+
+| Path | What it returns |
+|------|-----------------|
+| `/` | The API's name, version and status |
+| `/docs` | The API's own interactive Swagger UI |
+| `/openapi.json` | The OpenAPI spec this reference is generated from |
+
+The username and password are the `USERNAME` and `PASSWORD` that `make setup` asks for and writes to the API's `.env`. Condor keeps a copy for each server in its `config.yml` under `servers:`.
+
+<Warning>
+If `USERNAME` and `PASSWORD` are not set, the API does not refuse to start. It falls back to `admin` / `admin` (and `CONFIG_PASSWORD` to `a`) and logs a `SECURITY WARNING`. Anyone who can reach the API can then log in. Always run `make setup`, or set all three values in `.env`, before you start the API.
+</Warning>
+
+### WebSocket authentication
+
+The API also streams data over two WebSocket endpoints. They are not in the OpenAPI spec, so they don't appear in the sidebar:
+
+| Endpoint | Streams |
+|----------|---------|
+| `ws://localhost:8000/ws/market-data` | Candles, order book snapshots and trades |
+| `ws://localhost:8000/ws/executors` | Executors, executor summary and logs, performance, positions and bot status |
+
+A WebSocket handshake authenticates in one of two ways. Without either, the server answers `401` and never opens the socket.
+
+- **`Authorization: Basic base64(username:password)`**: the same header the REST endpoints use. Use it from any client that can set headers.
+- **The `hummingbot-auth` subprotocol**: browsers can't set headers on a WebSocket, so send the credentials as the second subprotocol, encoded as base64url. The server echoes `hummingbot-auth` back.
+
+```javascript
+const token = btoa("YOUR_USERNAME:YOUR_PASSWORD")
+  .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const ws = new WebSocket("ws://localhost:8000/ws/executors", ["hummingbot-auth", token]);
+```
+
+The server never reads credentials from the query string.
 
 ## API Routers
 
-The tables below are an oriented tour of the API's routers, with the endpoints you will reach for first. The sidebar has the complete, playground-enabled reference for every endpoint, generated from the API's own OpenAPI spec.
+The tables below are a tour of the API's routers, with the endpoints you will reach for first. The sidebar has the complete reference for every endpoint, generated from the API's own OpenAPI spec.
 
 ### Accounts
 
-Manage trading accounts, exchange credentials, and Gateway wallets.
+Manage trading accounts, exchange credentials and Gateway wallets. For the dashboard and Telegram flows, see [Exchange Credentials](/getting-started/credentials).
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -49,23 +87,25 @@ Manage trading accounts, exchange credentials, and Gateway wallets.
 | `/accounts/delete-account` | POST | Delete an account |
 | `/accounts/add-credential/{account_name}/{connector_name}` | POST | Add exchange credentials |
 | `/accounts/delete-credential/{account_name}/{connector_name}` | POST | Remove exchange credentials |
-| `/accounts/gateway/add-wallet` | POST | Add a Gateway (DEX) wallet |
 | `/accounts/gateway/wallets` | GET | List Gateway wallets |
+| `/accounts/gateway/add-wallet` | POST | Add a Gateway (DEX) wallet |
+| `/accounts/gateway/wallet/set-default` | POST | Set the default wallet for a chain |
+| `/accounts/gateway/{chain}/{address}` | DELETE | Remove a Gateway wallet |
 
 ### Portfolio
 
-Real-time balances and portfolio analytics.
+Balances and portfolio analytics.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/portfolio/state` | POST | Get portfolio balances across all accounts and connectors |
+| `/portfolio/state` | POST | Get balances across all accounts and connectors |
 | `/portfolio/history` | POST | Get historical portfolio states |
 | `/portfolio/distribution` | POST | Token distribution across accounts |
 | `/portfolio/accounts-distribution` | GET | Value distribution by account |
 
 ### Trading
 
-Execute orders and manage positions.
+Place orders and manage positions.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -74,7 +114,7 @@ Execute orders and manage positions.
 | `/trading/orders/search` | POST | Search order history |
 | `/trading/trades` | POST | Search trade fills |
 | `/trading/{account_name}/{connector_name}/orders/{client_order_id}/cancel` | POST | Cancel an order |
-| `/trading/positions` | POST | Get open positions (perpetual) |
+| `/trading/positions` | POST | Get open perpetual positions |
 | `/trading/{account_name}/{connector_name}/leverage` | POST | Set leverage |
 | `/trading/{account_name}/{connector_name}/position-mode` | GET, POST | Get or set position mode |
 | `/trading/funding-payments` | POST | Get funding payment history |
@@ -92,23 +132,24 @@ Exchange connector information and trading rules.
 
 ### Market Data
 
-Prices, candles, order books, tickers, and conversion rates (the former Rate Oracle endpoints live here now).
+Prices, candles, order books, tickers and conversion rates.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/market-data/candles` | POST | Get real-time candles |
 | `/market-data/historical-candles` | POST | Get historical candles |
-| `/market-data/order-book` | POST | Get order book snapshot |
+| `/market-data/order-book` | POST | Get an order book snapshot |
 | `/market-data/prices` | POST | Get current prices |
 | `/market-data/tickers` | GET | Get 24h ticker stats |
 | `/market-data/funding-info` | POST | Get perpetual funding info |
-| `/market-data/rate/{trading_pair}` | GET | Get conversion rate between assets |
+| `/market-data/rate/{trading_pair}` | GET | Get the conversion rate for a pair |
 | `/market-data/rates` | POST | Get conversion rates in bulk |
 | `/market-data/pool-prices` | GET | Get DEX pool prices |
+| `/market-data/settings` | GET | Read the server's market data settings (`MARKET_DATA_*`) |
 
 ### Executors
 
-Create and manage trading executors — single operations like an order, a TWAP, a grid, or an LP position.
+Create and manage executors: self-contained trading operations such as an order, a position with stop loss and take profit, a grid or an LP position. See [Executors](/executors/overview).
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -117,13 +158,31 @@ Create and manage trading executors — single operations like an order, a TWAP,
 | `/executors/{executor_id}` | GET | Get executor details |
 | `/executors/{executor_id}/stop` | POST | Stop an executor |
 | `/executors/{executor_id}/logs` | GET | Get executor logs |
+| `/executors/summary` | GET | Summary of active executors |
 | `/executors/performance` | GET | Aggregate executor performance |
 | `/executors/positions/summary` | GET | Summary of executor-held positions |
 | `/executors/types/available` | GET | List available executor types |
+| `/executors/types/{executor_type}/config` | GET | Get an executor type's config schema |
+
+### Performance
+
+One interface for the performance of both bot controllers and executors. Pass `subject=controller` or `subject=executor`.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/performance/latest` | GET | The latest performance row for each controller or executor |
+| `/performance/history` | GET | Performance over time, with optional `start_time` and `end_time` |
+
+```bash
+curl -u YOUR_USERNAME:YOUR_PASSWORD \
+  "http://localhost:8000/performance/latest?subject=executor&limit=10"
+```
+
+Filters belong to one subject. `bot_name` works only with `subject=controller`. `executor_id`, `executor_type`, `account_name`, `connector_name` and `trading_pair` work only with `subject=executor`. `controller_id` works with both. A filter sent with the wrong subject returns `400`.
 
 ### Bot Orchestration
 
-Deploy and manage containerized Hummingbot trading bots.
+Deploy and manage containerized Hummingbot bots.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -136,6 +195,8 @@ Deploy and manage containerized Hummingbot trading bots.
 | `/bot-orchestration/{bot_name}/status` | GET | Get one bot's status |
 | `/bot-orchestration/bot-runs` | GET | List bot runs |
 | `/bot-orchestration/controller-performance-latest` | GET | Latest per-controller performance |
+| `/bot-orchestration/rate-oracle/config` | GET, PUT | Read or change the rate oracle, global token and rate-limit share that newly deployed bots use |
+| `/bot-orchestration/rate-oracle/sources` | GET | List the rate oracle sources a bot can use |
 
 ### Controllers
 
@@ -144,44 +205,48 @@ V2 strategy controller management.
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/controllers/` | GET | List available controllers |
-| `/controllers/{controller_type}/{controller_name}` | GET, POST, DELETE | Read, save, or delete a controller |
+| `/controllers/{controller_type}/{controller_name}` | GET, POST, DELETE | Read, save or delete a controller |
 | `/controllers/configs/` | GET | List controller configs |
-| `/controllers/configs/{config_name}` | GET, POST, DELETE | Read, save, or delete a config |
+| `/controllers/configs/{config_name}` | GET, POST, DELETE | Read, save or delete a config |
 | `/controllers/{controller_type}/{controller_name}/config/template` | GET | Get a controller's config template |
+| `/controllers/{controller_type}/{controller_name}/config/validate` | POST | Validate a config against its controller |
 
 ### Scripts
 
-V1 script management.
+Script management.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/scripts/` | GET | List available scripts |
-| `/scripts/{script_name}` | GET, POST, DELETE | Read, save, or delete a script |
+| `/scripts/{script_name}` | GET, POST, DELETE | Read, save or delete a script |
 | `/scripts/configs/` | GET | List script configs |
 | `/scripts/{script_name}/config/template` | GET | Get a script's config template |
 
 ### Gateway
 
-DEX infrastructure via Hummingbot Gateway: lifecycle, connectors, and network configuration (tokens and pools per network).
+DEX infrastructure through Hummingbot Gateway: the Gateway container, its connectors, and per-network configuration (tokens and pools). See [Gateway](/api-reference/gateway).
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/gateway/status` | GET | Get Gateway status |
-| `/gateway/start` / `/gateway/stop` / `/gateway/restart` | POST | Manage the Gateway container |
+| `/gateway/start` | POST | Start the Gateway container |
+| `/gateway/stop` | POST | Stop the Gateway container |
+| `/gateway/restart` | POST | Restart the Gateway container |
 | `/gateway/connectors` | GET | List Gateway connectors |
+| `/gateway/chains` | GET | List chains and their networks |
 | `/gateway/networks` | GET | List supported networks |
 | `/gateway/networks/{network_id}` | GET, POST | Read or update a network's config |
 | `/gateway/networks/{network_id}/tokens` | GET, POST | List or add tokens on a network |
 | `/gateway/networks/{network_id}/pools` | GET, POST | List or add pools on a network |
 | `/gateway/logs` | GET | Get Gateway logs |
 
-### Gateway Swap
+### Gateway Swaps
 
 DEX token swaps.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/gateway/swap/quote` | POST | Get swap quote |
+| `/gateway/swap/quote` | POST | Get a swap quote |
 | `/gateway/swap/execute` | POST | Execute a swap |
 | `/gateway/swap/execute-quote` | POST | Execute a previously fetched quote |
 | `/gateway/swaps/search` | POST | Search past swaps |
@@ -189,11 +254,11 @@ DEX token swaps.
 
 ### Gateway CLMM
 
-Concentrated-liquidity positions.
+Concentrated-liquidity positions. To run a position with automatic monitoring and closing, use an [LP executor](/executors/lp-executor) instead.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/gateway/clmm/pools` | GET | List available pools |
+| `/gateway/clmm/pools` | GET | List pools (Meteora and Orca only) |
 | `/gateway/clmm/pool-info` | GET | Get one pool's live state |
 | `/gateway/clmm/quote-position` | POST | Quote a new position |
 | `/gateway/clmm/open` | POST | Open a new position |
@@ -201,7 +266,7 @@ Concentrated-liquidity positions.
 | `/gateway/clmm/remove` | POST | Remove liquidity from a position |
 | `/gateway/clmm/close` | POST | Close a position |
 | `/gateway/clmm/collect-fees` | POST | Collect accumulated fees |
-| `/gateway/clmm/positions_owned` | POST | Get LP positions owned in a pool |
+| `/gateway/clmm/positions_owned` | POST | Get the LP positions a wallet owns |
 
 ### Gateway AMM
 
@@ -253,12 +318,18 @@ Container lifecycle management.
 
 ### Storage and System
 
-Disk usage of the API's data, and host resource stats.
+The API's disk usage, the host's resources, and the API's own version and upgrades.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/storage/` | GET | Storage overview: databases, archives, disk usage |
-| `/system/resources` | GET | CPU, memory, and disk for the API host |
+| `/system/resources` | GET | CPU, memory and disk for the API host |
+| `/system/info` | GET | API and Hummingbot versions, and how the API container was deployed |
+| `/system/upgrade/preflight` | GET | Whether the API can upgrade itself, and which executors and bots are running |
+| `/system/upgrade` | POST | Upgrade the API container to the published image |
+| `/system/upgrade/status` | GET | Status of the current or last upgrade |
+
+Condor's **Settings → Hummingbot API** panel uses the `/system/*` endpoints for its Version and Upgrade cards. See [Settings](/webui/settings#hummingbot-api).
 
 ## Response Format
 
@@ -272,13 +343,23 @@ Disk usage of the API's data, and host resource stats.
 
 ```json
 {
-  "detail": "Account not found"
+  "detail": "Incorrect username or password"
 }
 ```
 
-## Interactive Playground
+## Trying endpoints
 
-Each endpoint page includes an interactive playground where you can test API calls directly. Enter your credentials and server URL to make live requests.
+The easiest place to try requests is the API's own Swagger UI at `http://localhost:8000/docs`, on the machine that runs the API. Click **Authorize** and enter your username and password.
+
+Each endpoint page in this reference also has a playground. It sends requests straight from your browser to the server URL, `http://localhost:8000` by default. The API accepts browser requests only from pages served on `localhost` or `127.0.0.1`, so it rejects the playground on this site (a CORS error). A local preview of these docs (`npx mint@latest dev`, on `localhost:3000`) is allowed.
+
+To let this site's playground through, add its origin to the API's `.env` as a JSON list, then run `make deploy` again:
+
+```bash
+CORS_ALLOW_ORIGINS='["https://condor.hummingbot.org"]'
+```
+
+Only add origins you trust. Any page on an allowed origin can call your API from your browser. `CORS_ALLOW_ORIGIN_REGEX` holds the default `localhost` rule; set it to an empty string to turn that rule off.
 
 ## Resources
 
