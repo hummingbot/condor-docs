@@ -1,9 +1,11 @@
 ---
-title: "Managing Agent Sessions"
-description: "Watch, pause, stop and inspect a running Trading Agent from the Workspace or Telegram"
+title: "Agent Loops"
+description: "What a loop is, and how to watch, pause, stop and inspect one from the Workspace or Telegram"
 ---
 
 import FeedbackSurvey from "/snippets/feedback-survey.mdx";
+
+A **loop** is what makes an agent act on its own. It is a playbook of what the agent does on each **tick**, run at a frequency you set, and it lives in the agent's folder at `loops/<loop>/loop.md`. An agent can own several loops. An agent with no loop of its own gets a generic **Default** loop, driven by its `AGENT.md`, the first time you start it.
 
 Each time you start a loop in **Loop** mode, Condor opens a new **session**: a numbered run with its own journal, its own per-tick snapshots and its own executors. This page shows you how to watch a session, pause it, stop it and read what the agent did on each tick.
 
