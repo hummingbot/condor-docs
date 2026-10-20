@@ -205,6 +205,7 @@
   },
   "footer": {
     "socials": {
+      "website": "https://hummingbot.org",
       "x": "https://x.com/_hummingbot",
       "discord": "https://discord.gg/hummingbot",
       "youtube": "https://youtube.com/@hummingbot",
@@ -221,6 +222,15 @@
           {
             "label": "Discord",
             "href": "https://discord.gg/hummingbot"
+          }
+        ]
+      },
+      {
+        "header": "Maintained by Hummingbot Foundation",
+        "items": [
+          {
+            "label": "hummingbot.org",
+            "href": "https://hummingbot.org"
           }
         ]
       }
