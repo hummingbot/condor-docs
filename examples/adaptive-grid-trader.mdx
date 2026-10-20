@@ -1,5 +1,5 @@
 ---
-title: "Run the Adaptive Grid Trader"
+title: "Guide: Adaptive Grid Trader Agent"
 description: "Run the Adaptive Grid Trader's hourly loop: pick a grid direction from multi-timeframe analysis, size it inside a fixed budget, and recycle it when it stalls or profits"
 ---
 
@@ -20,7 +20,7 @@ Both tick every **3600 seconds** (hourly).
 
 <Steps>
   <Step title="Condor connected to a Hummingbot API server">
-    Follow [Installing](/getting-started/installing). In the dashboard the server selector in the top bar shows a green dot when the server is reachable.
+    Follow [Installing](/getting-started/installing). In the Workspace the server selector in the top bar shows a green dot when the server is reachable.
   </Step>
   <Step title="Exchange keys for the loop's exchange">
     Add `bitget_perpetual` or `binance_perpetual` keys in **Settings → Keys and Wallets → Add API Key**. See [Exchange Credentials](/getting-started/credentials). The account needs at least the loop's budget in USDT: 60 for the BTC loop, 100 for the SOL loop.
@@ -89,7 +89,7 @@ Before starting a session, the agent asks once whether to keep the default 5x le
 
 <Steps>
   <Step title="Open the agent">
-    Open `/agents/adaptive_grid_trader` in the dashboard, and choose **BTC-USDT Adaptive Grid** or **SOL-USDT Adaptive Grid** in the loop selector under the agent's name.
+    Open `/agents/adaptive_grid_trader` in the Workspace, and choose **BTC-USDT Adaptive Grid** or **SOL-USDT Adaptive Grid** in the loop selector under the agent's name.
   </Step>
   <Step title="Do a Dry Run">
     Click **Start**, choose **Dry Run** and click **Run Dry Test**. One tick runs with every action refused. Read the result in the **Runs** tab.
@@ -103,7 +103,7 @@ Before starting a session, the agent asks once whether to keep the default 5x le
   </Step>
 </Steps>
 
-While it runs, the **Now**, **Runs**, **Fleet** and **Playbook** tabs work as described in [Run the Market Making Expert](/examples/market-making-expert#watch-it-run). The grid executor also appears on the [Bots](/webui/bots) page.
+While it runs, the **Now**, **Runs**, **Fleet** and **Playbook** tabs work as described in [Guide: Market Making Expert Agent](/examples/market-making-expert#watch-it-run). The grid executor also appears on the [Bots](/webui/bots) page.
 
 ## Stop it
 

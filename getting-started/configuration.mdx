@@ -19,35 +19,35 @@ install requires, and the rest exist for operators with a specific reason.
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
-| `CONDOR_MODE` | `telegram` | `telegram` or `local`. Never inferred from whether a token is present — an install whose token went missing fails at boot rather than quietly becoming an unauthenticated dashboard. See [Choosing Telegram or Local mode](/getting-started/installing#choose-your-install) |
+| `CONDOR_MODE` | `telegram` | `telegram` or `local`. Never inferred from whether a token is present — an install whose token went missing fails at boot rather than quietly becoming an unauthenticated Workspace. See [Choosing Telegram or Local mode](/getting-started/installing#choose-your-install) |
 | `TELEGRAM_TOKEN` | — | Bot token from [@BotFather](https://t.me/botfather). Required unless `CONDOR_MODE=local` |
 | `ADMIN_USER_ID` | — | Your numeric Telegram user id, and the id Local mode logs in as. Everything — servers, preferences, memory, chat defaults — is keyed to it. In Local mode, `make setup` keeps an existing id, or writes `1` if there is none |
 
-## Web dashboard
+## Workspace
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
-| `WEB_URL` | `http://localhost:<WEB_PORT>` | The address `/web` links point to. **It also sets the port the dashboard listens on**, and it wins over `WEB_PORT`. With no port in the URL, Condor listens on `443` for `https://` or `80` for `http://`. `make setup` writes it: `http://localhost:8088` in Local mode; in Telegram mode, the public address you enter or the tailnet address when Tailscale is on |
-| `WEB_PORT` | `8088` | The port the dashboard listens on. Used only when `WEB_URL` is not set |
-| `WEB_HOST` | Local mode: `127.0.0.1`. Telegram mode: `0.0.0.0`, or the tailnet address with `USE_TAILSCALE=true` | Which interface the dashboard binds. Setting it overrides every default, so read [What binds where by default](/getting-started/installing#what-binds-where-by-default) before changing it |
-| `WEB_JWT_SECRET` | generated, stored in `config.yml` | Signs dashboard login tokens. Set it explicitly to keep sessions valid across instances, or to hold the secret outside `config.yml` |
-| `USE_TAILSCALE` | unset | In Telegram mode, `true` binds the dashboard to this machine's tailnet address, so it is reachable on your tailnet and on no public interface. In Local mode it has no effect on the dashboard, which stays on `127.0.0.1` |
+| `WEB_URL` | `http://localhost:<WEB_PORT>` | The address `/web` links point to. **It also sets the port the Workspace listens on**, and it wins over `WEB_PORT`. With no port in the URL, Condor listens on `443` for `https://` or `80` for `http://`. `make setup` writes it: `http://localhost:8088` in Local mode; in Telegram mode, the public address you enter or the tailnet address when Tailscale is on |
+| `WEB_PORT` | `8088` | The port the Workspace listens on. Used only when `WEB_URL` is not set |
+| `WEB_HOST` | Local mode: `127.0.0.1`. Telegram mode: `0.0.0.0`, or the tailnet address with `USE_TAILSCALE=true` | Which interface the Workspace binds. Setting it overrides every default, so read [What binds where by default](/getting-started/installing#what-binds-where-by-default) before changing it |
+| `WEB_JWT_SECRET` | generated, stored in `config.yml` | Signs Workspace login tokens. Set it explicitly to keep sessions valid across instances, or to hold the secret outside `config.yml` |
+| `USE_TAILSCALE` | unset | In Telegram mode, `true` binds the Workspace to this machine's tailnet address, so it is reachable on your tailnet and on no public interface. In Local mode it has no effect on the Workspace, which stays on `127.0.0.1` |
 | `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY` | generated on first use, stored in `data/push_keys/` | The key pair for [browser notifications](/webui/settings#notifications). Set both or neither, only if you manage the keys yourself. Changing the keys stops every existing device subscription from working |
 | `VAPID_SUBJECT` | `mailto:condor@localhost` | Contact address sent to browser push services. Must be a `mailto:` or `https:` URL |
 
 <Warning>
-  Because `WEB_URL` sets the listening port, `WEB_URL=https://dashboard.example.com` makes Condor itself try to listen on port 443. See [Change the dashboard address](/getting-started/web-dashboard#change-the-dashboard-address) before putting a reverse proxy in front.
+  Because `WEB_URL` sets the listening port, `WEB_URL=https://dashboard.example.com` makes Condor itself try to listen on port 443. See [Change the Workspace address](/getting-started/web-dashboard#change-the-workspace-address) before putting a reverse proxy in front.
 </Warning>
 
 ## Privacy
 
 Both are the operator-level kill switches. They override anything chosen in the
-dashboard, and neither needs to be set on a fresh install — see
+Workspace, and neither needs to be set on a fresh install — see
 [Privacy: telemetry and sharing](/getting-started/installing#privacy-telemetry-and-sharing).
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
-| `CONDOR_TELEMETRY` | unset | `off` disables telemetry and suppresses the notice. `ping` or `usage` sets the level. Either way it overrides what is stored, including a refusal made in the dashboard. Unset, telemetry follows the notice and **Settings → Privacy** |
+| `CONDOR_TELEMETRY` | unset | `off` disables telemetry and suppresses the notice. `ping` or `usage` sets the level. Either way it overrides what is stored, including a refusal made in the Workspace. Unset, telemetry follows the notice and **Settings → Privacy** |
 | `CONDOR_SHARING` | unset | `off` stops any conversation leaving, and destroys anything already queued. A queued *unshare* is still delivered — a revocation is a deletion the install already promised |
 
 ## Updates
@@ -64,7 +64,7 @@ How to choose and set up a model is covered in [LLM Integration](/llm-integratio
 |----------|---------|--------------|
 | `CONDOR_DEFAULT_AGENT` | set by `make pick-model` | The model Condor uses when you haven't picked one in a chat. `make pick-model` writes it and checks the model is reachable. See [The default model](/llm-integration#the-default-model) |
 | `OPENROUTER_API_KEY` | unset | Needed for `openrouter:` models. See [OpenRouter](/llm-integration#openrouter) |
-| `CUSTOM_LLM_BASE_URL`, `CUSTOM_LLM_API_KEY` | unset | A custom OpenAI-compatible endpoint to use when none is saved in the dashboard. See [Custom endpoints](/llm-integration#custom-openai-compatible-endpoints) |
+| `CUSTOM_LLM_BASE_URL`, `CUSTOM_LLM_API_KEY` | unset | A custom OpenAI-compatible endpoint to use when none is saved in the Workspace. See [Custom endpoints](/llm-integration#custom-openai-compatible-endpoints) |
 | `CUSTOM_LLM_BLOCK_PRIVATE_URLS` | unset | `true` refuses custom endpoints on `localhost` or a private network. Turn it on for a Condor shared by several users |
 | `CONDOR_DEFAULT_LOCAL_MODEL`, `OLLAMA_MODEL` | unset | The model to use for a bare `ollama:` or `lmstudio:` key. `CONDOR_DEFAULT_LOCAL_MODEL` is checked first |
 | `LMSTUDIO_BASE_URL` | unset | Base URL for local-server models in chat. See [Ollama and LM Studio](/llm-integration#ollama-and-lm-studio) for what else it affects |

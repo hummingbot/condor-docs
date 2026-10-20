@@ -3,7 +3,7 @@ title: "Skill: Agent Builder"
 description: "How Condor's agent_builder skill creates trading agents, from a description or from a folder of your own controllers, configs and notes"
 ---
 
-`agent_builder` is a skill that ships with the Condor assistant. When you ask Condor to create, edit, test, launch, monitor or delete a trading agent, it follows this skill. It works the same in the dashboard chat and in Telegram.
+`agent_builder` is a skill that ships with the Condor assistant. When you ask Condor to create, edit, test, launch, monitor or delete a trading agent, it follows this skill. It works the same in the Workspace chat and in Telegram.
 
 The skill has two paths:
 
@@ -72,7 +72,7 @@ The skill builds the smallest useful agent first. It doesn't ask about routines,
 </Steps>
 
 <Warning>
-**Check where a new routine landed.** The background worker's instructions tell it to save routines to Condor's general library, which the agent can't run. Open **Routines** in the dashboard and check that the routine is listed under your agent. If it isn't, ask Condor to recreate it in the agent's library (`manage_routines` `create_routine` with `agent="<slug>"`).
+**Check where a new routine landed.** The background worker's instructions tell it to save routines to Condor's general library, which the agent can't run. Open **Routines** in the Workspace and check that the routine is listed under your agent. If it isn't, ask Condor to recreate it in the agent's library (`manage_routines` `create_routine` with `agent="<slug>"`).
 </Warning>
 
 ## Path B: Build from a folder
@@ -154,7 +154,7 @@ Every loop can be started in three execution modes. Use them in this order:
 | `run_once` | One live tick. The agent can open real executors or deploy a real bot. |
 | `loop` | Ticks every `frequency_sec` until stopped or `max_ticks` is reached. |
 
-Dry runs and single ticks write one file each to `loops/<loop>/dry_runs/experiment_N.md`, not a session. In the dashboard, start them from the agent page's **Start** dialog and read the results in the **Runs** tab. From chat, ask Condor; starting a loop in any mode asks for your approval first.
+Dry runs and single ticks write one file each to `loops/<loop>/dry_runs/experiment_N.md`, not a session. In the Workspace, start them from the agent page's **Start** dialog and read the results in the **Runs** tab. From chat, ask Condor; starting a loop in any mode asks for your approval first.
 
 <Note>
 A Dry Run also refuses routines and `run_code`. The agent can't run its own analysis and reads the market with read-only tools such as `get_market_data` instead. Treat a Dry Run as a check of wiring and reasoning, not of the strategy.
@@ -166,7 +166,7 @@ A Dry Run also refuses routines and `run_code`. The agent can't run its own anal
 
 ## Monitoring and changing agents
 
-Ask Condor, or use the agent page in the dashboard (`/agents/<slug>`). The skill uses these tools:
+Ask Condor, or use the agent page in the Workspace (`/agents/<slug>`). The skill uses these tools:
 
 | To | Tool |
 |---|---|

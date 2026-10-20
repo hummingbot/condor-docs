@@ -63,7 +63,7 @@ It hands work to another agent with `delegate`, which has two shapes:
 | `delegate(action="start", ...)` | The other agent runs in a detached background session. Condor tells you the task is running and ends its turn; you are pinged when it finishes. With `on_complete="resume"`, Condor gets the result in a new turn and carries on. | The default whenever you are waiting: a deployment, a research task, anything slow |
 | `delegate(action="ask", ...)` | Blocks and returns the other agent's answer as text | Condor needs a quick answer as a step in its own reasoning. It is also the only option for an agent running unattended. |
 
-`delegate` also has `list`, `get` and `stop` to check on or cancel a delegation. In Telegram, `/delegations` lists them; on the dashboard they appear in the chat's Tasks list.
+`delegate` also has `list`, `get` and `stop` to check on or cancel a delegation. In Telegram, `/delegations` lists them; on the Workspace they appear in the chat's Tasks list.
 
 One rule is absolute: Condor never writes routine code in the chat. Creating, editing or fixing a routine is always delegated to a background copy of Condor itself (`delegate(action="start", agent="condor", ...)`), which follows the `routine_cookbook` playbook, writes the routine and tests it before reporting.
 

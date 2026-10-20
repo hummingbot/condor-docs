@@ -50,7 +50,7 @@ The side panel has two tabs:
 
 **Create LP Position** creates an [LP Executor](/executors/lp-executor), which opens the position, tracks it and closes it on its auto-close limits.
 
-The dashboard has no buttons to add liquidity to an open position, remove part of it, or collect fees without closing. To do that, use Telegram's **`/lp`** menu.
+The Workspace has no buttons to add liquidity to an open position, remove part of it, or collect fees without closing. To do that, use Telegram's **`/lp`** menu.
 
 ## Supported LP venues
 
@@ -74,9 +74,9 @@ Pools on other venues, including plain AMMs and Uniswap v4, show **swap only**.
 
 ## Using Hummingbot API
 
-The dashboard creates LP positions as executors through `POST /executors/`. See [LP Executor](/executors/lp-executor#via-the-api). The API also exposes Gateway's CLMM operations directly under `/gateway/clmm/*`, including `open`, `add`, `remove`, `collect-fees`, `close` and `positions_owned`, and pool discovery at `GET /gateway/clmm/pools`. See the [API reference](/api-reference/gateway).
+The Workspace creates LP positions as executors through `POST /executors/`. See [LP Executor](/executors/lp-executor#via-the-api). The API also exposes Gateway's CLMM operations directly under `/gateway/clmm/*`, including `open`, `add`, `remove`, `collect-fees`, `close` and `positions_owned`, and pool discovery at `GET /gateway/clmm/pools`. See the [API reference](/api-reference/gateway).
 
 ## Learn more
 
 - [LP Executor](/executors/lp-executor): how a position is opened, tracked and closed
-- [Run the Solana LP Expert](/examples/solana-lp): an agent that rotates LP positions for you
+- [Guide: Solana DEX LP Expert Agent](/examples/solana-lp): an agent that rotates LP positions for you

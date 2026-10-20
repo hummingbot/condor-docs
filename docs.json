@@ -65,7 +65,7 @@
             ]
           },
           {
-            "group": "Web UI Pages",
+            "group": "Workspace Pages",
             "pages": [
               "webui/agents",
               "webui/portfolio",

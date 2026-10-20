@@ -42,10 +42,10 @@ A controller that creates unsupported executors produces no trades for them in a
 
 ## Running a backtest in Condor
 
-Condor runs backtests with the **`backtest_chart`** routine. It sends a saved controller config to the Hummingbot API's backtesting engine, waits for the result, and draws an interactive chart. The routine is part of Condor's shared routine library, so you can run it from the dashboard, from Telegram, or through an agent.
+Condor runs backtests with the **`backtest_chart`** routine. It sends a saved controller config to the Hummingbot API's backtesting engine, waits for the result, and draws an interactive chart. The routine is part of Condor's shared routine library, so you can run it from the Workspace, from Telegram, or through an agent.
 
 <Tabs>
-  <Tab title="Dashboard">
+  <Tab title="Workspace">
     1. Open the [Routines](/webui/routines) page and select **backtest_chart**.
     2. Pick a config in **config_name** and fill in the other fields (see the table below).
     3. Run it. The summary and metrics appear in the run's result, and the interactive chart is saved as a report.
@@ -78,7 +78,7 @@ Condor runs backtests with the **`backtest_chart`** routine. It sends a saved co
 
 | Field | Default | Meaning |
 |-------|---------|---------|
-| `config_name` | (empty) | Saved controller config to backtest. In the dashboard it's a dropdown of the server's configs. |
+| `config_name` | (empty) | Saved controller config to backtest. In the Workspace it's a dropdown of the server's configs. |
 | `start_date` | `2025-04-22` | First day, `YYYY-MM-DD` (UTC). |
 | `end_date` | `2025-04-23` | Last day, `YYYY-MM-DD` (UTC). |
 | `resolution` | `1m` | Candle resolution for the simulation: `1m`, `5m`, `15m` or `1h`. |

@@ -5,7 +5,7 @@ description: "What a loop session is, how session IDs isolate executors, and wha
 
 A **session** is one run of a loop in **Loop** mode. It starts when you start the loop and ends when you stop it, it shuts down, or it reaches its `max_ticks` limit. Everything the agent does in that run is recorded under the session, and every executor it opens is tagged with the session's ID.
 
-To watch and control sessions in the dashboard or Telegram, see [Managing Agent Sessions](/getting-started/sessions).
+To watch and control sessions in the Workspace or Telegram, see [Managing Agent Sessions](/getting-started/sessions).
 
 ## Session IDs
 
@@ -76,7 +76,7 @@ The agent reads and writes its own journal with `trading_agent_journal_read` and
 | **Tool Calls** | Each tool called, with its status and output |
 | **Stats** | How long the tick took |
 
-Condor keeps the 100 most recent snapshots per session and deletes older ones. The dashboard's **Runs** tab reads these files.
+Condor keeps the 100 most recent snapshots per session and deletes older ones. The Workspace's **Runs** tab reads these files.
 
 ## Restarts
 

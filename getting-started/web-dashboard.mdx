@@ -1,25 +1,25 @@
 ---
-title: "Web Dashboard"
-description: "Open Condor's web dashboard, find your way around its pages, and change the address it runs on"
+title: "Workspace Interface"
+description: "Open Condor's Workspace, find your way around its pages, and change the address it runs on"
 ---
 
-The web dashboard is Condor's browser interface. You chat with Condor and its agents, check your portfolio, trade, manage bots and routines, and configure the install.
+The Workspace is Condor's browser interface. You chat with Condor and its agents, check your portfolio, trade, manage bots and routines, and configure the install.
 
 <Frame>
-  <img src="/images/web-dashboard.png" alt="The Condor dashboard home: the Agents · Portfolio · Trade · DEX · Bots · Routines · Settings tabs across the top and a chat answering How is my portfolio doing?" />
+  <img src="/images/web-dashboard.png" alt="The Condor Workspace home: the Agents · Portfolio · Trade · DEX · Bots · Routines · Settings tabs across the top and a chat answering How is my portfolio doing?" />
 </Frame>
 
-## Open the dashboard
+## Open the Workspace
 
 <Tabs>
   <Tab title="Local mode">
-    Open the dashboard on the machine running Condor:
+    Open the Workspace on the machine running Condor:
 
     ```text
     http://localhost:8088
     ```
 
-    There is no login step. The dashboard signs you in as `ADMIN_USER_ID`. Local mode only listens on `127.0.0.1`, so you can't reach it from another machine. See [Local](/getting-started/installing#local) for details.
+    There is no login step. The Workspace signs you in as `ADMIN_USER_ID`. Local mode only listens on `127.0.0.1`, so you can't reach it from another machine. See [Local](/getting-started/installing#local) for details.
   </Tab>
   <Tab title="Telegram mode">
     Send `/web` to your Condor bot. It replies with a one-time login link:
@@ -72,18 +72,18 @@ The **theme** switch cycles through dark, light and a color-blind mode. Your bro
 | **/** | Trade | Open the market browser |
 | **←** / **→** | Report viewer | Previous or next report |
 
-## Telegram and the dashboard
+## Telegram and the Workspace
 
-Condor's dashboard and Telegram bot run in the same process and share the same data: servers, agents, conversations, routines and preferences. Conversations started in Telegram appear in the dashboard's conversation list with a **Telegram** tag. `/update` in Telegram and **Settings → Updates** run the same update.
+Condor's Workspace and Telegram bot run in the same process and share the same data: servers, agents, conversations, routines and preferences. Conversations started in Telegram appear in the Workspace's conversation list with a **Telegram** tag. `/update` in Telegram and **Settings → Updates** run the same update.
 
-## Change the dashboard address
+## Change the Workspace address
 
-By default the dashboard runs at `http://localhost:8088`. Two settings in Condor's `.env` control it:
+By default the Workspace runs at `http://localhost:8088`. Two settings in Condor's `.env` control it:
 
 - **`WEB_URL`**: the address Condor puts in `/web` links. **It also sets the port Condor listens on**, and it takes priority over `WEB_PORT`. If `WEB_URL` has no port, Condor listens on port 80 for `http://` or 443 for `https://`.
 - **`WEB_PORT`**: the port, used only when `WEB_URL` is not set.
 
-For example, to reach the dashboard at a server's IP in Telegram mode:
+For example, to reach the Workspace at a server's IP in Telegram mode:
 
 ```bash
 WEB_URL=http://your-server-ip:8088
@@ -95,7 +95,7 @@ Then restart Condor with `make restart` and send `/web` for a link with the new 
 Because `WEB_URL` sets the listening port, you can't point it at a reverse proxy address without a port. For example, `WEB_URL=https://dashboard.example.com` makes Condor itself try to listen on port 443, where the proxy already is. If you use a proxy, either include a port in `WEB_URL` that the proxy also serves on, or accept that `/web` links will show Condor's own address and port.
 </Warning>
 
-Where the dashboard listens depends on the mode:
+Where the Workspace listens depends on the mode:
 
 | Mode | Listens on |
 |---|---|
@@ -106,12 +106,12 @@ Where the dashboard listens depends on the mode:
 `WEB_HOST` overrides all of these. See [What binds where by default](/getting-started/installing#what-binds-where-by-default).
 
 <Warning>
-Local mode has no login. Don't set `WEB_HOST` to expose a Local mode dashboard to a network.
+Local mode has no login. Don't set `WEB_HOST` to expose a Local mode Workspace to a network.
 </Warning>
 
 ## Tech stack
 
-The dashboard is a React 19 single-page app built with Vite and TypeScript, styled with Tailwind CSS 4. It uses TanStack Query for data, lightweight-charts and Recharts for charts, and CodeMirror for the config editor. Condor serves it from the same process as the Telegram bot.
+The Workspace is a React 19 single-page app built with Vite and TypeScript, styled with Tailwind CSS 4. It uses TanStack Query for data, lightweight-charts and Recharts for charts, and CodeMirror for the config editor. Condor serves it from the same process as the Telegram bot.
 
 ## Next step
 

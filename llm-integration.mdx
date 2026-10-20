@@ -12,7 +12,7 @@ Condor reaches models in two ways:
 
 ## The model options
 
-Every place that offers a model (the setup wizard, the dashboard pickers and Telegram) uses the same list:
+Every place that offers a model (the setup wizard, the Workspace pickers and Telegram) uses the same list:
 
 | Label | Agent key | How it runs |
 |---|---|---|
@@ -40,7 +40,7 @@ When you haven't picked a model yourself, Condor uses the first of these that is
 2. The `agent_key` in Condor's own `agents/condor/AGENT.md`, which ships as `claude-acp:sonnet`
 3. `claude-code`
 
-A model you pick in Telegram or on the dashboard chat page overrides this default for your chats.
+A model you pick in Telegram or on the Workspace chat page overrides this default for your chats.
 
 ## Choose a model
 
@@ -58,11 +58,11 @@ A model you pick in Telegram or on the dashboard chat page overrides this defaul
     - If the Claude bridge is outdated and you pick a Claude option (or Claude is your default), the wizard runs the upgrade.
     - For Ollama or LM Studio, it lists the models the server has loaded. Press Enter to let the server choose at session start.
     - For OpenRouter, it asks for your API key, checks it with OpenRouter, and lists the 20 cheapest models that support tool calling. It saves the key to `.env` as well.
-    - Custom endpoints aren't offered here. Add them from the dashboard or Telegram.
+    - Custom endpoints aren't offered here. Add them from the Workspace or Telegram.
 
     Restart Condor (`make restart`) so the new default takes effect. To print the report without changing anything, run `uv run python -m condor.setup_llm --status`. `make doctor` also checks the default model.
   </Tab>
-  <Tab title="Dashboard">
+  <Tab title="Workspace">
     - **Chat:** the model picker sits above the message box when you start a new chat.
     - **Agent page:** the agent's model is shown next to its name. Click it to change the model the agent uses everywhere it runs. This writes `agent_key` into the agent's `AGENT.md`.
 
@@ -144,7 +144,7 @@ OpenRouter gives you many models through one API key. Condor lists only OpenRout
    ```
 
 3. Pick a model:
-   - **Dashboard:** choose **OpenRouter — Pick Model** in the model picker.
+   - **Workspace:** choose **OpenRouter — Pick Model** in the model picker.
    - **Telegram:** `/agent` → **Change LLM** → **OpenRouter — Pick Model**. Page through the list, or tap **Enter model manually** and send a slug.
    - **`make pick-model`:** choose OpenRouter.
 
@@ -184,10 +184,10 @@ If none of these finds a model, the session fails with "No local model found". U
 
 ## Custom OpenAI-compatible endpoints
 
-You can connect any API that follows the OpenAI format, such as Venice AI, Together, Fireworks, or your own vLLM or LM Studio server. Endpoints are saved per user, and the dashboard and Telegram share the same list.
+You can connect any API that follows the OpenAI format, such as Venice AI, Together, Fireworks, or your own vLLM or LM Studio server. Endpoints are saved per user, and the Workspace and Telegram share the same list.
 
 <Tabs>
-  <Tab title="Dashboard">
+  <Tab title="Workspace">
     1. Open **Settings → LLM Endpoints** and click **Add endpoint**.
     2. Enter the **Base URL**, for example `https://api.venice.ai/api/v1`.
     3. Enter an **API key**, or leave it blank if the endpoint doesn't need one.
@@ -249,7 +249,7 @@ A loop run picks its model in this order:
     You are probably running the old `@zed-industries/claude-agent-acp` bridge. See the warning in [Claude](#claude).
   </Accordion>
   <Accordion title="My new default from make pick-model isn't used">
-    Restart Condor with `make restart`. If you already picked a model in Telegram or on the dashboard chat page, that choice wins over `CONDOR_DEFAULT_AGENT` for your chats.
+    Restart Condor with `make restart`. If you already picked a model in Telegram or on the Workspace chat page, that choice wins over `CONDOR_DEFAULT_AGENT` for your chats.
   </Accordion>
   <Accordion title="No local model found">
     The local server is running but Condor couldn't find a model on it. Load a model, use an explicit key such as `ollama:qwen3:32b`, or set `CONDOR_DEFAULT_LOCAL_MODEL`.

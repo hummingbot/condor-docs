@@ -29,11 +29,11 @@ You can move either folder with an environment variable: `CONDOR_AGENTS_ROOT` fo
 The rules Condor follows when it loads agents:
 
 - **An agent is a folder with an `AGENT.md` in it.** Any directory directly under either root counts, unless its name starts with `_`.
-- **The folder name is the agent's ID.** It appears in the dashboard URL (`/agents/<slug>`), in Telegram (`/agent <slug>`) and in loop IDs. Use lowercase letters, digits and underscores, for example `my_scalper`. The name `condor` is reserved for the default assistant.
+- **The folder name is the agent's ID.** It appears in the Workspace URL (`/agents/<slug>`), in Telegram (`/agent <slug>`) and in loop IDs. Use lowercase letters, digits and underscores, for example `my_scalper`. The name `condor` is reserved for the default assistant.
 - **Local wins, file by file.** If both folders contain the same file for an agent, Condor uses the local copy. Files you haven't overridden still come from the stock folder, so you keep receiving upstream improvements to everything else.
 - **Editing a shipped agent never changes the repo.** The first time you (or an agent) edit a stock file, Condor copies that one file into `.condor/agents/<slug>/` and edits the copy.
 - **Shipped files can't be deleted.** An update would bring them back. You can mute a shipped skill or routine instead, which removes it from the agent's runs.
-- **No restart needed.** Agents and loops are read from disk each time Condor needs them, so a new folder appears the next time you load the dashboard.
+- **No restart needed.** Agents and loops are read from disk each time Condor needs them, so a new folder appears the next time you load the Workspace.
 
 ## Folder structure
 
@@ -123,7 +123,7 @@ You are a SOL-USDT perpetuals scalper. ...
 | Field | Default | Meaning |
 |---|---|---|
 | `name` | the folder name | Display name |
-| `description` | — | One-line summary shown in the dashboard |
+| `description` | — | One-line summary shown in the Workspace |
 | `agent_key` | Condor's default model | The model this agent runs on. See [LLM Integration](/llm-integration). |
 | `tools` | all tools | Allowlist of tools the agent may call. Leave it empty for no restriction. |
 | `when_to_consult` | — | A hint telling Condor when to hand work to this agent |
@@ -300,7 +300,7 @@ Dry Run and Run Once don't create a session. Each writes one file to `loops/<loo
 
 `loops/<loop>/learnings.md` carries lessons across sessions, in **Market Observations**, **Execution Notes** and **Retired Insights** sections. It is capped at 20 entries. You can edit it by hand; the agent treats your entries like its own.
 
-In the dashboard, the agent page shows all of this under **Runs**:
+In the Workspace, the agent page shows all of this under **Runs**:
 
 <Frame>
   <img src="/images/webui/agent-runs.jpg" alt="The Runs tab of the Market Making Expert, showing a dry run's agent response" />
@@ -310,8 +310,8 @@ In the dashboard, the agent page shows all of this under **Runs**:
 
 There are two ways to create an agent:
 
-- **Ask Condor.** In the dashboard chat or Telegram, describe the agent you want. Condor's `agent_builder` skill writes the folder for you, either from a description or from a folder of your own controllers, configs and notes. See [Agent Builder](/condor-agent/agent-builder).
-- **Write the folder yourself.** Create `.condor/agents/<slug>/AGENT.md` and, optionally, a `loops/<loop>/loop.md`. Reload the dashboard and the agent appears under **Agents**.
+- **Ask Condor.** In the Workspace chat or Telegram, describe the agent you want. Condor's `agent_builder` skill writes the folder for you, either from a description or from a folder of your own controllers, configs and notes. See [Agent Builder](/condor-agent/agent-builder).
+- **Write the folder yourself.** Create `.condor/agents/<slug>/AGENT.md` and, optionally, a `loops/<loop>/loop.md`. Reload the Workspace and the agent appears under **Agents**.
 
 To share an agent with the Condor project, ask Condor to publish it (`manage_agents` `publish`). That copies it into the stock `agents/` folder, where it can be committed.
 

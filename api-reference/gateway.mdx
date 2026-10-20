@@ -65,7 +65,7 @@ Gateway groups networks under two chains. A network ID is `chain-network`, for e
 
 Gateway doesn't start with the API. Start it once from any of these:
 
-- **Dashboard:** **Settings → Gateway → Deploy Gateway**. See [Settings](/webui/settings#gateway).
+- **Workspace:** **Settings → Gateway → Deploy Gateway**. See [Settings](/webui/settings#gateway).
 - **Telegram:** `/gateway` → **🚀 Deploy Gateway**.
 - **API:** `POST /gateway/start`. The body can be empty (`{}`). It defaults to the image `hummingbot/gateway:development` on port `15888`.
 
@@ -75,7 +75,7 @@ Gateway always runs with TLS and mutual TLS. The API creates the certificates an
 
 Gateway signs transactions with a wallet stored on your server. Use a wallet that holds only what you're prepared to trade with.
 
-- **Dashboard:** **Settings → Keys and Wallets → Add Wallet**. See [Add a Gateway wallet](/getting-started/credentials#add-a-gateway-wallet).
+- **Workspace:** **Settings → Keys and Wallets → Add Wallet**. See [Add a Gateway wallet](/getting-started/credentials#add-a-gateway-wallet).
 - **Telegram:** `/gateway` → **🔑 Wallets** → **➕ Add Wallet**, pick the chain, then send the private key.
 - **API:**
 
@@ -102,7 +102,7 @@ curl -u YOUR_USERNAME:YOUR_PASSWORD http://localhost:8000/gateway/networks
 curl -u YOUR_USERNAME:YOUR_PASSWORD http://localhost:8000/gateway/networks/solana-mainnet-beta
 ```
 
-A `POST` to the same path updates them. Tokens and pools have their own subpaths: `/gateway/networks/{network_id}/tokens` and `/gateway/networks/{network_id}/pools`. In the dashboard, the same settings are under **Settings → Gateway → Networks & RPC**.
+A `POST` to the same path updates them. Tokens and pools have their own subpaths: `/gateway/networks/{network_id}/tokens` and `/gateway/networks/{network_id}/pools`. In the Workspace, the same settings are under **Settings → Gateway → Networks & RPC**.
 
 ### 4. Check it's running
 
@@ -159,7 +159,7 @@ curl -u YOUR_USERNAME:YOUR_PASSWORD \
 
 To open a position, use `POST /gateway/clmm/open`. `/gateway/clmm/add`, `/remove`, `/collect-fees` and `/close` act on an existing position by its `position_address`. Full-range AMM liquidity has its own router under `/gateway/amm`.
 
-To run a position that is monitored and closed for you, use an [LP executor](/executors/lp-executor). For a complete example, see [Run the Solana LP Expert](/examples/solana-lp).
+To run a position that is monitored and closed for you, use an [LP executor](/executors/lp-executor). For a complete example, see [Guide: Solana DEX LP Expert Agent](/examples/solana-lp).
 
 ## Gateway vs CEX Connectors
 

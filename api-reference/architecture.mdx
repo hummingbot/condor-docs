@@ -3,7 +3,7 @@ title: "Architecture"
 description: "How Hummingbot API connects Condor to exchanges, DEXs and bots"
 ---
 
-Hummingbot API is a FastAPI server that gives programmatic access to the Hummingbot trading framework. It is the execution layer under Condor: Condor's dashboard, Telegram bot and trading agents all act through it.
+Hummingbot API is a FastAPI server that gives programmatic access to the Hummingbot trading framework. It is the execution layer under Condor: Condor's Workspace, Telegram bot and trading agents all act through it.
 
 ## System Architecture
 
@@ -40,7 +40,7 @@ Condor never talks to Gateway directly. Every DEX action goes through the Hummin
 
 | Component | Description |
 |-----------|-------------|
-| **Condor** | Web dashboard, Telegram bot and LLM trading agents. Agents call the API through Condor's own MCP tools. |
+| **Condor** | Workspace, Telegram bot and LLM trading agents. Agents call the API through Condor's own MCP tools. |
 | **Hummingbot MCP server** | A separate [MCP server](https://hummingbot.org/mcp/) that lets AI assistants such as Claude, Gemini and ChatGPT call the API. |
 
 ### Server
@@ -65,7 +65,7 @@ Condor never talks to Gateway directly. Every DEX action goes through the Hummin
 
 Gateway is not part of the API's Docker Compose stack. The API starts it on request:
 
-- **Dashboard:** **Settings → Gateway → Deploy Gateway**. See [Settings](/webui/settings#gateway).
+- **Workspace:** **Settings → Gateway → Deploy Gateway**. See [Settings](/webui/settings#gateway).
 - **Telegram:** `/gateway` → **🚀 Deploy Gateway**.
 - **API:** `POST /gateway/start`.
 

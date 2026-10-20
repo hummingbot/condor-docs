@@ -11,21 +11,21 @@ New to Condor, or picking up where you left off? Use the tables below to find th
 
 | Level | Goal | Reading path | Time |
 |-------|------|--------------|------|
-| **Beginner** | Get Condor running on your own machine with no Telegram account, and build one Trading Agent from the browser | [Installing → Local](/getting-started/installing#local) → [Web Dashboard](/getting-started/web-dashboard) → [Credentials](/getting-started/credentials) → [First Agent](/getting-started/first-agent) | ~30–45 min |
+| **Beginner** | Get Condor running on your own machine with no Telegram account, and build one Trading Agent from the browser | [Installing → Local](/getting-started/installing#local) → [Workspace](/getting-started/web-dashboard) → [Credentials](/getting-started/credentials) → [First Agent](/getting-started/first-agent) | ~30–45 min |
 | **Intermediate** | Attach Telegram so agents can reach your phone with alerts and approval requests, add real exchange keys, understand Bots/Executors/Routines, and manage running sessions | [Add Telegram alerts](/getting-started/installing#add-telegram-to-a-local-install) → [Telegram](/getting-started/telegram) → [Bots](/bots/overview) → [Executors](/executors/overview) → [Routines](/routines/overview) → [Sessions](/getting-started/sessions) | ~1–2 hrs |
 | **Advanced (Server)** | Deploy to a VPS behind Tailscale, understand the multi-agent architecture, and build custom agents | [Installing → Server](/getting-started/installing#server) → [Trading Agents Architecture](/trading-agents/architecture) → [Agent Builder](/condor-agent/agent-builder) → [Servers](/webui/settings#servers) | ~2–4 hrs |
 
 ## Which install do you want?
 
-The installer asks how you will drive Condor, and where it runs. Three paths, all running the same agents, bots, routines and dashboard.
+The installer asks how you will drive Condor, and where it runs. Three paths, all running the same agents, bots, routines and Workspace.
 
 | | **Local** | **Local + Telegram alerts** | **Server** |
 |---|---|---|---|
 | **Runs on** | Your machine | Your machine | A VPS, 24/7 |
 | **You need** | Nothing extra | A bot token and your Telegram user id | The above, plus [Tailscale](#do-i-need-tailscale) |
-| **How you drive it** | Dashboard at `localhost:8088` | Telegram commands, plus `/web` | Telegram from anywhere; dashboard over the tailnet (Telegram mode) |
+| **How you drive it** | Workspace at `localhost:8088` | Telegram commands, plus `/web` | Telegram from anywhere; Workspace over the tailnet (Telegram mode) |
 | **Login** | **None at all** — whoever reaches the port has full trading control | Telegram authenticates you | Same, with the tailnet as the outer boundary |
-| **Alerts** | The dashboard bell, plus browser notifications you turn on in [Settings → Notifications](/webui/settings#notifications) | Pushed to Telegram, plus the bell | Pushed to Telegram, plus the bell |
+| **Alerts** | The Workspace bell, plus browser notifications you turn on in [Settings → Notifications](/webui/settings#notifications) | Pushed to Telegram, plus the bell | Pushed to Telegram, plus the bell |
 | **Survives closing the laptop** | No | No | Yes |
 | **Best for** | Trying it out | Most people | Anything holding real capital |
 
@@ -69,12 +69,12 @@ What Condor actually does, and where each is documented. Most people arrive want
 | **Backtesting** | Replay a controller config against historical candles before it touches capital | [Backtesting](/bots/backtesting) |
 | **Executors** | Single operations — a trade, a position with stop-loss and take-profit, a grid, a DCA, an LP position — driven by you or an agent | [Executors](/executors/overview) |
 | **Routines** | Deterministic Python on a schedule or trigger: indicators, alerts, rebalances. No LLM cost | [Routines](/routines/overview) |
-| **Reports** | Build and schedule HTML reports with charts, tables and KPIs, then read them in the dashboard | [Reports](/routines/reports) |
+| **Reports** | Build and schedule HTML reports with charts, tables and KPIs, then read them in the Workspace | [Reports](/routines/reports) |
 | **Research** | Ask an agent about markets, positions or a strategy, with your live portfolio as context | [MCP Tools](/trading-agents/mcp-tools) |
 | **Portfolio** | Unified balances, positions and P&L across every connected exchange and chain | [Portfolio](/webui/portfolio) |
-| **Manual trading** | Place and cancel orders yourself, on CEX or DEX, from Telegram or the dashboard | [Trade](/webui/trade) |
+| **Manual trading** | Place and cancel orders yourself, on CEX or DEX, from Telegram or the Workspace | [Trade](/webui/trade) |
 | **DEX and liquidity** | Swaps and concentrated-liquidity positions through Gateway | [DEX](/webui/dex) · [Gateway](/webui/settings#gateway) |
-| **Web dashboard** | Browser UI for bots, agents, portfolio and a live trade panel covering CEX and DEX | [Web Dashboard](/getting-started/web-dashboard) |
+| **Workspace** | Browser UI for bots, agents, portfolio and a live trade panel covering CEX and DEX | [Workspace](/getting-started/web-dashboard) |
 | **Agent sessions** | Inspect, steer and stop running agents; see what each one decided and why | [Sessions](/getting-started/sessions) |
 | **Multiple servers** | Drive several Hummingbot API instances — separate accounts, venues or strategies — from one Condor | [Servers](/webui/settings#servers) |
 | **Your choice of LLM** | Claude (through the Claude ACP bridge), Gemini, Codex, Copilot, OpenRouter, a local model via Ollama or LM Studio, or any OpenAI-compatible endpoint | [LLM Integration](/llm-integration) |
@@ -98,7 +98,7 @@ What Condor actually does, and where each is documented. Most people arrive want
     [Installing](/getting-started/installing) (local install—**Tailscale not required**; **Local mode** skips Telegram entirely) → [Credentials](/getting-started/credentials) → dry-run an agent in [Build Your First Agent](/getting-started/first-agent)
   </Accordion>
   <Accordion title="Run Condor without a Telegram account">
-    [Installing → Local](/getting-started/installing#local) → [Web Dashboard](/getting-started/web-dashboard) → [Credentials](/getting-started/credentials) → [Build Your First Agent](/getting-started/first-agent)
+    [Installing → Local](/getting-started/installing#local) → [Workspace](/getting-started/web-dashboard) → [Credentials](/getting-started/credentials) → [Build Your First Agent](/getting-started/first-agent)
   </Accordion>
   <Accordion title="Deploy for 24/7 production on a server">
     [Installing](/getting-started/installing#secure-remote-access-with-tailscale) (remote install—**Tailscale required**) → [Servers](/webui/settings#servers) → [Managing Sessions](/getting-started/sessions)
@@ -116,11 +116,11 @@ What Condor actually does, and where each is documented. Most people arrive want
 | Same VPS, both services together | **No** — the API binds `127.0.0.1` by default; still worth it if anything ever needs off-box access |
 | Different machines (for example, laptop + VPS) | **Yes** |
 | A team or multiple devices need access | **Yes** |
-| The web dashboard from another device, in Telegram mode | **Yes**: the dashboard listens on the machine's tailnet address |
-| The web dashboard from another device, in Local mode | Tailscale does not help. Use an SSH tunnel, or switch to Telegram mode |
+| The Workspace from another device, in Telegram mode | **Yes**: the Workspace listens on the machine's tailnet address |
+| The Workspace from another device, in Local mode | Tailscale does not help. Use an SSH tunnel, or switch to Telegram mode |
 
 <Warning>
-  **Installed before the API's port lockdown? Check it.** Hummingbot API used to publish port **8000 on every interface**, including a VPS's public IP. It now binds `127.0.0.1` by default (`${API_BIND:-127.0.0.1}` in `docker-compose.yml`), and so do Postgres and the EMQX broker — but an existing stack keeps its old bindings until the containers are recreated. Run `make deploy` in `hummingbot-api`, then `make doctor` in the same directory. Hummingbot API's doctor flags any of those ports still sitting on a public interface; Condor's own `make doctor` checks only the dashboard port.
+  **Installed before the API's port lockdown? Check it.** Hummingbot API used to publish port **8000 on every interface**, including a VPS's public IP. It now binds `127.0.0.1` by default (`${API_BIND:-127.0.0.1}` in `docker-compose.yml`), and so do Postgres and the EMQX broker — but an existing stack keeps its old bindings until the containers are recreated. Run `make deploy` in `hummingbot-api`, then `make doctor` in the same directory. Hummingbot API's doctor flags any of those ports still sitting on a public interface; Condor's own `make doctor` checks only the Workspace port.
 
   If you *do* need the API reachable off-box, widen it deliberately with `API_BIND` in `hummingbot-api/.env` — prefer a specific interface over `0.0.0.0`, and with the Tailscale overlay `API_BIND=<your-tailscale-ip>` keeps MagicDNS working without publishing anything to the internet. Note that Docker's published ports are *not* blocked by `ufw`: its rules are evaluated before ufw's, so `ufw deny 8000` leaves a widened port reachable unless you write `DOCKER-USER` rules yourself. Close the port in your cloud provider's firewall instead — that is enforced off-host.
 </Warning>
@@ -130,7 +130,7 @@ See [Installing](/getting-started/installing#secure-remote-access-with-tailscale
 ## Something not working?
 
 Run `make doctor` from the Condor directory. It re-checks dependencies, your
-`.env` and `config.yml`, the AI model, whether the dashboard is on a public
+`.env` and `config.yml`, the AI model, whether the Workspace is on a public
 interface, Tailscale, and whether every configured Hummingbot API server is
 actually reachable and authenticating—and names the fix for each thing it
 finds. It is read-only and safe to run at any time.

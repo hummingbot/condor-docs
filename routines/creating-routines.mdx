@@ -30,7 +30,7 @@ All paths are relative to the folder you installed Condor into. Create the folde
 
 ## 2. Write the routine
 
-This routine measures momentum and volume on recent candles for a few pairs. It returns a `RoutineResult`, so the dashboard shows a table and Telegram shows the one-line summary.
+This routine measures momentum and volume on recent candles for a few pairs. It returns a `RoutineResult`, so the Workspace shows a table and Telegram shows the one-line summary.
 
 ```python
 from pydantic import BaseModel, Field
@@ -105,7 +105,7 @@ A few things to know about the API client:
 
 Condor picks up the file without a restart. Then run it from any of these:
 
-- **Dashboard:** open **Routines**, select `momentum scanner`, open **Config** to change settings, and click **Run**. Switch to **Output** to see the table.
+- **Workspace:** open **Routines**, select `momentum scanner`, open **Config** to change settings, and click **Run**. Switch to **Output** to see the table.
 - **Telegram:** `/routines` → **⚡ Momentum Scanner** → **▶️ Run**. Send `key=value` lines, such as `lookback=48`, to change the config first. Telegram lists only the general and shared routines, so a routine in an agent's folder doesn't appear there.
 - **Chat:** ask Condor *"run momentum_scanner with interval=1h"*.
 
@@ -218,7 +218,7 @@ Condor writes the file with `manage_routines(action="create_routine")`, checks t
     The same config and the same market data should give the same result. Put judgment in the agent's skills and loop instructions, not in the routine.
   </Accordion>
   <Accordion title="Return errors as results">
-    Return a short message such as `"No server available"` when something expected is missing. An exception marks the run as failed and the dashboard shows the error.
+    Return a short message such as `"No server available"` when something expected is missing. An exception marks the run as failed and the Workspace shows the error.
   </Accordion>
   <Accordion title="Describe every field">
     The `Config` docstring and each `Field(description=...)` are what you, Condor and agents read to decide how to run the routine.

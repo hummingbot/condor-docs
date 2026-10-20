@@ -163,7 +163,7 @@ Admin only. Everyone who has contacted the bot, and the servers each person can 
 
 - **People**: search by name, `@handle` or id. Open a person to set them to **Approved** or **Blocked**, or to **Reject** a pending request. The admin is set by `ADMIN_USER_ID`, not here.
 - **Server access**: for each server, set the person to **No access** or **Trader**. Ownership is shown but can't be transferred here. A person must be approved before you can grant access.
-- **Capabilities**: the `code_run` grant lets a non-admin run arbitrary Python in the bot process. That code can reach every server's credentials, the dashboard's JWT secret and the environment, so treat it as admin access.
+- **Capabilities**: the `code_run` grant lets a non-admin run arbitrary Python in the bot process. That code can reach every server's credentials, the Workspace's JWT secret and the environment, so treat it as admin access.
 - **Refresh names** asks Telegram for the names of people with no stored name.
 - **Audit log**: the recent approvals, blocks and grants, with who made them.
 
@@ -182,7 +182,7 @@ Admin only. Updates Condor and the Hummingbot API. This is the same update engin
 - While it runs, the tab shows each step. Updating the API recreates its containers, so the API may stop answering for a while. The tab keeps checking and picks the run back up. **Done** clears a finished run.
 
 <Warning>
-Updating Condor doesn't restart it. The new code is installed and the dashboard is rebuilt, then you relaunch Condor yourself with `make restart`. Until you do, every page shows a relaunch banner.
+Updating Condor doesn't restart it. The new code is installed and the Workspace is rebuilt, then you relaunch Condor yourself with `make restart`. Until you do, every page shows a relaunch banner.
 </Warning>
 
 See [Keeping Condor updated](/getting-started/installing#keeping-condor-updated).

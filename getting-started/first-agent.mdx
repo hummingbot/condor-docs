@@ -11,10 +11,10 @@ This guide walks through building a first agent from a description, testing it, 
 
 <Steps>
   <Step title="Condor connected to a Hummingbot API server">
-    Follow [Installing](/getting-started/installing). In the dashboard the server selector in the top bar shows a green dot when the server is reachable.
+    Follow [Installing](/getting-started/installing). In the Workspace the server selector in the top bar shows a green dot when the server is reachable.
   </Step>
   <Step title="Exchange keys">
-    Add them in **Settings → Keys and Wallets → Add API Key**, and start with a small balance. See [Exchange Credentials](/getting-started/credentials). The dashboard doesn't list testnet connectors such as `binance_perpetual_testnet`; those can only be added through the Hummingbot API directly.
+    Add them in **Settings → Keys and Wallets → Add API Key**, and start with a small balance. See [Exchange Credentials](/getting-started/credentials). The Workspace doesn't list testnet connectors such as `binance_perpetual_testnet`; those can only be added through the Hummingbot API directly.
   </Step>
   <Step title="A model">
     A new agent uses the model Condor is running on unless you ask for a different one. See [LLM Integration](/llm-integration).
@@ -23,7 +23,7 @@ This guide walks through building a first agent from a description, testing it, 
 
 ## 1. Ask Condor to build it
 
-Open the dashboard and talk to **Condor** in the chat. In Telegram, send Condor a plain message; if you switched to another agent earlier, send `/agent`, tap **Talk to** and choose **Condor (coordinator)**.
+Open the Workspace and talk to **Condor** in the chat. In Telegram, send Condor a plain message; if you switched to another agent earlier, send `/agent`, tap **Talk to** and choose **Condor (coordinator)**.
 
 Describe the agent in a sentence or two: what it specializes in and what you will use it for. For example:
 
@@ -57,7 +57,7 @@ Condor writes the agent under the local agents folder of your Condor install:
   routines/<name>.py       # if you asked for routines
 ```
 
-The slug is the agent's name in lowercase with spaces turned into underscores, for example `sol_sr_scalper`. Open `/agents/<slug>` in the dashboard to see the agent page. From the chat you can also open the agent's panel and click **Workspace**.
+The slug is the agent's name in lowercase with spaces turned into underscores, for example `sol_sr_scalper`. Open `/agents/<slug>` in the Workspace to see the agent page. From the chat you can also open the agent's panel and click **Workspace**.
 
 <Note>
 **Where to put your agent.** Agents you create belong in `.condor/agents/`, which `git pull` and `/update` never touch. The `agents/` folder in the repo holds the agents that ship with Condor. See [Architecture](/trading-agents/architecture#where-condor-looks-for-agents) for the full folder layout and file formats.
@@ -100,7 +100,7 @@ On the agent page, pick the loop in the selector under the agent's name, click *
   <img src="/images/webui/agent-runs.jpg" alt="The Runs tab of the Market Making Expert, showing a dry run's agent response" />
 </Frame>
 
-You can also ask Condor in chat to start the loop. Starting a loop always needs your approval: the dashboard shows an approval card with **Allow** and **Deny**, and Telegram shows a confirmation.
+You can also ask Condor in chat to start the loop. Starting a loop always needs your approval: the Workspace shows an approval card with **Allow** and **Deny**, and Telegram shows a confirmation.
 
 <Frame>
   <img src="/images/webui/chat-approval.jpg" alt="An approval card in the Condor chat, waiting for Allow or Deny" />
@@ -131,7 +131,7 @@ To stop it:
 
 ## Write the folder by hand instead
 
-You can skip the builder and create the files yourself: an `AGENT.md` in `.condor/agents/<slug>/` and, optionally, `loops/<loop>/loop.md`. Reload the dashboard and the agent appears. [Architecture](/trading-agents/architecture#creating-your-own-agent) has the file formats, the frontmatter fields and the risk limits.
+You can skip the builder and create the files yourself: an `AGENT.md` in `.condor/agents/<slug>/` and, optionally, `loops/<loop>/loop.md`. Reload the Workspace and the agent appears. [Architecture](/trading-agents/architecture#creating-your-own-agent) has the file formats, the frontmatter fields and the risk limits.
 
 ## Next steps
 
@@ -139,7 +139,7 @@ You can skip the builder and create the files yourself: an `AGENT.md` in `.condo
   <Card title="Agent Builder" icon="hammer" href="/condor-agent/agent-builder">
     Everything the builder skill does, including building from a folder
   </Card>
-  <Card title="Run the Market Making Expert" icon="play" href="/examples/market-making-expert">
+  <Card title="Guide: Market Making Expert Agent" icon="play" href="/examples/market-making-expert">
     Run a shipped agent end to end
   </Card>
   <Card title="Architecture" icon="sitemap" href="/trading-agents/architecture">

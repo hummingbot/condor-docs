@@ -6,7 +6,7 @@ description: "Single-file Hummingbot strategies, and how to deploy them through 
 **Scripts** are single-file Hummingbot strategies. A script is a Python file with a config class and a strategy class. It runs inside a bot container, like a controller, but it's one self-contained program rather than a component that the bot hosts.
 
 <Warning>
-Condor has no way to deploy a script. Telegram, the dashboard and the agent tools (`manage_bots`) only deploy controller configs. To run a script, call the Hummingbot API directly, as shown in [Deploying a script](#deploying-a-script).
+Condor has no way to deploy a script. Telegram, the Workspace and the agent tools (`manage_bots`) only deploy controller configs. To run a script, call the Hummingbot API directly, as shown in [Deploying a script](#deploying-a-script).
 </Warning>
 
 ## Scripts vs Controllers
@@ -15,7 +15,7 @@ Condor has no way to deploy a script. Telegram, the dashboard and the agent tool
 |--------|---------|-------------|
 | **Shape** | One file: config class + strategy class | Config + controller class, hosted by a bot |
 | **Several per bot** | No, one script per bot | Yes, several controllers per bot |
-| **Deploy from Condor** | No (Hummingbot API only) | Yes (dashboard, Telegram, agents) |
+| **Deploy from Condor** | No (Hummingbot API only) | Yes (Workspace, Telegram, agents) |
 | **Live config updates** | No | Yes, for fields marked updatable |
 | **Best for** | Quick automation, experiments | Strategies you run and tune over time |
 
