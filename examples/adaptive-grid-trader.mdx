@@ -1,0 +1,132 @@
+---
+title: "Run the Adaptive Grid Trader"
+description: "Run the Adaptive Grid Trader's hourly loop: pick a grid direction from multi-timeframe analysis, size it inside a fixed budget, and recycle it when it stalls or profits"
+---
+
+The **Adaptive Grid Trader** runs one grid at a time on a perpetual pair. Each grid is a [grid executor](/executors/grid-executor): a ladder of orders between two prices, with a stop-loss limit below (or above) the range. The agent chooses the grid's direction from a 7-day market read, sizes it inside a budget you set, and every hour decides whether to keep it, flip it, take profit or redeploy it.
+
+This is the agent run in the [Condor install walkthrough video](/videos/overview).
+
+It ships with two loops:
+
+| Loop | Pair and exchange | Budget | Grids at once |
+|---|---|---|---|
+| **BTC-USDT Adaptive Grid** | BTC-USDT on `bitget_perpetual` | 60 USDT | 1 (long or short only) |
+| **SOL-USDT Adaptive Grid** | SOL-USDT on `binance_perpetual` | 100 USDT | Up to 2, a long and a short grid at once, only if the account is in hedge mode |
+
+Both tick every **3600 seconds** (hourly).
+
+## What you need
+
+<Steps>
+  <Step title="Condor connected to a Hummingbot API server">
+    Follow [Installing](/getting-started/installing). In the dashboard the server selector in the top bar shows a green dot when the server is reachable.
+  </Step>
+  <Step title="Exchange keys for the loop's exchange">
+    Add `bitget_perpetual` or `binance_perpetual` keys in **Settings → Keys and Wallets → Add API Key**. See [Exchange Credentials](/getting-started/credentials). The account needs at least the loop's budget in USDT: 60 for the BTC loop, 100 for the SOL loop.
+  </Step>
+  <Step title="The position mode you want, set on the exchange">
+    One-way mode supports long and short grids. The SOL loop's two-sided grid needs **hedge** mode. The agent only reads the mode; it never changes it.
+  </Step>
+  <Step title="A model the agent can run on">
+    The agent ships set to `claude-acp:opus`. Its model is shown next to its name on the agent page; click it to change it. See [LLM Integration](/llm-integration).
+  </Step>
+</Steps>
+
+## How the loop works
+
+The agent keeps two layers of analysis apart:
+
+- **Layer 1, the 7-day baseline**, decides the direction of a new grid. The `baseline_7d` routine reports the trend direction and strength, price against its EMAs, the 48-hour price slope and the ATR. It runs on the first tick and again once the reading is a day old. Bullish means a long grid and bearish a short one. A neutral reading means a two-sided grid if hedge mode allows it, else the side with the stronger lean, else no grid.
+- **Layer 2, the hourly check**, only manages a grid that is already running. The `hourly_mtf_check` routine reads 1h, 4h and 1d candles and proposes a profile and range prices. It never blocks the first grid.
+
+Every tick, the agent:
+
+1. **Refreshes the baseline** if it is missing or more than 24 hours old, and runs the hourly check.
+2. **Reads its live state:** the running grid executor, positions, balances and open orders.
+3. **Cleans up stray orders** that belong to an executor it should have stopped, before deploying anything.
+4. **Checks the account's position mode** with `position_mode_check` before a first grid or before a two-sided grid. If the mode can't be read, it assumes one-way.
+5. **Decides.** For a running grid, the first rule that matches wins:
+
+   | Rule | When | Action |
+   |---|---|---|
+   | **Stale** | No new fills for 3 ticks while the grid still has open orders | Stop it and redeploy around the current price |
+   | **Take profit** | Unrealized PnL reaches 2% of the trade budget | Stop it to realize the profit, then redeploy if the signals still agree |
+   | **PnL flip** | The grid is losing more each tick and at least one timeframe points the other way | Stop it and redeploy in the other direction |
+   | **Hourly check** | Both 4h and 1d point the other way and the grid is at least 3 hours old | Stop it and redeploy in the other direction; otherwise keep it |
+
+6. **Checks liquidation** with its `liquidation_guard` skill before any deploy. The liquidation price must sit beyond the grid's stop-loss limit; if it doesn't, the agent lowers leverage, narrows the grid or holds.
+7. **Deploys the grid executor** with the loop's fixed settings (below).
+8. **Journals** the direction, position mode, PnL trend and fills, plus which rule fired.
+
+## The loop's settings
+
+The budget and grid settings are written into each loop's `loop.md` as plain numbers:
+
+| Setting | BTC-USDT loop | SOL-USDT loop |
+|---|---|---|
+| Budget | 60 USDT | 100 USDT |
+| Reserve, never traded | 10% (trades 54 USDT) | 10% (trades 90 USDT, or 45 per side when two-sided) |
+| Minimum order | 6.5 USDT | 7 USDT |
+| Leverage | 5x | 5x |
+| Largest loss allowed per grid | 10% of budget (6 USDT) | 10% of budget (10 USDT) |
+| Grid stop loss | 10% of the **filled** position | 10% of the **filled** position |
+| Grid time limit | 12 hours | 12 hours |
+| Max open executors | 1 | 2 |
+| Max position size (risk limit) | 300 | 500 |
+
+The agent works out a range for each grid to last roughly 6 to 12 hours, from the hourly ATR.
+
+<Warning>
+**Change the budget in `loop.md`, not only in the Start dialog.** The loop's instructions state the trade size directly (for example `total_amount_quote 54` in the BTC loop), so changing **Total Amount Quote** in the Start dialog alone leaves the grid size unchanged. To trade a different amount, edit the envelope and deploy sections of the loop's `loop.md` in the **Playbook** tab.
+</Warning>
+
+<Note>
+Before starting a session, the agent asks once whether to keep the default 5x leverage. It doesn't ask again per trade: inside its settings it acts on its own, and a trade outside them is skipped and reported.
+</Note>
+
+## Start the loop
+
+<Steps>
+  <Step title="Open the agent">
+    Open `/agents/adaptive_grid_trader` in the dashboard, and choose **BTC-USDT Adaptive Grid** or **SOL-USDT Adaptive Grid** in the loop selector under the agent's name.
+  </Step>
+  <Step title="Do a Dry Run">
+    Click **Start**, choose **Dry Run** and click **Run Dry Test**. One tick runs with every action refused. Read the result in the **Runs** tab.
+
+    <Note>
+    A dry run also refuses routines, so `baseline_7d`, `hourly_mtf_check` and `position_mode_check` don't run. Use it to check that the agent, server and exchange are wired up, not to judge the strategy.
+    </Note>
+  </Step>
+  <Step title="Run Once, then Loop">
+    **Run Once** runs one live tick, which can deploy a real grid. When it looks right, start again with **Loop**. Leave **Frequency (sec)** at `3600`; the strategy's rules count ticks as hours.
+  </Step>
+</Steps>
+
+While it runs, the **Now**, **Runs**, **Fleet** and **Playbook** tabs work as described in [Run the Market Making Expert](/examples/market-making-expert#watch-it-run). The grid executor also appears on the [Bots](/webui/bots) page.
+
+## Stop it
+
+<Warning>
+**Stop** ends the loop and, by default, cancels the session's open orders on its pair. It doesn't stop the grid executor itself or close a position the grid has already filled. To end the grid, stop the executor: on the **Bots** page, open the executor and click **Stop**. If you start the same loop again while the grid executor is still running, the new session takes it over.
+</Warning>
+
+| You want to | Do this |
+|---|---|
+| Pause decisions, keep the grid | **Pause** on the agent page; **Resume** to continue |
+| End the loop and the grid | **Stop** on the agent page, then stop the executor on the **Bots** page |
+| Wind everything down now | Ask the agent in chat to shut its loop down. Its default shutdown policy closes perpetual positions. |
+
+## From Telegram
+
+1. Send `/agent`, tap **Talk to** and choose **Adaptive Grid Trader**.
+2. Ask it to start one of its loops, for example: *"Start the btc_usdt_adaptive_grid loop."*
+3. Answer its leverage question, then approve the confirmation Condor shows before the loop starts.
+
+`/stop` only cancels the agent's current reply. To stop the loop, ask the agent to stop it.
+
+## Learn more
+
+- [Grid Executor](/executors/grid-executor): how a grid's levels are built and how it stops
+- [Condor install walkthrough](/videos/overview): this agent running end to end
+- [Architecture](/trading-agents/architecture): loops, sessions and the risk engine

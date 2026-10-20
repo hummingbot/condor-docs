@@ -49,16 +49,19 @@
               "getting-started/credentials",
               "getting-started/portfolio",
               "getting-started/first-agent",
+              "condor-agent/agent-builder",
               "getting-started/sessions",
               "getting-started/troubleshooting"
             ]
           },
           {
-            "group": "Examples",
+            "group": "Agent Guides",
             "pages": [
               "examples/overview",
+              "condor-agent/overview",
               "examples/market-making-expert",
-              "examples/solana-lp"
+              "examples/solana-lp",
+              "examples/adaptive-grid-trader"
             ]
           },
           {
@@ -104,13 +107,6 @@
                 ]
               },
               "webui/settings"
-            ]
-          },
-          {
-            "group": "The Condor Agent",
-            "pages": [
-              "condor-agent/overview",
-              "condor-agent/agent-builder"
             ]
           },
           {
