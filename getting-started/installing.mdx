@@ -89,7 +89,7 @@ port; it does nothing about anyone already on that machine.
   If you *do* need the API reachable off-box, widen it deliberately with `API_BIND` in `hummingbot-api/.env` — prefer a specific interface over `0.0.0.0`, and with the Tailscale overlay `API_BIND=<your-tailscale-ip>` keeps MagicDNS working without publishing anything to the internet. Note that Docker's published ports are *not* blocked by `ufw`: its rules are evaluated before ufw's, so `ufw deny 8000` leaves a widened port reachable unless you write `DOCKER-USER` rules yourself. Close the port in your cloud provider's firewall instead — that is enforced off-host.
 </Warning>
 
-If you're just testing locally, skip ahead—the Quick Install below works without Tailscale. See [Learning Path](/learning-path#do-i-need-tailscale) for more use-case-based routing.
+If you're just testing locally, skip ahead—the Quick Install below works without Tailscale. See [Learning Path](/learning-path#by-use-case) for more use-case-based routing.
 
 ## Quick Install
 
