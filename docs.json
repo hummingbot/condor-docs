@@ -54,6 +54,16 @@
             ]
           },
           {
+            "group": "Agent Architecture",
+            "pages": [
+              "trading-agents/overview",
+              "trading-agents/architecture",
+              "trading-agents/sessions",
+              "trading-agents/mcp-tools",
+              "trading-agents/inventory"
+            ]
+          },
+          {
             "group": "Running and Building Agents",
             "pages": [
               "condor-agent/overview",
@@ -109,16 +119,6 @@
                 ]
               },
               "webui/settings"
-            ]
-          },
-          {
-            "group": "Agent Architecture",
-            "pages": [
-              "trading-agents/overview",
-              "trading-agents/architecture",
-              "trading-agents/sessions",
-              "trading-agents/mcp-tools",
-              "trading-agents/inventory"
             ]
           }
         ]
