@@ -20,17 +20,18 @@ Each run gets an ID made from the agent, the loop and a number:
 
 The ID is also the `controller_id` on every executor the run creates. The risk gate refuses an executor create that doesn't carry this exact ID, so every position can be traced back to the session that opened it.
 
-### Executors stay with the session that opened them
+### Executors left by a stopped session
 
-Because ownership follows the session ID, a new session can't see or stop the executors an earlier session opened:
+If you stop a loop with executors still running and start it again, the new session adopts them. On every tick it looks for RUNNING executors tagged with an earlier session of the **same agent and loop** whose session is no longer running. They appear in the tick data as `adopted_executors`, count toward its risk limits, and the risk gate lets it stop them.
 
-- Each tick's executor and position state is fetched for the current session's ID only.
-- `stop_executor` on an executor tagged with another ID is refused.
+Adoption is deliberately narrow:
 
-This holds after a restart too. If you stop a loop with positions open and start it again, the new session won't manage the old positions. Close or hand them over first, or use an [emergency shutdown](/trading-agents/architecture#stopping-a-loop) to wind them down before stopping.
+- Executors of a session that is **still running**, or of another loop, are never adopted. `stop_executor` on them is refused.
+- **Held positions** (from an executor closed with `keep_position=true`) stay on the earlier session's ID. Each tick's position state is fetched for the current session's ID only.
+- **Run Once** executors are never adopted.
 
 <Note>
-Bots work differently. On its first tick, a new session of the same loop adopts the still-running bots it recognizes as its own, either by name or because an earlier session of that loop recorded deploying them.
+Bots are adopted too: a session of the same loop adopts the still-running bots it recognizes as its own, either by name or because an earlier session of that loop recorded deploying them. It checks on any tick while it owns no bots, and again when a new deploy is recorded. Bots listed in the loop's `disowned_bots.json` are skipped.
 </Note>
 
 ## Dry Run and Run Once
@@ -85,7 +86,7 @@ If Condor restarts while a loop is running, the old session is closed. It is nev
 - By default, the loop stays stopped. If Condor exited unexpectedly, the session is marked interrupted and the journal notes it.
 - If the loop has `restart_on_boot` set (**Resume after Condor restarts** in the Start dialog, or the toggle in the **Playbook** tab), Condor starts a **fresh session** with a new number, using the loop's config as it stands at that moment.
 
-The fresh session is a new ID, so the [executor rule above](#executors-stay-with-the-session-that-opened-them) applies.
+The fresh session has a new ID, and it adopts what the interrupted session left running, as described [above](#executors-left-by-a-stopped-session).
 
 ## Learnings carry across sessions
 

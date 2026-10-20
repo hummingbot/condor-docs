@@ -47,11 +47,11 @@ Agents never place orders directly. The risk gate always refuses `place_order`. 
 
 Each loop session has its own ID, such as `my_agent.my_loop_3`. Every executor the session creates must carry that ID as its `controller_id`; the risk gate refuses a create without it. This gives you:
 
-1. **Isolation.** An agent only *manages* its own executors. `list_executors` returns the whole fleet on the server, so the agent can see other executors, but the risk gate refuses any attempt to stop an executor owned by another session.
+1. **Isolation.** An agent only *manages* its own executors. `list_executors` returns the whole fleet on the server, so the agent can see other executors, but the risk gate refuses any attempt to stop an executor owned by another live session.
 2. **A virtual portfolio.** Positions and PnL are tracked per `controller_id`, so each session has its own book even when several agents share one exchange account. See [Inventory](/trading-agents/inventory).
 3. **Position handover.** When an executor closes with `keep_position=true`, the position stays in that session's inventory.
 
-Because the ID is per session, a new session doesn't take over an earlier session's executors. See [Sessions](/trading-agents/sessions#executors-stay-with-the-session-that-opened-them).
+When you start a loop again, the new session adopts the executors an earlier, stopped session of the same loop left running, and can manage and stop them. See [Sessions](/trading-agents/sessions#executors-left-by-a-stopped-session).
 
 ## Mental model
 
