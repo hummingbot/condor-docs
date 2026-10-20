@@ -213,24 +213,19 @@
     },
     "links": [
       {
-        "header": "Community",
-        "items": [
-          {
-            "label": "Give Feedback",
-            "href": "https://forms.gle/7NpG3RtgfLrmpUNY8"
-          },
-          {
-            "label": "Discord",
-            "href": "https://discord.gg/hummingbot"
-          }
-        ]
-      },
-      {
-        "header": "Maintained by Hummingbot Foundation",
+        "header": "Open Sourced by Hummingbot Foundation",
         "items": [
           {
             "label": "hummingbot.org",
             "href": "https://hummingbot.org"
+          },
+          {
+            "label": "condor.so",
+            "href": "https://condor.so"
+          },
+          {
+            "label": "github.com/hummingbot/condor",
+            "href": "https://github.com/hummingbot/condor"
           }
         ]
       }
