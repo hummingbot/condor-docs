@@ -34,7 +34,8 @@
               "introduction",
               "learning-path",
               "motivation",
-              "feedback"
+              "feedback",
+              "hummingbot-foundation"
             ]
           },
           {
@@ -194,7 +195,7 @@
       },
       {
         "label": "About us",
-        "href": "https://hummingbot.org/about/"
+        "href": "/hummingbot-foundation"
       }
     ],
     "primary": {
