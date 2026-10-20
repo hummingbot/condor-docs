@@ -1,0 +1,71 @@
+---
+title: "Privacy: Telemetry and Sharing"
+description: "What anonymous telemetry Condor sends, how conversation sharing works, and how to turn either off"
+---
+
+Two separate things, with separate switches. Neither sends anything about your trading, your keys, or your balances.
+
+## Telemetry — anonymous counts
+
+Telemetry is set once for the whole install, by the admin. It is **on by default, and you can turn it off**. Three levels:
+
+| Level | What it sends |
+|---|---|
+| `ping` | Only that this install exists: `install`, `heartbeat`, `version_change`, `shutdown`. This is all an install sends until the admin has seen the telemetry notice. **Only count my install** in Settings keeps it here. |
+| `usage` | The above plus feature, reliability and agent events — which command ran, which connector a bot deployed on, an error's *type* and a hash of its message. **The default once the admin has seen the notice.** |
+| `off` | Nothing. Nothing is buffered, written or sent. |
+
+The identifier is a random UUID generated once — not derived from your hostname, username, MAC, or any token. Server names, URLs and keys are never sent; a routine you wrote yourself is reported as `custom` rather than by name. The full list is in Condor's [`PRIVACY.md`](https://github.com/hummingbot/condor/blob/main/PRIVACY.md).
+
+**The notice.** Condor tells the admin once that usage summaries are on:
+
+- **Telegram mode:** a message next to the startup notification, with **Got it** and **Turn off** buttons.
+- **Workspace:** a strip at the top of the page, shown to the admin, with **Got it** and a **Turn off or see details** link to Settings → Privacy. This is how a Local mode install is told.
+
+Until the notice has been delivered, the install stays at `ping`. After that, it sends `usage` unless the admin turns it off. Ignoring the notice is not a refusal.
+
+**Turning it off.** Any of these works:
+
+1. **Turn off** on the Telegram notice.
+2. **Settings → Privacy** in the Workspace. Anyone can read it; only the admin can change it. See [Privacy](/webui/settings#privacy).
+3. **`CONDOR_TELEMETRY=off`** in `.env`. The environment variable overrides everything stored, in both directions: `ping` or `usage` there also overrides a stored refusal.
+
+A refusal from the notice or from Settings is saved in `config.yml` (the `telemetry` section, `consent: denied`), so it survives upgrades and you are not asked again.
+
+To see what your install is actually doing, from the Condor directory:
+
+```bash
+uv run python -c "from condor.telemetry import consent; print(consent.level())"
+```
+
+<Note>
+  Downgrading from `usage` to `ping`, or turning telemetry off, is a **withdrawal, not a pause** — the in-memory buffer and the outbox file are deleted, so nothing already recorded can be sent afterwards.
+</Note>
+
+## Sharing — whole conversations
+
+Separate from telemetry, and off until you turn it on. Telemetry is anonymous counts an admin consents to once; a share is a **transcript**, and only the person who held the conversation can hand it over. Secrets are redacted before a transcript is built, and again before it leaves.
+
+In Settings → Privacy:
+
+- **Off** — nothing is shared. The share button still works if you want it. **This is where every install starts.**
+- **Ask me** — the button, one conversation at a time, with the redacted transcript in front of you before you confirm.
+- **Always** — conversations are shared on their own, redacted the same way, **without showing you first**.
+
+Always is the only path where nobody reads the payload first, so it is deliberately narrower than the button — any one of these stops a conversation going:
+
+- **Idle** — only after 30 minutes of silence in that chat.
+- **Forward-only** — only conversations *started after* you chose Always. Your archive is never swept, and turning it off and on again starts a fresh window rather than reaching back.
+- **Single-author only** — a Telegram group is never taken automatically. You can consent for yourself, not for the other people in the room.
+- **Excluded chats, forever** — every covered conversation carries an undismissable marker with one click to leave it out, and that exclusion is permanent.
+- **Rate limited** — at most 3 conversations per 15-minute sweep.
+
+The operator-level kill switch:
+
+```bash
+CONDOR_SHARING=off          # in .env — destroys queued transcripts too
+```
+
+<Note>
+  `CONDOR_SHARING=off` reaches transcripts already queued and destroys them — but a queued **unshare** is still delivered, because a revocation is a deletion the install already promised.
+</Note>
