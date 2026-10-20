@@ -48,8 +48,6 @@
               "llm-integration",
               "getting-started/credentials",
               "getting-started/portfolio",
-              "getting-started/first-agent",
-              "condor-agent/agent-builder",
               "getting-started/sessions",
               "getting-started/troubleshooting"
             ]
@@ -57,8 +55,10 @@
           {
             "group": "Agent Guides",
             "pages": [
-              "examples/overview",
               "condor-agent/overview",
+              "examples/overview",
+              "getting-started/first-agent",
+              "condor-agent/agent-builder",
               "examples/market-making-expert",
               "examples/solana-lp",
               "examples/adaptive-grid-trader"
