@@ -9,7 +9,7 @@ Condor uses a [two-server architecture](/motivation): the **Condor Server** (age
 
 ```mermaid
 flowchart LR
-    You["<b>You</b><br/>Workspace or Telegram"] --> C["<b>Condor</b><br/>agents, routines, alerts"] --> API["<b>Hummingbot API</b><br/>bots, executors"] --> X["Exchanges<br/>and Gateway"]
+    You["You"] --> C["<b>Condor</b>"] --> API["<b>Hummingbot API</b>"] --> X["Exchanges"]
 ```
 
 ## Prerequisites
@@ -197,7 +197,7 @@ The common route is to start with **Local**, attach **Telegram** once you want a
 
 ```mermaid
 flowchart LR
-    L["<b>Local</b>"] -- "add Telegram" --> T["<b>Local + Telegram</b>"] -- "API on a server" --> H["<b>Condor local,<br/>API on a server</b>"] -- "Condor on the server" --> S["<b>Server</b>"]
+    L["<b>Local</b>"] --> T["<b>+ Telegram</b>"] --> H["<b>API on a server</b>"] --> S["<b>Both on a server</b>"]
 ```
 
 The Telegram/Local choice is stored as `CONDOR_MODE` in `.env` (`telegram` or `local`). To switch, re-run `make setup` and pick the other mode. Your `TELEGRAM_TOKEN` is left in place, so switching back costs nothing. "Server" is not a mode; it is where you run one of the two.
