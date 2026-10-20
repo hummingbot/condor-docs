@@ -214,19 +214,28 @@
     },
     "links": [
       {
-        "header": "Open Sourced by Hummingbot Foundation",
+        "header": "Hummingbot Foundation",
         "items": [
           {
             "label": "hummingbot.org",
             "href": "https://hummingbot.org"
           },
           {
-            "label": "condor.so",
-            "href": "https://condor.so"
-          },
-          {
             "label": "github.com/hummingbot/condor",
             "href": "https://github.com/hummingbot/condor"
+          }
+        ]
+      },
+      {
+        "header": "Botcamp, Inc",
+        "items": [
+          {
+            "label": "botcamp.xyz",
+            "href": "https://www.botcamp.xyz"
+          },
+          {
+            "label": "condor.so",
+            "href": "https://condor.so"
           }
         ]
       }
