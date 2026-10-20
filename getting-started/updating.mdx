@@ -1,0 +1,82 @@
+---
+title: "Updating Condor"
+description: "Update Condor and Hummingbot API from Telegram or the Workspace, and how update checks and notices work"
+---
+
+Updating is admin-only and available from **both** surfaces, over one shared
+engine: `/update` in Telegram and **Settings → Updates** in the Workspace. They
+are two views of the same run, so an update started in Telegram can be watched
+to completion in the browser and vice versa — starting a second one hands you
+back the one already in flight rather than queueing it.
+
+<Note>
+  This is what makes a **Local mode** install self-sufficient: the Workspace
+  panel is the surface it has, so an install with no Telegram bot does not need
+  one to update.
+</Note>
+
+## What can be updated
+
+Two components, versioned by what actually governs them:
+
+| Component | How it is versioned |
+|-----------|---------------------|
+| **Condor** | A git checkout — `HEAD` against `origin/<branch>` |
+| **Hummingbot API** | A git checkout **and** a container image. The repo governs the compose file and the bind-mounted `bots/`; the image governs the API's own code, so both are reported |
+
+Whether the API is rebuilt from source or pulled as a published image is not a
+setting — `docker compose config` already knows, from whether the service has a
+`build:` key.
+
+## Preflight: what is in the way
+
+Before anything runs you get the blockers, the warnings, and the ordered plan.
+
+**Blockers** stop the update and say why in terms you can act on — the checkout
+is not a git repo, it has commits the remote does not (so it cannot be
+fast-forwarded), local changes would be overwritten, or the registry could not
+be reached. Where a blocker has a safe way out it offers one: a dirty checkout
+can be resolved with **discard** or **stash** without leaving the panel.
+
+**Warnings** never refuse — they tell you a consequence worth knowing:
+restarting the API container stops its executors, and Condor keeps running the
+code it booted with until you relaunch it.
+
+## The relaunch step
+
+An update deliberately stops one step short of running the new code. It lands
+the code, syncs dependencies, rebuilds the Workspace, records that a relaunch is
+owed, and asks you to do it.
+
+That is not an omission. Condor is almost never the top of its own process tree
+— started through `make run`, a shell wrapper, or a supervisor — so re-execing
+itself races the parent into bringing a **second** Condor up on the same port,
+against the same config and the same Telegram token.
+
+```bash
+make restart
+```
+
+Between the update and the relaunch, every seat sees a **relaunch to apply**
+banner, because the browser is running the new bundle against the old API and
+would otherwise just look broken. The run is journalled to `data/update_run.json`
+at every step, so the panel picks the result back up across the restart and the
+next boot tells you whether the update worked.
+
+## Update notifications
+
+Condor checks in the background and tells the admin when a component falls
+behind — **once per update, not once per check**, so deferring one does not
+bury the rest of your notifications. Each surface gets a next step it can
+actually take: a Telegram message, and a bell entry that opens the update panel
+for a browser-only admin.
+
+Tune it with `UPDATE_CHECK_INTERVAL` in `.env` — seconds, default `3600`, and
+`0` disables the checks. The first runs 30 seconds after startup.
+
+<Note>
+  Both paths are **git-based**, so they work on a git checkout — which is what
+  the Quick Start and manual installs both produce. An install unpacked some
+  other way is reported as a blocker rather than silently skipped, and updates
+  by whatever means it was installed.
+</Note>

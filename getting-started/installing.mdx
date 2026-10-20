@@ -1,24 +1,26 @@
 ---
 title: "Installing Condor and Hummingbot API"
-description: "Deploy the two-server architecture"
+description: "Install Condor and Hummingbot API on your machine or a server, and choose how you will reach them"
 ---
 
 import FeedbackSurvey from "/snippets/feedback-survey.mdx";
 
-Condor uses a [two-server architecture](/motivation): the **Condor Server** (agentic layer) and the **Hummingbot API Server** (execution layer). This guide installs both.
+Condor uses a [two-server architecture](/motivation): the **Condor Server** (agentic layer) and the **Hummingbot API Server** (execution layer). One installer sets up both.
 
-<Warning>
-  **Secure your API before going live.** Hummingbot API can place orders, read balances, and manage bots. AI assistants (MCP, Condor agents, and similar tools) make that surface easier to reach—and easier to misuse if the API is open on the public internet.
-
-  **We recommend [Tailscale](#secure-remote-access-with-tailscale) for production**, especially when Condor and the API run on different machines. Tailscale puts the API on a private encrypted network so only your devices can connect—without publishing port **8000** on a public IP. Use strong API passwords too; Tailscale is network isolation on top of auth, not a replacement for it.
-
-  Full walkthrough: [Securing Condor and Hummingbot API with Tailscale](https://hummingbot.org/blog/securing-condor-and-hummingbot-api-with-tailscale/) · [Hummingbot API Tailscale guide](https://hummingbot.org/hummingbot-api/tailscale/)
-</Warning>
+```mermaid
+flowchart LR
+    You["You"] --> C["<b>Condor</b>"] --> API["<b>Hummingbot API</b>"] --> X["Exchanges"]
+```
 
 ## Prerequisites
 
+- **[Docker](https://docs.docker.com/get-docker/)**, installed and running, on the machine that runs Hummingbot API.
+- A machine that meets the requirements below.
+- **Telegram mode only:** a bot token and your Telegram user id. See [Create a Telegram Bot](#create-a-telegram-bot).
+- **Server installs only:** a [Tailscale](https://tailscale.com) account. See [Secure Remote Access with Tailscale](#secure-remote-access-with-tailscale).
+
 <AccordionGroup>
-  <Accordion title="System Requirements">
+  <Accordion title="System requirements">
     | Component | Minimum | Recommended |
     |-----------|---------|-------------|
     | OS | Linux x64 or ARM (Ubuntu 20.04+), macOS, or Windows with WSL2 (Ubuntu) | Ubuntu 22.04 LTS |
@@ -26,70 +28,68 @@ Condor uses a [two-server architecture](/motivation): the **Condor Server** (age
     | Storage | 10 GB SSD | 20 GB SSD |
     | CPU | 2 vCPUs | 4 vCPUs |
   </Accordion>
-  <Accordion title="Cloud Server Options">
+  <Accordion title="Cloud server options">
     Any cloud provider works. Popular choices:
     - **AWS EC2**: t3.medium or larger
     - **Google Cloud**: e2-medium or larger
     - **Digital Ocean**: Basic Droplet with 4GB RAM
     - **Hetzner**: CX21 or larger
 
-    Allow **SSH (port 22)** for administration. **Do not expose port 8000 publicly** for production—use [Tailscale](#secure-remote-access-with-tailscale) so Condor and other clients reach the API at `http://hummingbot-api:8000` on your private tailnet.
-  </Accordion>
-  <Accordion title="Tailscale (recommended for production)">
-    Create a free account at [tailscale.com](https://tailscale.com), then:
-
-    1. Generate a **reusable** auth key at [Settings → Keys](https://login.tailscale.com/admin/settings/keys) (starts with `tskey-auth-`)
-    2. Enable **[MagicDNS](https://login.tailscale.com/admin/dns)** so `hummingbot-api` resolves by name
-    3. Install Tailscale on any device that should reach the API (your laptop, Condor host, etc.) and sign in to the same account
-
-    During Hummingbot API setup, answer **`y`** when asked to enable Tailscale.
+    Allow **SSH (port 22)** for administration. **Do not expose port 8000 publicly**. Use [Tailscale](#secure-remote-access-with-tailscale) so Condor and other clients reach the API at `http://hummingbot-api:8000` on your private tailnet.
   </Accordion>
 </AccordionGroup>
 
-## Do I Need Tailscale?
+## Choose your install
 
-| Situation | Tailscale needed? |
-|-----------|--------------------|
-| Testing locally—Condor and Hummingbot API on one machine | No |
-| Same VPS, both services together | **No** — the API binds `127.0.0.1` by default; still worth it if anything ever needs off-box access |
-| Different machines (for example, laptop + VPS) | **Yes** |
-| A team or multiple devices need access | **Yes** |
-| You want the **web dashboard** from another device, in **Telegram mode** | **Yes**: the dashboard then listens on the machine's tailnet address. See [The dashboard under Tailscale](#the-dashboard-under-tailscale) |
-| You want the **web dashboard** from another device, in **Local mode** | Tailscale does not help. Local mode always listens on `127.0.0.1`. Use an SSH tunnel, or switch to Telegram mode |
+Three paths. All three run the same agents, bots, routines and Workspace. What differs is who can reach them and where alerts go.
 
-### What binds where by default
+<CardGroup cols={3}>
+  <Card title="Local" icon="laptop" href="#local">
+    Your own machine, no Telegram account. Workspace only, no login.
+  </Card>
+  <Card title="Local + Telegram alerts" icon="bell" href="#local-with-telegram-alerts">
+    Your own machine, plus a bot that pushes alerts to your phone.
+  </Card>
+  <Card title="Server" icon="server" href="#server">
+    A VPS running 24/7. Telegram from anywhere, and the Workspace over Tailscale.
+  </Card>
+</CardGroup>
 
-Every port in the Hummingbot API stack is on loopback out of the box. The one
-port that is not is Condor's own dashboard, and only in Telegram mode — which
-is the mode that authenticates.
+| | **Local** | **+ Telegram** | **Server** |
+|---|---|---|---|
+| **You need** | Nothing extra | Bot token, user id | The same, plus Tailscale |
+| **Login** | None | Telegram | Telegram, inside your tailnet |
+| **Alerts** | Workspace bell | Telegram and bell | Telegram and bell |
+| **Runs 24/7** | No | No | Yes |
+| **Best for** | Trying it out | Most people | Real capital |
 
-| Service | Port | Default bind | Knob |
-|---------|------|--------------|------|
-| Hummingbot API | `8000` | `127.0.0.1` | `API_BIND` in `hummingbot-api/.env` |
-| PostgreSQL | `5432` | `127.0.0.1` | `DB_BIND` in `hummingbot-api/.env` |
-| EMQX broker (MQTT) | `1883` | `127.0.0.1` | not configurable |
-| EMQX dashboard | `18083` | `127.0.0.1` | not configurable |
-| Condor web dashboard | `8088` | Local mode: `127.0.0.1`. Telegram mode: `0.0.0.0`, or the machine's tailnet address with Tailscale on | `WEB_HOST` in `condor/.env` |
+You can switch later. See [Start local, grow later](#start-local-grow-later).
 
-EMQX's other listeners — `8883`, `8083`, `8084`, `8081`, `61613` — are not
-published at all, since nothing in this stack speaks them.
+### Local
 
-The Condor dashboard is the one thing that binds all interfaces by default, and
-only in **Telegram mode**, which authenticates. With Tailscale on, Telegram mode
-binds the machine's tailnet address instead, so the dashboard is on your tailnet
-and on no public interface. Local mode has no login, so it binds loopback and
-stays there, with or without Tailscale, unless you set `WEB_HOST` yourself.
-
-None of this is a substitute for the credentials. A loopback bind protects the
-port; it does nothing about anyone already on that machine.
+No bot, no token, no Telegram account. The Workspace runs on the machine you installed on, at `http://localhost:8088`, and you are already logged in when you open it.
 
 <Warning>
-  **Installed before the API's port lockdown? Check it.** Hummingbot API used to publish port **8000 on every interface**, including a VPS's public IP. It now binds `127.0.0.1` by default (`${API_BIND:-127.0.0.1}` in `docker-compose.yml`), and so do Postgres and the EMQX broker — but an existing stack keeps its old bindings until the containers are recreated. Run `make deploy` in `hummingbot-api`, then `make doctor`, which flags any of those ports still sitting on a public interface.
+  **Local mode has no login.** Anyone who can reach the port has full trading control.
 
-  If you *do* need the API reachable off-box, widen it deliberately with `API_BIND` in `hummingbot-api/.env` — prefer a specific interface over `0.0.0.0`, and with the Tailscale overlay `API_BIND=<your-tailscale-ip>` keeps MagicDNS working without publishing anything to the internet. Note that Docker's published ports are *not* blocked by `ufw`: its rules are evaluated before ufw's, so `ufw deny 8000` leaves a widened port reachable unless you write `DOCKER-USER` rules yourself. Close the port in your cloud provider's firewall instead — that is enforced off-host.
+  - It binds **`127.0.0.1`** only: reachable from that machine, nowhere else. Turning Tailscale on does not change this.
+  - To use it from another machine, open an SSH tunnel (`ssh -L 8088:localhost:8088 you@host`, then browse `http://localhost:8088`), or switch to Telegram mode.
+  - Exposing it takes an explicit **`WEB_HOST=0.0.0.0`** in `.env`. Only do that behind something that authenticates, such as an authenticating reverse proxy.
 </Warning>
 
-If you're just testing locally, skip ahead—the Quick Install below works without Tailscale. See [Learning Path](/learning-path#do-i-need-tailscale) for more use-case-based routing.
+Alerts (finished routines and delegations, agent notices, update notices) land in the Workspace's notification bell. To get them as system notifications when no Condor tab is open, turn on [Settings → Notifications](/webui/settings#notifications) in each browser. Approval requests appear only in the Workspace chat that asked, and a request nobody answers is denied after 2 minutes.
+
+### Local with Telegram alerts
+
+The same install, with a bot attached. You control Condor with commands (`/portfolio`, `/trade`, `/agent`), alerts reach your phone through Telegram, and `/web` gives you a time-limited link to the Workspace. A chat you start in Telegram also asks for its approvals in Telegram, so you can answer them away from the machine.
+
+### Server
+
+Condor and Hummingbot API on a VPS, running whether or not your laptop is on.
+
+- **[Tailscale](#secure-remote-access-with-tailscale) is required.** Hummingbot API binds `127.0.0.1` by default, so your laptop can't reach it on a VPS. Tailscale gives your devices a private path without opening a public port.
+- Use Telegram mode. The Workspace then listens on the server's tailnet address, at `http://<tailnet-ip>:8088`. Local mode on a server stays on `127.0.0.1`, so you could reach it only through an SSH tunnel.
+- Run `make doctor` on the VPS after setup. It catches a public bind before it matters.
 
 ## Quick Install
 
@@ -102,7 +102,7 @@ If you're just testing locally, skip ahead—the Quick Install below works witho
     ```
   </Tab>
   <Tab title="Hummingbot API only">
-    Use this **only** if you still need the API and database stack **by itself**—for example the Quick Start script **did not** install Hummingbot API (you skipped it or something failed), or you are deploying the API on a **separate** machine (VPS, etc.). **Docker** must be running on that host before you run the command.
+    Use this **only** to install the API and database stack **by itself**: for example, the Quick Start script did not install Hummingbot API, or you are deploying the API on a **separate** machine. **Docker** must be running on that host first.
 
     ```bash
     curl -fsSL https://raw.githubusercontent.com/hummingbot/deploy/main/setup.sh | bash -s -- --hummingbot-api
@@ -111,7 +111,7 @@ If you're just testing locally, skip ahead—the Quick Install below works witho
     On a VPS or remote server, **enable Tailscale when prompted** (answer **`y`**) so Condor and other clients can reach the API privately.
   </Tab>
   <Tab title="Manual install">
-    **Note:** Prefer **Quick Start** above. Use manual install **only** if the deploy script fails or you are intentionally setting up from source (for example development).
+    Prefer **Quick Start**. Use manual install **only** if the deploy script fails or you are setting up from source, for example for development.
 
     Clone the Condor repo and use the Makefile. You still need a running **Hummingbot API** (for example [Docker with hummingbot-api](https://github.com/hummingbot/hummingbot-api)) unless you already have one.
 
@@ -125,120 +125,107 @@ If you're just testing locally, skip ahead—the Quick Install below works witho
   </Tab>
 </Tabs>
 
-Interactive setup will prompt for, in order:
+### What the installer asks
 
-1. **How you will use Condor** — **Telegram** or **Local**. See [Choose your install](#choose-your-install) below.
-2. **Telegram Bot Token** and **Telegram User ID** (Telegram mode only): create the bot via [@BotFather](https://t.me/botfather), get your id via [@userinfobot](https://t.me/userinfobot).
-3. **Tailscale, yes or no** — whether to secure the connection to Hummingbot API with Tailscale. Answer **`y`** for production or any remote setup. You paste the `tskey-auth-...` key later, at the point it is actually needed. In Telegram mode, Tailscale also puts the dashboard on your tailnet. In Local mode it does not: the dashboard stays on `127.0.0.1` either way.
-4. **Public IP or hostname** (Telegram mode without Tailscale only) — press Enter if Condor runs on your own machine, or give the server's public address so the `/web` dashboard link works from your phone.
-5. **AI model** — first the wizard sets up Condor's Python environment. This always runs, and on a first install it downloads about 250MB and takes 1–3 minutes. Then it asks **Pick an AI model now?** If you answer yes, it lists the models, installs the CLI bridge for the one you pick, and saves it. You can skip the question and run `make pick-model` later. See [Integrating your LLM](/llm-integration).
-6. Whether to **configure and launch Hummingbot API** with Docker — answer **yes** if you are deploying **Condor and the API on the same machine**. Have **[Docker](https://docs.docker.com/get-docker/)** installed and running first. If the API runs on another server, skip this and enter that API's URL instead. If an API is already running on port 8000, the wizard offers to keep it and asks for its credentials rather than replacing it.
-7. **Tailscale auth key** (if you said yes at step 3) — paste your `tskey-auth-...` key from the [Tailscale admin console](https://login.tailscale.com/admin/settings/keys). When Condor is deploying Hummingbot API on this same machine, it also asks whether that API should get its **own** tailnet node. Answer **no** unless another device needs to reach the API directly — Condor itself reaches it over `localhost` either way.
-8. **Hummingbot API credentials** — an admin **username**, **password**, and a **config password**. These are required and have no defaults: whatever you enter is written to the API's `.env` and to Condor's `config.yml` so the two sides match. Passwords are not echoed as you type.
+<Steps>
+  <Step title="How you will use Condor">
+    **Telegram** or **Local**. See [Choose your install](#choose-your-install). In Telegram mode it then asks for your **bot token** and **Telegram user id**.
+  </Step>
+  <Step title="Tailscale, yes or no">
+    Answer **`y`** for a server or any remote setup. You paste the `tskey-auth-...` key later, when it is needed. In Telegram mode, Tailscale also puts the Workspace on your tailnet; in Local mode the Workspace stays on `127.0.0.1` either way.
+
+    In Telegram mode without Tailscale, it also asks for a **public IP or hostname**. Press Enter if Condor runs on your own machine, or give the server's public address so `/web` links work from your phone.
+  </Step>
+  <Step title="AI model">
+    The wizard first sets up Condor's Python environment. On a first install this downloads about 250MB and takes 1–3 minutes. Then it asks **Pick an AI model now?** Answer yes to choose one and install its CLI bridge, or skip and run `make pick-model` later. See [Integrating your LLM](/llm-integration).
+  </Step>
+  <Step title="Hummingbot API">
+    Whether to **configure and launch Hummingbot API** with Docker. Answer **yes** if Condor and the API run on the same machine. If the API runs on another server, skip this and enter that API's URL. If an API is already running on port 8000, the wizard offers to keep it and asks for its credentials.
+
+    If you said yes to Tailscale, paste your `tskey-auth-...` key from the [Tailscale admin console](https://login.tailscale.com/admin/settings/keys). When Condor deploys the API on this same machine, it also asks whether the API should get its **own** tailnet node. Answer **no** unless another device needs to reach the API directly.
+  </Step>
+  <Step title="Hummingbot API credentials">
+    An admin **username**, **password** and **config password**. They are required and have no defaults. Whatever you enter is written to the API's `.env` and to Condor's `config.yml`, so the two sides match.
+  </Step>
+</Steps>
 
 <Tip>
-  **`make install` finishes by running `make doctor` for you**, so the first report arrives without asking. It cannot fail the install—a warning there never blocks setup—so read it rather than assuming a clean exit meant a clean report.
-
-  Run it again any time. It re-checks everything the wizard only confirms once: dependencies (`uv`, `tmux`, `node`, `npm`, `tsc`), `.env`/`config.yml` sanity, the AI model, the dashboard's network binding, Tailscale, and whether each Hummingbot API server in `config.yml` is reachable **and** authenticating. It is read-only and safe to run at any time, and exits non-zero only on real failures—warnings do not.
+  **`make install` finishes by running `make doctor`.** A warning there never fails the install, so read the report rather than trusting a clean exit. Run `make doctor` again any time: it is read-only and re-checks dependencies, `.env` and `config.yml`, the AI model, the Workspace's network binding, Tailscale, and whether each Hummingbot API server is reachable **and** authenticating.
 </Tip>
 
-## Choose your install
+## Verify Installation
 
-Three paths. All three run the same agents, bots, routines and web dashboard — what differs is who can reach them and where alerts go.
+Run `make doctor` first. It exits non-zero only if something is actually broken.
 
-<CardGroup cols={3}>
-  <Card title="Local" icon="laptop" href="#local">
-    Your own machine, no Telegram account. Dashboard only, no login.
-  </Card>
-  <Card title="Local + Telegram alerts" icon="bell" href="#local-with-telegram-alerts">
-    Your own machine, plus a bot that pushes alerts to your phone.
-  </Card>
-  <Card title="Server" icon="server" href="#server">
-    A VPS running 24/7. Telegram from anywhere, and the dashboard over Tailscale.
-  </Card>
-</CardGroup>
+<Tabs>
+  <Tab title="Local mode">
+    Open `http://localhost:8088` in a browser on the machine running Condor. You are logged in already, with no token or login screen.
+  </Tab>
+  <Tab title="Telegram mode">
+    Open your Telegram bot and send `/start`. If your id is `ADMIN_USER_ID`, or an admin has approved you, the bot replies with a short introduction and its main commands:
 
-| | **Local** | **Local + Telegram alerts** | **Server** |
-|---|---|---|---|
-| **Runs on** | Your machine | Your machine | A VPS, 24/7 |
-| **You need** | Nothing extra | A bot token and your Telegram user id | The above, plus [Tailscale](#secure-remote-access-with-tailscale) |
-| **How you drive it** | Dashboard at `localhost:8088` | Telegram commands, plus `/web` for the dashboard | Telegram from anywhere; dashboard over the tailnet (Telegram mode) |
-| **Login** | **None at all** — whoever reaches the port has full trading control | Telegram authenticates you; `/web` is a time-limited link | Same, and the tailnet is the outer boundary |
-| **Alerts** | The dashboard bell, plus browser notifications on devices you turn on in **Settings → Notifications** | Pushed to Telegram, plus the bell | Pushed to Telegram, plus the bell |
-| **Approval requests** | In the dashboard chat that asked | In the chat that asked: Telegram or the dashboard | Same |
-| **Survives you closing the laptop** | No | No | Yes |
-| **Best for** | Trying it out, or a machine you would rather not attach a bot to | Most people | Anything holding real capital |
+    ```text
+    I can help you create and manage trading bots on any CEX or DEX using Hummingbot API servers.
 
-### Local
+    See this manual if you're new to Condor.
 
-No bot, no token, no Telegram account. The dashboard runs on the machine you installed on and you are already logged in when you open it:
+    You can control me by sending these commands:
 
-```
-http://localhost:8088
-```
+    /keys - add exchange API keys
+    /portfolio - view balances across exchanges
+    /bots - deploy and manage trading bots
+    /trade - place CEX and DEX orders
+    /agent - AI trading assistant
+    /web - open the web dashboard
+    ```
 
-<Warning>
-  **Local mode has no login.** Anyone who can reach the port has full trading control.
+    A new user gets **Access Request Submitted** instead, and the admin is notified to approve them.
+  </Tab>
+</Tabs>
 
-  - It binds **`127.0.0.1`** only: reachable from that machine, nowhere else.
-  - Turning Tailscale on does not change this. Local mode stays on `127.0.0.1` even with Tailscale, because a tailnet limits who can connect but does not log anyone in.
-  - To use it from another machine, open an SSH tunnel (`ssh -L 8088:localhost:8088 you@host`, then browse `http://localhost:8088`), or switch to Telegram mode.
-  - Exposing it takes an explicit **`WEB_HOST=0.0.0.0`** in `.env`. Only do that behind something that authenticates, such as an authenticating reverse proxy.
-</Warning>
+<Note>
+  Each time Condor starts, the admin gets **"Condor is online and ready."** followed by the branch and commit it is running: in the Workspace's notification bell, and in Telegram mode as a Telegram message too. If it does not appear within a minute or two, see [Troubleshooting](/getting-started/troubleshooting).
+</Note>
 
-Alerts (finished routines and delegations, agent notices, update notices) land in the dashboard's notification bell. To get them as system notifications when no Condor tab is open, turn on **Settings → Notifications** in each browser you want notified. See [Notifications](/webui/settings#notifications). Approval requests are different: they appear only in the dashboard chat that asked, and a request nobody answers is denied after 2 minutes.
-
-Local mode logs in as `ADMIN_USER_ID` — the same id your servers, chat defaults, preferences and agent memory are already keyed to. An existing Telegram install that switches to local keeps all of it.
-
-### Local with Telegram alerts
-
-The same install, with a bot attached. You control Condor with commands (`/portfolio`, `/trade`, `/agent`), alerts reach your phone through Telegram, and `/web` hands you a time-limited link to the browser dashboard.
-
-This is the difference that matters: Telegram reaches you on any device, with no browser setup. A chat you start in Telegram also asks for its approvals in Telegram, so you can answer them away from the machine.
-
-Needs a bot token from [@BotFather](https://t.me/botfather) and your numeric Telegram user id from [@userinfobot](https://t.me/userinfobot) — both covered in [Create a Telegram Bot](#create-a-telegram-bot) below.
-
-### Server
-
-Condor and Hummingbot API on a VPS, running whether or not your laptop is on. Everything from the path above, plus:
-
-- **[Tailscale](#secure-remote-access-with-tailscale) is not optional here.** Hummingbot API binds `127.0.0.1` by default, so on a VPS your laptop cannot reach it at all — and the alternative, widening `API_BIND` to a public interface, is the thing you do not want: Docker's published ports are not blocked by `ufw`, whose rules are evaluated after Docker's own. Tailscale gives your devices a private path without opening anything. See [Do I Need Tailscale?](#do-i-need-tailscale) for why.
-- In Telegram mode, the dashboard listens on the server's tailnet address, at `http://<tailnet-ip>:8088`. See [The dashboard under Tailscale](#the-dashboard-under-tailscale).
-- Use Telegram mode on a server. Local mode on a server stays on `127.0.0.1`, even with Tailscale, so you can reach its dashboard only through an SSH tunnel.
-- Run `make doctor` on the VPS after setup. It is the fastest way to catch a public bind before it matters.
-
-<Info>
-  The Telegram/Local distinction is recorded as `CONDOR_MODE` in `.env` (`telegram` or `local`) and is never inferred from whether a token happens to be present. To switch later, re-run `make setup` and pick the other mode — your `TELEGRAM_TOKEN` is left in place, so switching back costs nothing. "Server" is not a mode; it is where you run one of the two. For the usual sequence — Local first, Telegram later, a server after that — see [Start local, grow later](#start-local-grow-later).
-</Info>
+<Card title="Next: Adding Credentials" icon="arrow-right" href="/getting-started/credentials">
+  Connect your exchange accounts
+</Card>
 
 ## Start local, grow later
 
-The three paths are not a one-time choice. The common route is to start with **Local**, attach **Telegram** once you want alerts reaching your phone, and involve a **server** once real capital is on the line. Each hop keeps what you have built — here is what each one takes.
+The common route is to start with **Local**, attach **Telegram** once you want alerts on your phone, and involve a **server** once real capital is on the line. Each hop keeps what you have built.
+
+```mermaid
+flowchart LR
+    L["<b>Local</b>"] --> T["<b>+ Telegram</b>"] --> H["<b>API on a server</b>"] --> S["<b>Both on a server</b>"]
+```
+
+The Telegram/Local choice is stored as `CONDOR_MODE` in `.env` (`telegram` or `local`). To switch, re-run `make setup` and pick the other mode. Your `TELEGRAM_TOKEN` is left in place, so switching back costs nothing. "Server" is not a mode; it is where you run one of the two.
 
 ### Add Telegram to a Local install
 
-1. Create a bot and get your numeric user id — [Create a Telegram Bot](#create-a-telegram-bot) and [Get Your User ID](#get-your-user-id) below.
-2. Run `make setup`. It shows the current mode and asks **Keep local mode?** — answer `n` and pick **Telegram**, then enter the token and your id. Everything else is remembered.
-3. `make restart`. Send `/start` to your bot.
+1. Create a bot and get your numeric user id. See [Create a Telegram Bot](#create-a-telegram-bot).
+2. Run `make setup`. It shows the current mode and asks **Keep local mode?** Answer `n`, pick **Telegram**, then enter the token and your id. Everything else is remembered.
+3. Run `make restart`, then send `/start` to your bot.
 
 <Note>
-  A Local install that never had Telegram runs as user id **1**. Adding a bot switches your login to your Telegram id: the API **servers** you configured are shared and carry over, but dashboard **preferences and agent conversations** are keyed per user and stay behind under id 1. Make this hop early, before there is much history to leave. (The reverse switch, Telegram → Local, keeps your id — and with it everything.)
+  A Local install that never had Telegram runs as user id **1**. Adding a bot switches your login to your Telegram id. The API **servers** you configured carry over, but Workspace **preferences and agent conversations** are kept per user and stay behind under id 1. Make this hop early. The reverse switch, Telegram → Local, keeps your id and everything with it.
 </Note>
 
 ### Keep Condor local, put the API on a server
 
-You do not have to move Condor to get 24/7 execution. Bots and executors run on the **Hummingbot API server** — a laptop Condor driving a VPS API keeps strategies running while the laptop sleeps. Only agents, routines and alerts live in Condor itself.
+You don't have to move Condor to get 24/7 execution. Bots and executors run on the **Hummingbot API server**, so a laptop Condor driving a VPS API keeps strategies running while the laptop sleeps. Only agents, routines and alerts live in Condor itself.
 
-1. On the VPS, run the **Hummingbot API only** installer and answer **`y`** to Tailscale — see [On the API server](#on-the-api-server).
+1. On the VPS, run the **Hummingbot API only** installer and answer **`y`** to Tailscale. See [On the API server](#on-the-api-server).
 2. On your machine, install [Tailscale](https://tailscale.com/download) and sign in to the same tailnet.
-3. Add the server — **Settings → Servers** in the dashboard (Local mode) or **`/servers`** in Telegram: host `hummingbot-api`, port `8000`, the credentials you set on the VPS.
-4. `make doctor` — the new server should report **reachable, authenticated**.
+3. Add the server in **Settings → Servers** in the Workspace, or **`/servers`** in Telegram: host `hummingbot-api`, port `8000`, and the credentials you set on the VPS.
+4. Run `make doctor`. The new server should report **reachable, authenticated**.
 
 ### Move Condor itself to the server
 
 When you want agents and routines running around the clock too:
 
-1. Install Condor on the VPS ([Quick Install](#quick-install)) in **Telegram mode**, and answer **`y`** to Tailscale — on a VPS it [is not optional](#server). Enter the same admin user id as your current install, because conversations and preferences are keyed to it.
+1. Install Condor on the VPS ([Quick Install](#quick-install)) in **Telegram mode**, and answer **`y`** to Tailscale. Enter the same admin user id as your current install, because conversations and preferences are keyed to it.
 2. Stop the new install (`make stop`) and copy your state over. From the old Condor directory:
 
    ```bash
@@ -248,33 +235,54 @@ When you want agents and routines running around the clock too:
    scp -r reports you@vps:condor/   # routine reports
    ```
 
-   Don't copy `.env`. The VPS's `.env` holds its own mode, Tailscale setting and dashboard address, and your laptop's values would change where the dashboard listens. Copy only values you added yourself, such as LLM provider keys.
+   Don't copy `.env`. The VPS's `.env` holds its own mode, Tailscale setting and Workspace address. Copy only values you added yourself, such as LLM provider keys.
 
    If you set `CONDOR_RUNTIME_ROOT`, `CONDOR_DATA_DIR` or `CONDOR_REPORTS_DIR`, copy those folders instead. See [Storage locations](/getting-started/configuration#storage-locations). If you wrote your own routines in `routines/`, copy those files too.
-3. On the VPS: `make doctor`, then `make run`. If the API now lives on this same VPS, point the server entry at `localhost` in **Settings → Servers** (or **`/servers`**).
+3. On the VPS, run `make doctor`, then `make run`. If the API now lives on this same VPS, point the server entry at `localhost` in **Settings → Servers** (or **`/servers`**).
 4. Retire the old install (`make stop` on the laptop) so two Condors are not driving the same accounts.
 
 ## Create a Telegram Bot
 
-<Info>Telegram mode only—skip this and the next section if you chose Local mode.</Info>
+<Info>Telegram mode only. Skip this if you chose Local mode.</Info>
 
-1. Open [@BotFather](https://t.me/botfather) in Telegram
-2. Send `/newbot` and follow the prompts to name your bot
-3. Copy the bot token (format: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+1. Open [@BotFather](https://t.me/botfather) in Telegram.
+2. Send `/newbot` and follow the prompts to name your bot.
+3. Copy the bot token (format: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`).
 
-## Get Your User ID
+### Get Your User ID
 
-1. Open [@userinfobot](https://t.me/userinfobot) in Telegram
-2. Send `/start` to receive your user ID
+1. Open [@userinfobot](https://t.me/userinfobot) in Telegram.
+2. Send `/start` to receive your user ID.
 
 ## Secure Remote Access with Tailscale
 
-Use Tailscale when Condor and Hummingbot API run on **different machines**—for example Condor on your laptop and the API on a cloud VPS.
+Hummingbot API can place orders, read balances and manage bots, and AI agents make that surface easier to reach. Tailscale puts the API on a private, encrypted network so only your devices can connect, without publishing port **8000** on a public IP. Use strong API passwords too: Tailscale adds network isolation on top of authentication, it doesn't replace it.
+
+For a full walkthrough, see [Securing Condor and Hummingbot API with Tailscale](https://hummingbot.org/blog/securing-condor-and-hummingbot-api-with-tailscale/) and the [Hummingbot API Tailscale guide](https://hummingbot.org/hummingbot-api/tailscale/).
+
+### Do I Need Tailscale?
+
+| Situation | Tailscale needed? |
+|-----------|--------------------|
+| Condor and Hummingbot API on one machine | No |
+| Same VPS, both services together | **No.** The API binds `127.0.0.1` by default. Still worth it if anything ever needs off-box access |
+| Different machines (for example, laptop + VPS) | **Yes** |
+| A team or multiple devices need access | **Yes** |
+| The Workspace from another device, in Telegram mode | **Yes.** See [The Workspace under Tailscale](#the-workspace-under-tailscale) |
+| The Workspace from another device, in Local mode | Tailscale does not help. Use an SSH tunnel, or switch to Telegram mode |
+
+### Set up your tailnet
+
+Create a free account at [tailscale.com](https://tailscale.com), then:
+
+1. Generate a **reusable** auth key at [Settings → Keys](https://login.tailscale.com/admin/settings/keys) (starts with `tskey-auth-`).
+2. Enable **[MagicDNS](https://login.tailscale.com/admin/dns)** so `hummingbot-api` resolves by name.
+3. Install Tailscale on every device that should reach the API (your laptop, the Condor host) and sign in to the same account.
 
 ### On the API server
 
-1. Run the **Hummingbot API only** installer (or Quick Start with API enabled)
-2. When asked **Use Tailscale for secure private networking?**, answer **`y`**
+1. Run the **Hummingbot API only** installer, or Quick Start with the API enabled.
+2. When asked **Use Tailscale for secure private networking?**, answer **`y`**.
 3. Paste your auth key and deploy:
 
 ```bash
@@ -285,8 +293,8 @@ make tailscale-status   # confirm hummingbot-api appears on your tailnet
 
 ### On the Condor machine
 
-1. Install [Tailscale](https://tailscale.com/download) and sign in to the **same account**
-2. In Telegram, open **`/servers`** — or in Local mode, **Settings → Servers** in the dashboard — and add the API with:
+1. Install [Tailscale](https://tailscale.com/download) and sign in to the **same account**.
+2. In Telegram, open **`/servers`**, or in Local mode **Settings → Servers** in the Workspace, and add the API with:
    - **Host**: `hummingbot-api` (MagicDNS name, not a public IP)
    - **Port**: `8000`
    - **Username / Password**: same as the API `.env`
@@ -297,97 +305,51 @@ Test from the Condor host:
 curl -u YOUR_USERNAME:YOUR_PASSWORD http://hummingbot-api:8000/
 ```
 
-### The dashboard under Tailscale
+### The Workspace under Tailscale
 
-What Tailscale does to the dashboard depends on the mode.
+**Telegram mode.** With `USE_TAILSCALE=true` in `.env`, Condor binds the Workspace to this machine's tailnet address instead of `0.0.0.0`. You reach it at `http://<tailnet-ip>:8088` from any device on your tailnet, and from nowhere else. The installer writes that address to `WEB_URL`, so `/web` links point to it.
 
-**Telegram mode.** With `USE_TAILSCALE=true` in `.env`, Condor binds the dashboard to this machine's own tailnet address instead of `0.0.0.0`. You reach it at `http://<tailnet-ip>:8088` from any device on your tailnet, and from nowhere else. The installer writes that address to `WEB_URL`, so `/web` links point to it.
-
-If Condor cannot find the tailnet address at startup (for example, Tailscale is not up yet), it binds `127.0.0.1` instead. It never falls back to a public bind. It then tries `tailscale serve` as a fallback, and logs an error if it cannot confirm that either. Fix Tailscale, then restart Condor so it picks up the tailnet address:
+If Condor can't find the tailnet address at startup (for example, Tailscale is not up yet), it binds `127.0.0.1` instead. It never falls back to a public bind. It then tries `tailscale serve`, and logs an error if it can't confirm that either. Fix Tailscale, then restart Condor so it picks up the tailnet address:
 
 ```bash
 tailscale status   # is this machine on the tailnet?
-make doctor        # warns when the dashboard is on loopback instead of the tailnet address
+make doctor        # warns when the Workspace is on loopback instead of the tailnet address
 make restart
 ```
 
-**Local mode.** Tailscale does not change anything. The dashboard has no login, so it stays on `127.0.0.1` whether or not Tailscale is on. To reach it from another device, use an SSH tunnel or switch to Telegram mode.
+**Local mode.** Tailscale changes nothing. The Workspace has no login, so it stays on `127.0.0.1` whether or not Tailscale is on.
 
 <Warning>
-  Do not set `WEB_HOST=0.0.0.0` to "fix" an unreachable dashboard. That publishes a login-free interface in Local mode, and a login-link one in Telegram mode, to every network the machine is attached to. `make doctor` reports it as a failure in Local mode, and in Telegram mode with Tailscale on.
+  Do not set `WEB_HOST=0.0.0.0` to "fix" an unreachable Workspace. That publishes a login-free interface in Local mode, and a login-link one in Telegram mode, to every network the machine is attached to. `make doctor` reports it as a failure in Local mode, and in Telegram mode with Tailscale on.
 </Warning>
 
 <Note>
   Browser notifications (**Settings → Notifications**) need a secure connection: `localhost` or HTTPS. They don't work at a plain `http://<tailnet-ip>:8088` address, so on a server you get alerts through Telegram.
 </Note>
 
-<Tip>
-  Tailscale also works when Condor and the API run on the **same machine**—you still get a stable hostname and avoid publishing port 8000 publicly.
-</Tip>
+### What binds where by default
 
-## Verify Installation
+Every port in the Hummingbot API stack is on loopback out of the box. The only exception is Condor's own Workspace, and only in Telegram mode, which authenticates.
 
-Run `make doctor` first—it reports dependencies, config, the AI model, the dashboard binding, Tailscale, and Hummingbot API connectivity in one pass, and exits non-zero if anything is actually broken.
+| Service | Port | Default bind | Setting |
+|---------|------|--------------|------|
+| Hummingbot API | `8000` | `127.0.0.1` | `API_BIND` in `hummingbot-api/.env` |
+| PostgreSQL | `5432` | `127.0.0.1` | `DB_BIND` in `hummingbot-api/.env` |
+| EMQX broker (MQTT) | `1883` | `127.0.0.1` | not configurable |
+| EMQX dashboard | `18083` | `127.0.0.1` | not configurable |
+| Condor Workspace | `8088` | Local mode: `127.0.0.1`. Telegram mode: `0.0.0.0`, or the machine's tailnet address with Tailscale on | `WEB_HOST` in `condor/.env` |
 
-**Telegram mode**
+EMQX's other listeners (`8883`, `8083`, `8084`, `8081`, `61613`) are not published at all. None of this replaces the credentials: a loopback bind protects the port, not the machine.
 
-1. Open your Telegram bot and send `/start`.
-2. If your id is `ADMIN_USER_ID`, or an admin has approved you, the bot replies with a short introduction and its main commands:
+<Warning>
+  **Installed before the API's port lockdown? Check it.** Hummingbot API used to publish port **8000 on every interface**, including a VPS's public IP. It now binds `127.0.0.1` by default (`${API_BIND:-127.0.0.1}` in `docker-compose.yml`), and so do Postgres and the EMQX broker. An existing stack keeps its old bindings until the containers are recreated. Run `make deploy` in `hummingbot-api`, then `make doctor`, which flags any of those ports still on a public interface.
 
-   ```text
-   I can help you create and manage trading bots on any CEX or DEX using Hummingbot API servers.
-
-   See this manual if you're new to Condor.
-
-   You can control me by sending these commands:
-
-   /keys - add exchange API keys
-   /portfolio - view balances across exchanges
-   /bots - deploy and manage trading bots
-   /trade - place CEX and DEX orders
-   /agent - AI trading assistant
-   /web - open the web dashboard
-   ```
-
-   A new user gets **Access Request Submitted** instead, and the admin is notified to approve them.
-
-**Local mode**
-
-1. Open `http://localhost:8088` in a browser on the machine running Condor
-2. You are logged in already—no token, no login screen
-
-<Note>
-  Each time Condor starts, the admin gets **"Condor is online and ready."** followed by the branch and commit it is running. In Telegram mode it arrives as a Telegram message and in the dashboard's notification bell. In Local mode it arrives in the bell only. If it does not appear within a minute or two, see [Troubleshooting](/getting-started/troubleshooting) (for example attach to the `condor` tmux session after Quick Start).
-</Note>
-
-## Access Points
-
-| Service | Local URL | Tailnet URL (when Tailscale enabled) | Description |
-|---------|-----------|--------------------------------------|-------------|
-| Telegram | Your bot | — | Primary interface (Telegram mode) |
-| API | `http://localhost:8000` | `http://hummingbot-api:8000` | REST API |
-| Swagger | `http://localhost:8000/docs` | `http://hummingbot-api:8000/docs` | API documentation |
-| Web Dashboard (Telegram mode) | Run `/web` in Telegram for a link | `http://<tailnet-ip>:8088` (`/web` links use it) | Browser interface, time-limited login link |
-| Web Dashboard (Local mode) | `http://localhost:8088` | Not available. Use an SSH tunnel | Browser interface, no login, loopback only |
+  If you *do* need the API reachable off-box, widen it deliberately with `API_BIND` in `hummingbot-api/.env`. Prefer a specific interface over `0.0.0.0`; with Tailscale, `API_BIND=<your-tailscale-ip>` keeps MagicDNS working without publishing anything to the internet. Docker's published ports are *not* blocked by `ufw`: Docker's rules are evaluated first, so `ufw deny 8000` leaves a widened port reachable unless you write `DOCKER-USER` rules yourself. Close the port in your cloud provider's firewall instead, which is enforced off-host.
+</Warning>
 
 ## Managing Services
 
-How you manage Condor depends on how you installed it.
-
-**After Quick Start (deploy installer):** Condor runs in a **tmux** session named `condor`.
-
-```bash
-tmux attach -t condor    # live logs and tracebacks (detach: Ctrl+B, then D)
-tmux kill-session -t condor   # stop Condor completely
-```
-
-From the directory that contains the `condor` folder, you can also upgrade with:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/hummingbot/deploy/main/setup.sh | bash -s -- --upgrade
-```
-
-**After Manual install:** `make run` also starts Condor in a **tmux** session named `condor`, and the Makefile wraps the same operations:
+Both installs run Condor in a **tmux** session named `condor`. From the Condor directory, the Makefile wraps the common operations:
 
 ```bash
 make run       # start (fails fast and prints the error if startup dies)
@@ -399,7 +361,13 @@ make run-fg    # run in the foreground instead, for debugging a startup error
 make doctor    # re-check dependencies, config, and API access
 ```
 
-**Hummingbot API (Docker):** From the `hummingbot-api` directory (sibling of `condor` when installed by the deploy script):
+After Quick Start you can also use tmux directly (`tmux attach -t condor`, `tmux kill-session -t condor`), and upgrade from the directory that contains the `condor` folder:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hummingbot/deploy/main/setup.sh | bash -s -- --upgrade
+```
+
+For Hummingbot API (Docker), from the `hummingbot-api` directory (next to `condor` when the deploy script installed it):
 
 ```bash
 make doctor              # containers, port exposure, credentials, Tailscale, API auth
@@ -409,164 +377,21 @@ make tailscale-status    # when Tailscale is enabled
 make emqx-audit          # broker listeners, auth, ACL and any rule-engine rules
 ```
 
-## Keeping Condor updated
+To update Condor and Hummingbot API, see [Updating Condor](/getting-started/updating). For what Condor sends and how to turn it off, see [Privacy: Telemetry and Sharing](/getting-started/privacy).
 
-Updating is admin-only and available from **both** surfaces, over one shared
-engine: `/update` in Telegram and **Settings → Updates** in the dashboard. They
-are two views of the same run, so an update started in Telegram can be watched
-to completion in the browser and vice versa — starting a second one hands you
-back the one already in flight rather than queueing it.
+### Access Points
 
-<Note>
-  This is what makes a **Local mode** install self-sufficient: the dashboard
-  panel is the surface it has, so an install with no Telegram bot does not need
-  one to update.
-</Note>
-
-### What can be updated
-
-Two components, versioned by what actually governs them:
-
-| Component | How it is versioned |
-|-----------|---------------------|
-| **Condor** | A git checkout — `HEAD` against `origin/<branch>` |
-| **Hummingbot API** | A git checkout **and** a container image. The repo governs the compose file and the bind-mounted `bots/`; the image governs the API's own code, so both are reported |
-
-Whether the API is rebuilt from source or pulled as a published image is not a
-setting — `docker compose config` already knows, from whether the service has a
-`build:` key.
-
-### Preflight: what is in the way
-
-Before anything runs you get the blockers, the warnings, and the ordered plan.
-
-**Blockers** stop the update and say why in terms you can act on — the checkout
-is not a git repo, it has commits the remote does not (so it cannot be
-fast-forwarded), local changes would be overwritten, or the registry could not
-be reached. Where a blocker has a safe way out it offers one: a dirty checkout
-can be resolved with **discard** or **stash** without leaving the panel.
-
-**Warnings** never refuse — they tell you a consequence worth knowing:
-restarting the API container stops its executors, and Condor keeps running the
-code it booted with until you relaunch it.
-
-### The relaunch step
-
-An update deliberately stops one step short of running the new code. It lands
-the code, syncs dependencies, rebuilds the dashboard, records that a relaunch is
-owed, and asks you to do it.
-
-That is not an omission. Condor is almost never the top of its own process tree
-— started through `make run`, a shell wrapper, or a supervisor — so re-execing
-itself races the parent into bringing a **second** Condor up on the same port,
-against the same config and the same Telegram token.
-
-```bash
-make restart
-```
-
-Between the update and the relaunch, every seat sees a **relaunch to apply**
-banner, because the browser is running the new bundle against the old API and
-would otherwise just look broken. The run is journalled to `data/update_run.json`
-at every step, so the panel picks the result back up across the restart and the
-next boot tells you whether the update worked.
-
-### Update notifications
-
-Condor checks in the background and tells the admin when a component falls
-behind — **once per update, not once per check**, so deferring one does not
-bury the rest of your notifications. Each surface gets a next step it can
-actually take: a Telegram message, and a bell entry that opens the update panel
-for a browser-only admin.
-
-Tune it with `UPDATE_CHECK_INTERVAL` in `.env` — seconds, default `3600`, and
-`0` disables the checks. The first runs 30 seconds after startup.
-
-<Note>
-  Both paths are **git-based**, so they work on a git checkout — which is what
-  the Quick Start and manual installs both produce. An install unpacked some
-  other way is reported as a blocker rather than silently skipped, and updates
-  by whatever means it was installed.
-</Note>
-
-## Privacy: telemetry and sharing
-
-Two separate things, with separate switches. Neither sends anything about your trading, your keys, or your balances.
-
-### Telemetry — anonymous counts
-
-Telemetry is set once for the whole install, by the admin. It is **on by default, and you can turn it off**. Three levels:
-
-| Level | What it sends |
-|---|---|
-| `ping` | Only that this install exists: `install`, `heartbeat`, `version_change`, `shutdown`. This is all an install sends until the admin has seen the telemetry notice. **Only count my install** in Settings keeps it here. |
-| `usage` | The above plus feature, reliability and agent events — which command ran, which connector a bot deployed on, an error's *type* and a hash of its message. **The default once the admin has seen the notice.** |
-| `off` | Nothing. Nothing is buffered, written or sent. |
-
-The identifier is a random UUID generated once — not derived from your hostname, username, MAC, or any token. Server names, URLs and keys are never sent; a routine you wrote yourself is reported as `custom` rather than by name. The full list is in Condor's [`PRIVACY.md`](https://github.com/hummingbot/condor/blob/main/PRIVACY.md).
-
-**The notice.** Condor tells the admin once that usage summaries are on:
-
-- **Telegram mode:** a message next to the startup notification, with **Got it** and **Turn off** buttons.
-- **Dashboard:** a strip at the top of the page, shown to the admin, with **Got it** and a **Turn off or see details** link to Settings → Privacy. This is how a Local mode install is told.
-
-Until the notice has been delivered, the install stays at `ping`. After that, it sends `usage` unless the admin turns it off. Ignoring the notice is not a refusal.
-
-**Turning it off.** Any of these works:
-
-1. **Turn off** on the Telegram notice.
-2. **Settings → Privacy** in the dashboard. Anyone can read it; only the admin can change it. See [Privacy](/webui/settings#privacy).
-3. **`CONDOR_TELEMETRY=off`** in `.env`. The environment variable overrides everything stored, in both directions: `ping` or `usage` there also overrides a stored refusal.
-
-A refusal from the notice or from Settings is saved in `config.yml` (the `telemetry` section, `consent: denied`), so it survives upgrades and you are not asked again.
-
-To see what your install is actually doing, from the Condor directory:
-
-```bash
-uv run python -c "from condor.telemetry import consent; print(consent.level())"
-```
-
-<Note>
-  Downgrading from `usage` to `ping`, or turning telemetry off, is a **withdrawal, not a pause** — the in-memory buffer and the outbox file are deleted, so nothing already recorded can be sent afterwards.
-</Note>
-
-### Sharing — whole conversations
-
-Separate from telemetry, and off until you turn it on. Telemetry is anonymous counts an admin consents to once; a share is a **transcript**, and only the person who held the conversation can hand it over. Secrets are redacted before a transcript is built, and again before it leaves.
-
-In Settings → Privacy:
-
-- **Off** — nothing is shared. The share button still works if you want it. **This is where every install starts.**
-- **Ask me** — the button, one conversation at a time, with the redacted transcript in front of you before you confirm.
-- **Always** — conversations are shared on their own, redacted the same way, **without showing you first**.
-
-Always is the only path where nobody reads the payload first, so it is deliberately narrower than the button — any one of these stops a conversation going:
-
-- **Idle** — only after 30 minutes of silence in that chat.
-- **Forward-only** — only conversations *started after* you chose Always. Your archive is never swept, and turning it off and on again starts a fresh window rather than reaching back.
-- **Single-author only** — a Telegram group is never taken automatically. You can consent for yourself, not for the other people in the room.
-- **Excluded chats, forever** — every covered conversation carries an undismissable marker with one click to leave it out, and that exclusion is permanent.
-- **Rate limited** — at most 3 conversations per 15-minute sweep.
-
-The operator-level kill switch:
-
-```bash
-CONDOR_SHARING=off          # in .env — destroys queued transcripts too
-```
-
-<Note>
-  `CONDOR_SHARING=off` reaches transcripts already queued and destroys them — but a queued **unshare** is still delivered, because a revocation is a deletion the install already promised.
-</Note>
+| Service | Local URL | Tailnet URL (with Tailscale) | Description |
+|---------|-----------|--------------------------------------|-------------|
+| Telegram | Your bot | — | Primary interface (Telegram mode) |
+| API | `http://localhost:8000` | `http://hummingbot-api:8000` | REST API |
+| Swagger | `http://localhost:8000/docs` | `http://hummingbot-api:8000/docs` | API documentation |
+| Workspace (Telegram mode) | Run `/web` in Telegram for a link | `http://<tailnet-ip>:8088` (`/web` links use it) | Browser interface, time-limited login link |
+| Workspace (Local mode) | `http://localhost:8088` | Not available. Use an SSH tunnel | Browser interface, no login, loopback only |
 
 ## Troubleshooting
 
-Hit a snag—Condor can't reach the API, Telegram stays quiet, Tailscale won't connect—or want to check whether your broker needs securing? See the dedicated [Troubleshooting](/getting-started/troubleshooting) page, which also covers the [message broker security fix](/getting-started/troubleshooting#secure-the-message-broker).
-
-## Next Step
-
-<Card title="Adding Credentials" icon="arrow-right" href="/getting-started/credentials">
-  Connect your exchange accounts
-</Card>
+Condor can't reach the API, Telegram stays quiet, or Tailscale won't connect? See [Troubleshooting](/getting-started/troubleshooting), which also covers [securing the message broker](/getting-started/troubleshooting#secure-the-message-broker).
 
 Got Condor running? Tell us how install went, what's confusing, and what you need next.
 

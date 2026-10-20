@@ -1,6 +1,6 @@
 ---
 title: "MCP Tools"
-description: "The tools Trading Agents and Condor can call, which seat gets which tools, and how to narrow an agent's tool list"
+description: "The tools Condor Agents and Condor can call, which seat gets which tools, and how to narrow an agent's tool list"
 ---
 
 Agents act through tools served by two **MCP (Model Context Protocol)** servers. Condor starts both for every session and decides which tools each one registers, based on who is in the seat.
@@ -136,7 +136,7 @@ Each `create_*_executor` tool takes an optional `controller_id`, the tag that ow
 | `manage_gateway_config` | Read Gateway's configuration, and edit the tokens and pools it knows | `full` |
 
 <Note>
-When Condor starts the server, `configure_server` can only show the current connection. Condor passes in the server owner's credentials, so the tool refuses to change the connection. Add or switch servers in the dashboard under **Settings → Servers**.
+When Condor starts the server, `configure_server` can only show the current connection. Condor passes in the server owner's credentials, so the tool refuses to change the connection. Add or switch servers in the Workspace under **Settings → Servers**.
 </Note>
 
 ## Condor tools

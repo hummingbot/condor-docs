@@ -16,7 +16,7 @@ description: "Docker containers for long-running trading automation"
 
 ```mermaid
 flowchart TB
-    subgraph Agent["Trading Agent"]
+    subgraph Agent["Condor Agent"]
         A[Agent Logic]
     end
 
@@ -52,7 +52,7 @@ flowchart TB
 
 A bot runs one or more saved controller configs. Create the configs first (see [Controllers](/bots/controllers)), then deploy a bot that runs them.
 
-**Dashboard**: on the [Bots](/webui/bots#deploy-bot) page, click **Deploy bot**, select one or more configs, and click **Deploy**.
+**Workspace**: on the [Bots](/webui/bots#deploy-bot) page, click **Deploy bot**, select one or more configs, and click **Deploy**.
 
 **Telegram**: send `/new_bot`, select one or more configs, choose **🚀 Deploy**, and answer the prompts for instance name, credentials profile, drawdown limits and image. Telegram lists configs for `grid_strike`, `pmm_mister` and `pmm_v1` only.
 
@@ -75,12 +75,12 @@ Start and stop work at two levels.
 
 **A single controller** pauses or resumes one strategy while the rest of the bot keeps running. Stopping a controller turns on its kill switch: it cancels its orders and stops opening new executors, but keeps its config.
 
-- **Dashboard**: select the controller on the Bots page and click **Pause** or **Start**.
+- **Workspace**: select the controller on the Bots page and click **Pause** or **Start**.
 - **Telegram**: `/bots` → select the bot → tap ⏸ or ▶️ next to the controller, or open the controller and use Stop / Start.
 
 **The whole bot**: stopping a bot stops its container and archives its data. It can't be restarted; deploy a new bot instead.
 
-- **Dashboard**: select the bot and click **Stop bot**, then **Confirm**.
+- **Workspace**: select the bot and click **Stop bot**, then **Confirm**.
 - **Telegram**: `/bots` → select the bot → **🛑 Stop Bot** → **✅ Yes, Stop**.
 
 **API**:
@@ -95,7 +95,7 @@ curl -u YOUR_USERNAME:YOUR_PASSWORD -X POST http://localhost:8000/bot-orchestrat
 
 ### Monitoring
 
-**Dashboard**: the [Bots](/webui/bots) page shows PnL, volume, win rate, open positions and executors for any bot, controller or group. Finished runs are under **Terminated**.
+**Workspace**: the [Bots](/webui/bots) page shows PnL, volume, win rate, open positions and executors for any bot, controller or group. Finished runs are under **Terminated**.
 
 **Telegram**: `/bots` lists running bots. Open one for its controllers and recent errors.
 
@@ -112,7 +112,7 @@ The Hummingbot API also records a snapshot of every running controller every 5 m
 
 ### Logs
 
-- **Dashboard**: select the bot and click **Logs**.
+- **Workspace**: select the bot and click **Logs**.
 - **Telegram**: `/bots` → select the bot → **📋 Logs**.
 
 Each bot runs in its own Docker container named after the bot, so you can also read logs directly:
@@ -132,7 +132,7 @@ Each bot runs in an isolated Docker container:
 
 Agents deploy and manage bots with the `manage_bots` tool. It takes an `action`: `deploy`, `status`, `logs`, `stop_bot`, `start_controllers`, `stop_controllers`, `get_config` or `update_config`.
 
-- `deploy` needs `bot_name` and `controllers_config`. Optional `max_global_drawdown_quote`, `max_controller_drawdown_quote`, `account_name` and `image` match the dashboard's advanced settings.
+- `deploy` needs `bot_name` and `controllers_config`. Optional `max_global_drawdown_quote`, `max_controller_drawdown_quote`, `account_name` and `image` match the Workspace's advanced settings.
 - `status` takes no other arguments and reports every active bot.
 - `stop_bot` stops the bot **and archives it**.
 - `start_controllers` / `stop_controllers` need `bot_name` and `controller_names`.
@@ -140,4 +140,4 @@ Agents deploy and manage bots with the `manage_bots` tool. It takes an `action`:
 
 Saved configs and controller code are managed with `manage_controllers` (`list`, `describe`, `upsert`, `delete`).
 
-An agent can also carry its own controllers in its folder and push them to the server when it needs them. See [Agent architecture → Controllers](/trading-agents/architecture#controllers) and, for a worked example, [Run the Market Making Expert](/examples/market-making-expert).
+An agent can also carry its own controllers in its folder and push them to the server when it needs them. See [Agent architecture → Controllers](/trading-agents/architecture#controllers) and, for a worked example, [Guide: Market Making Expert Agent](/examples/market-making-expert).

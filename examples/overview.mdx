@@ -1,18 +1,24 @@
 ---
-title: "Shipped Agents"
+title: "Example Agents"
 description: "The agents that come with Condor, what each one does, and step-by-step guides for running them"
 ---
 
-Condor ships with a set of agents in its `agents/` folder. Each one is a specialist you can chat with, hand work to, or run as a loop. They appear under **Agents** in the dashboard as soon as Condor starts.
+Condor ships with a set of agents in its `agents/` folder. Each one is a specialist you can chat with, hand work to, or run as a loop. They appear under **Agents** in the Workspace as soon as Condor starts.
 
 ## Step-by-step guides
 
 <CardGroup cols={2}>
-  <Card title="Run the Market Making Expert" icon="scale-balanced" href="/examples/market-making-expert">
+  <Card title="Guide: Market Making Expert Agent" icon="scale-balanced" href="/examples/market-making-expert">
     Quote both sides of a perpetual market with the `pmm_mister` controller, retuned to the market regime every tick.
   </Card>
-  <Card title="Run the Solana LP Expert" icon="water" href="/examples/solana-lp">
+  <Card title="Guide: Solana DEX LP Expert Agent" icon="water" href="/examples/solana-lp">
     Rank trending Solana pools by fee yield and rotate concentrated-liquidity positions on Meteora and Orca.
+  </Card>
+  <Card title="Guide: Adaptive Grid Trader Agent" icon="chart-line" href="/examples/adaptive-grid-trader">
+    Run an hourly grid on a perpetual pair that picks its direction from multi-timeframe analysis and recycles itself when it stalls or profits.
+  </Card>
+  <Card title="How Condor Works" icon="brain" href="/condor-agent/overview">
+    The assistant you chat with is itself an agent: a brain, a skill library and a memory store per user.
   </Card>
 </CardGroup>
 
@@ -45,4 +51,4 @@ Delegated work runs without asking for your approval on each action. Only delega
 
 ## Changing or adding agents
 
-You can edit any shipped agent from the dashboard or by asking Condor. Your changes are saved as copies in `.condor/agents/`, so updates to Condor never overwrite them. To create your own agent, see [Architecture](/trading-agents/architecture#creating-your-own-agent).
+You can edit any shipped agent from the Workspace or by asking Condor. Your changes are saved as copies in `.condor/agents/`, so updates to Condor never overwrite them. To create your own agent, see [Architecture](/trading-agents/architecture#creating-your-own-agent).

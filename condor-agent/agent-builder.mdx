@@ -3,7 +3,7 @@ title: "Skill: Agent Builder"
 description: "How Condor's agent_builder skill creates trading agents, from a description or from a folder of your own controllers, configs and notes"
 ---
 
-`agent_builder` is a skill that ships with the Condor assistant. When you ask Condor to create, edit, test, launch, monitor or delete a trading agent, it follows this skill. It works the same in the dashboard chat and in Telegram.
+`agent_builder` is a skill that ships with the Condor assistant. When you ask Condor to create, edit, test, launch, monitor or delete a trading agent, it follows this skill. It works the same in the Workspace chat and in Telegram.
 
 The skill has two paths:
 
@@ -72,7 +72,7 @@ The skill builds the smallest useful agent first. It doesn't ask about routines,
 </Steps>
 
 <Warning>
-**Check where a new routine landed.** The background worker's instructions tell it to save routines to Condor's general library, which the agent can't run. Open **Routines** in the dashboard and check that the routine is listed under your agent. If it isn't, ask Condor to recreate it in the agent's library (`manage_routines` `create_routine` with `agent="<slug>"`).
+**Check where a new routine landed.** The background worker's instructions tell it to save routines to Condor's general library, which the agent can't run. Open **Routines** in the Workspace and check that the routine is listed under your agent. If it isn't, ask Condor to recreate it in the agent's library (`manage_routines` `create_routine` with `agent="<slug>"`).
 </Warning>
 
 ## Path B: Build from a folder
@@ -154,7 +154,7 @@ Every loop can be started in three execution modes. Use them in this order:
 | `run_once` | One live tick. The agent can open real executors or deploy a real bot. |
 | `loop` | Ticks every `frequency_sec` until stopped or `max_ticks` is reached. |
 
-Dry runs and single ticks write one file each to `loops/<loop>/dry_runs/experiment_N.md`, not a session. In the dashboard, start them from the agent page's **Start** dialog and read the results in the **Runs** tab. From chat, ask Condor; starting a loop in any mode asks for your approval first.
+Dry runs and single ticks write one file each to `loops/<loop>/dry_runs/experiment_N.md`, not a session. In the Workspace, start them from the agent page's **Start** dialog and read the results in the **Runs** tab. From chat, ask Condor; starting a loop in any mode asks for your approval first.
 
 <Note>
 A Dry Run also refuses routines and `run_code`. The agent can't run its own analysis and reads the market with read-only tools such as `get_market_data` instead. Treat a Dry Run as a check of wiring and reasoning, not of the strategy.
@@ -166,7 +166,7 @@ A Dry Run also refuses routines and `run_code`. The agent can't run its own anal
 
 ## Monitoring and changing agents
 
-Ask Condor, or use the agent page in the dashboard (`/agents/<slug>`). The skill uses these tools:
+Ask Condor, or use the agent page in the Workspace (`/agents/<slug>`). The skill uses these tools:
 
 | To | Tool |
 |---|---|
@@ -190,6 +190,59 @@ Ask Condor, or use the agent page in the dashboard (`/agents/<slug>`). The skill
 - One routine per background job, and Condor never writes routine code itself. A background job gets 900 seconds by default, so several routines in one job tend to time out.
 - A loop that can trade always has risk limits, is dry-run first, and goes live only when you say so.
 - Background agent runs are unattended and have no approvals, so only hand work to agents you trust.
+
+## How agents improve themselves
+
+An agent you build doesn't stay as the builder left it. Every agent, Condor included, reads two playbooks from the shared skill library that tell it how to learn from working with you:
+
+| Skill | What it does |
+|---|---|
+| `self_improve` | A reflex the agent runs straight after a feedback moment: a correction, a stated preference, a missed step or a better way of doing something. It saves the lesson then and there, not at the end of the session. |
+| `skill_authoring` | How to write a skill well: what goes in each field, whose library it belongs in, and when something should be a memory or a routine instead |
+
+### `self_improve`: turn feedback into memory or a skill
+
+When you correct an agent or tell it how you like things done, the agent sorts the lesson into one of three kinds:
+
+| Feedback is | For example | What the agent does |
+|---|---|---|
+| A preference or stable fact about you | "Use 3 months as the default backtest window" | Saves a memory with `manage_memory`, one fact per memory |
+| A workflow pattern or a missed step | "When I ask for a backtest, list the available controllers first" | Updates an existing skill if one covers it, otherwise creates a new skill with `manage_skill` |
+| A one-off detail of this session | "Use 50 USDT for this test" | Nothing. It doesn't clutter memory or skills with it. |
+
+Memory belongs to one agent and one user: what you teach the Market Making Expert isn't visible to Condor or to other agents. A rule that should apply to every agent belongs in a shared skill instead, and the agent tells you so.
+
+Before creating a skill, the agent lists the skills it already has, so it edits a playbook rather than writing a duplicate. A skill inherited from the shared library is read-only to it. To change one for itself, an agent writes its own skill with the same name, which takes precedence.
+
+### `skill_authoring`: how a skill is written
+
+The agent reads `skill_authoring` before writing a skill. A skill has four parts:
+
+| Part | Purpose |
+|---|---|
+| `name` | The lookup key other skills and agents refer to. Keep it stable. |
+| `description` | One line on what the skill covers. Shown in the `[SKILLS]` index on every turn. |
+| `when_to_use` | The trigger: the requests and situations that should make the agent read it. Also in the index, so it has to be specific. |
+| Body | The playbook itself, with exact tool calls where precision matters, and what *not* to do |
+
+Skills are created and edited only through `manage_skill`, never written to disk by hand:
+
+| Action | Use |
+|---|---|
+| `list`, `search`, `read` | Check what exists and read a playbook before following or editing it |
+| `create`, `edit`, `delete` | Add a skill, patch only the fields that changed, or remove one |
+| `write_file`, `read_file` | Attach a companion file, such as a config template, that stays out of context until it is needed |
+
+Two more rules from the playbook:
+
+- **Link the routine that does the work.** If a skill's main step is running a routine, the agent links it with `references_routine`. Reading the skill then reports `routine_ok: false` if the routine has since been deleted.
+- **Default to the agent's own library.** A skill in the shared library lands in every agent's context on every turn, so only Condor can publish one there (`shared=True`), and only for a flow that applies to every agent. From the chat, `agent="<slug>"` writes a skill to that agent's library instead.
+
+<Tip>
+For a skill that keeps missing cases, ask for the `skill_optimizer`: *"optimize the pmm_config_playbook skill"*. It runs in the background, tests the skill against generated scenarios, edits it, and repeats for a set number of rounds, notifying you after each one.
+</Tip>
+
+You can read and edit what an agent has learned: its skills are under `.condor/agents/<slug>/skills/`, and you can review its memories with `/memory` in Telegram. See [How Condor Works](/condor-agent/overview#memory-what-it-knows-about-you) for how memory is stored and audited.
 
 ## Best practices
 

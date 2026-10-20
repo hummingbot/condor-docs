@@ -75,7 +75,7 @@ async def run(config: Config, context: ContextTypes.DEFAULT_TYPE) -> str:
 
 - **The file name is the routine's name.** Save this as `price_check.py` and it appears as `price_check`.
 - **The first line of the `Config` docstring is the routine's description.** It shows on the routine's card and in the list agents see.
-- **Each `Field(description=...)` labels a setting** in the dashboard config form and in Telegram.
+- **Each `Field(description=...)` labels a setting** in the Workspace config form and in Telegram.
 - **`get_client(chat_id, context=context)`** returns a Hummingbot API client for the server the run was started on.
 
 <Warning>
@@ -86,8 +86,8 @@ Never put an API key, password or private key in a `Config` default. Routine def
 
 `run(config, context)` can return either:
 
-- **A string.** Shown in Telegram and in the dashboard's **Output** view.
-- **A `RoutineResult`.** It has a `text` field for Telegram and optional fields the dashboard renders: `table_data` and `table_columns`, a `chart_image` (PNG bytes) and `sections`.
+- **A string.** Shown in Telegram and in the Workspace's **Output** view.
+- **A `RoutineResult`.** It has a `text` field for Telegram and optional fields the Workspace renders: `table_data` and `table_columns`, a `chart_image` (PNG bytes) and `sections`.
 
 ```python
 from routines.base import RoutineResult
@@ -116,7 +116,7 @@ The shipped `price_monitor` routine is continuous. It keeps a [live report](/rou
 
 | Where | How |
 |---|---|
-| **Dashboard** | The [Routines page](/webui/routines): pick a routine, set its config, then **Run** or **Schedule** |
+| **Workspace** | The [Routines page](/webui/routines): pick a routine, set its config, then **Run** or **Schedule** |
 | **Telegram** | `/routines`: pick a routine, edit its config, then **Run**, **Background**, **Schedule** or **Start** |
 | **Chat** | Ask Condor to run it, for example *"run market_scanner with top_n=50"* |
 | **Agents** | An agent calls `manage_routines(action="run", name=..., config={...})` on its tick |
@@ -153,6 +153,6 @@ Condor saves routines it writes to the top-level `routines/` folder. To make one
     Save HTML reports with charts and tables
   </Card>
   <Card title="Routines page" icon="window-maximize" href="/webui/routines">
-    Run, schedule and browse reports in the dashboard
+    Run, schedule and browse reports in the Workspace
   </Card>
 </CardGroup>

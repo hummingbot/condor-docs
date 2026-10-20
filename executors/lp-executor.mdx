@@ -5,7 +5,7 @@ description: "Open, monitor and close a concentrated-liquidity position on a CLM
 
 The **LP Executor** manages one concentrated-liquidity (CLMM) position through Gateway. It opens the position inside a price range, tracks whether the price is in range, accrues fees, and closes the position when the price crosses a limit price or when you stop it.
 
-For a complete agent built on it, see [Run the Solana LP Expert](/examples/solana-lp).
+For a complete agent built on it, see [Guide: Solana DEX LP Expert Agent](/examples/solana-lp).
 
 ## Overview
 
@@ -198,10 +198,10 @@ The API returns these fields in the executor's `custom_info`, from `GET /executo
 
 Net P&L is the position's current value plus the fees earned, minus the value deposited at open, minus transaction fees. The deposit is valued at the price when the position opened; everything else at the current price.
 
-Rent isn't part of P&L. On Solana, opening a position locks rent in SOL, and closing the position refunds it. Meteora positions, for example, lock about 0.057 SOL each (see [Run the Solana LP Expert](/examples/solana-lp)).
+Rent isn't part of P&L. On Solana, opening a position locks rent in SOL, and closing the position refunds it. Meteora positions, for example, lock about 0.057 SOL each (see [Guide: Solana DEX LP Expert Agent](/examples/solana-lp)).
 
 ## Learn more
 
-- [Run the Solana LP Expert](/examples/solana-lp): an agent that opens and rotates LP positions
+- [Guide: Solana DEX LP Expert Agent](/examples/solana-lp): an agent that opens and rotates LP positions
 - [Position Handover](/executors/position-handover): how a held position reaches the agent's inventory
 - [MCP Tools](/trading-agents/mcp-tools): `create_lp_executor`, `stop_executor` and the orphan tools

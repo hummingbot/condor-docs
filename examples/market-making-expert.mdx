@@ -1,5 +1,5 @@
 ---
-title: "Run the Market Making Expert"
+title: "Guide: Market Making Expert Agent"
 description: "Start the Market Making Expert's PMM Mister Operator loop on a perpetual pair, watch it, and stop it safely"
 ---
 
@@ -15,10 +15,10 @@ This guide runs its **PMM Mister Operator** loop on one pair you choose.
 
 <Steps>
   <Step title="Condor connected to a Hummingbot API server">
-    Follow [Installing](/getting-started/installing). In the dashboard the server selector in the top bar shows a green dot when the server is reachable.
+    Follow [Installing](/getting-started/installing). In the Workspace the server selector in the top bar shows a green dot when the server is reachable.
   </Step>
   <Step title="Exchange keys for a perpetual account">
-    Add them in **Settings → Keys and Wallets → Add API Key**, and start with a small balance. See [Exchange Credentials](/getting-started/credentials). The dashboard doesn't list testnet connectors such as `binance_perpetual_testnet`; those can only be added through the Hummingbot API directly.
+    Add them in **Settings → Keys and Wallets → Add API Key**, and start with a small balance. See [Exchange Credentials](/getting-started/credentials). The Workspace doesn't list testnet connectors such as `binance_perpetual_testnet`; those can only be added through the Hummingbot API directly.
   </Step>
   <Step title="A model the agent can run on">
     The agent's model is shown next to its name on the agent page; click it to change it. See [LLM Integration](/llm-integration).
@@ -45,7 +45,7 @@ Every bot deploy must declare a loss cap (`max_global_drawdown_quote`). The bot 
 
 <Steps>
   <Step title="Open the agent">
-    Open `/agents/market_making_expert` in the dashboard. From the chat, you can also open the **Agent** panel for Market Making Expert and click **Workspace**.
+    Open `/agents/market_making_expert` in the Workspace. From the chat, you can also open the **Agent** panel for Market Making Expert and click **Workspace**.
   </Step>
   <Step title="Pick the loop">
     In the loop selector under the agent's name, choose **PMM Mister Operator**.
@@ -78,7 +78,7 @@ Every bot deploy must declare a loss cap (`max_global_drawdown_quote`). The bot 
     Choose **Dry Run** and click **Run Dry Test**. The agent runs one tick in which every action is refused, then stops. Open the **Runs** tab to read its decision.
 
     <Frame>
-      <img src="/images/webui/agent-runs.jpg" alt="The Runs tab showing a dry run's regime read and HOLD recommendation" />
+      <img src="/images/webui/agent-runs.jpg" alt="The Runs tab showing a dry run's regime read and the deploy it would make" />
     </Frame>
 
     <Note>
@@ -159,5 +159,5 @@ To stop the loop, ask the agent to stop it. `/stop` only cancels the reply the a
 ## Learn more
 
 - [Architecture](/trading-agents/architecture): how loops, sessions and the risk engine work
-- [Run the Solana LP Expert](/examples/solana-lp): the same workflow for DEX liquidity
+- [Guide: Solana DEX LP Expert Agent](/examples/solana-lp): the same workflow for DEX liquidity
 - [Bots](/webui/bots): watching and stopping the deployed bot

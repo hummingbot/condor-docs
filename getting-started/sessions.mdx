@@ -1,9 +1,11 @@
 ---
-title: "Managing Agent Sessions"
-description: "Watch, pause, stop and inspect a running Trading Agent from the dashboard or Telegram"
+title: "Agent Loops"
+description: "What a loop is, and how to watch, pause, stop and inspect one from the Workspace or Telegram"
 ---
 
 import FeedbackSurvey from "/snippets/feedback-survey.mdx";
+
+A **loop** is what makes an agent act on its own. It is a playbook of what the agent does on each **tick**, run at a frequency you set, and it lives in the agent's folder at `loops/<loop>/loop.md`. An agent can own several loops. An agent with no loop of its own gets a generic **Default** loop, driven by its `AGENT.md`, the first time you start it.
 
 Each time you start a loop in **Loop** mode, Condor opens a new **session**: a numbered run with its own journal, its own per-tick snapshots and its own executors. This page shows you how to watch a session, pause it, stop it and read what the agent did on each tick.
 
@@ -11,7 +13,7 @@ For what a session is and what Condor writes to disk, see [Sessions](/trading-ag
 
 ## The agent page
 
-Open an agent from **Agents** in the dashboard, or go to `/agents/<slug>`. Choose a loop in the selector under the agent's name.
+Open an agent from **Agents** in the Workspace, or go to `/agents/<slug>`. Choose a loop in the selector under the agent's name.
 
 <Frame>
   <img src="/images/webui/agent-page.jpg" alt="The Market Making Expert's agent page with the PMM Mister Operator loop selected and the Now, Runs, Fleet and Playbook tabs" />
@@ -49,7 +51,7 @@ After a Dry Run or Run Once, the **Now** tab still says "This loop has not run y
 </Note>
 
 <Frame>
-  <img src="/images/webui/agent-dry-run.jpg" alt="The agent page after a dry run: the run selector shows D1 with 1 tick and the Now tab still says the loop has not run yet" />
+  <img src="/images/webui/agent-dry-run.jpg" alt="The agent page after a dry run: the run selector shows D2 with 1 tick and the Now tab still says the loop has not run yet" />
 </Frame>
 
 The other fields:
@@ -107,7 +109,7 @@ Condor tells you about a loop when something needs your attention:
 - a loop reaching its `max_ticks` limit
 - an emergency shutdown
 
-These appear in the notification bell in the dashboard's top bar, and in Telegram if you use it. Each one links to the agent's page.
+These appear in the notification bell in the Workspace's top bar, and in Telegram if you use it. Each one links to the agent's page.
 
 ## From Telegram
 

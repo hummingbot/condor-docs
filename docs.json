@@ -34,7 +34,8 @@
               "introduction",
               "learning-path",
               "motivation",
-              "feedback"
+              "feedback",
+              "hummingbot-foundation"
             ]
           },
           {
@@ -42,27 +43,42 @@
             "pages": [
               "getting-started/overview",
               "getting-started/installing",
-              "getting-started/configuration",
-              "getting-started/telegram",
               "getting-started/web-dashboard",
+              "getting-started/telegram",
               "llm-integration",
               "getting-started/credentials",
               "getting-started/portfolio",
-              "getting-started/first-agent",
-              "getting-started/sessions",
+              "getting-started/configuration",
+              "getting-started/updating",
+              "getting-started/privacy",
               "getting-started/troubleshooting"
             ]
           },
           {
-            "group": "Examples",
+            "group": "Condor Agents",
             "pages": [
-              "examples/overview",
-              "examples/market-making-expert",
-              "examples/solana-lp"
+              "trading-agents/overview",
+              "trading-agents/architecture",
+              "trading-agents/sessions",
+              "trading-agents/mcp-tools",
+              "trading-agents/inventory"
             ]
           },
           {
-            "group": "Web UI Pages",
+            "group": "Running and Building Agents",
+            "pages": [
+              "condor-agent/overview",
+              "examples/overview",
+              "getting-started/sessions",
+              "examples/market-making-expert",
+              "examples/solana-lp",
+              "examples/adaptive-grid-trader",
+              "getting-started/first-agent",
+              "condor-agent/agent-builder"
+            ]
+          },
+          {
+            "group": "Workspace Pages",
             "pages": [
               "webui/agents",
               "webui/portfolio",
@@ -104,23 +120,6 @@
                 ]
               },
               "webui/settings"
-            ]
-          },
-          {
-            "group": "The Condor Agent",
-            "pages": [
-              "condor-agent/overview",
-              "condor-agent/agent-builder"
-            ]
-          },
-          {
-            "group": "Agent Architecture",
-            "pages": [
-              "trading-agents/overview",
-              "trading-agents/architecture",
-              "trading-agents/sessions",
-              "trading-agents/mcp-tools",
-              "trading-agents/inventory"
             ]
           }
         ]
@@ -196,7 +195,7 @@
       },
       {
         "label": "About us",
-        "href": "https://hummingbot.org/about/"
+        "href": "/hummingbot-foundation"
       }
     ],
     "primary": {
@@ -207,6 +206,7 @@
   },
   "footer": {
     "socials": {
+      "website": "https://hummingbot.org",
       "x": "https://x.com/_hummingbot",
       "discord": "https://discord.gg/hummingbot",
       "youtube": "https://youtube.com/@hummingbot",
@@ -214,15 +214,28 @@
     },
     "links": [
       {
-        "header": "Community",
+        "header": "Hummingbot Foundation",
         "items": [
           {
-            "label": "Give Feedback",
-            "href": "https://forms.gle/7NpG3RtgfLrmpUNY8"
+            "label": "hummingbot.org",
+            "href": "https://hummingbot.org"
           },
           {
-            "label": "Discord",
-            "href": "https://discord.gg/hummingbot"
+            "label": "Get Newsletter",
+            "href": "https://hummingbot.substack.com"
+          }
+        ]
+      },
+      {
+        "header": "Botcamp, Inc",
+        "items": [
+          {
+            "label": "botcamp.xyz",
+            "href": "https://www.botcamp.xyz"
+          },
+          {
+            "label": "condor.so",
+            "href": "https://condor.so"
           }
         ]
       }

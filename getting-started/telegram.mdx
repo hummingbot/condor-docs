@@ -11,7 +11,7 @@ Condor's Telegram bot lets you control your trading setup from your phone. You c
 
 The first time you send `/start`, Condor registers you as pending and replies **Access Request Submitted** with your user ID and username. The admin gets a **New Access Request** message.
 
-The admin approves or rejects you from **`/admin`** → **👥 Pending Requests** (or from the dashboard's **Settings → Admin**). Until then, `/start` replies **Access Pending**. A blocked user gets **Access denied.**
+The admin approves or rejects you from **`/admin`** → **👥 Pending Requests** (or from the Workspace's **Settings → Admin**). Until then, `/start` replies **Access Pending**. A blocked user gets **Access denied.**
 
 Once you're approved, `/start` replies:
 
@@ -30,7 +30,7 @@ You can control me by sending these commands:
 /web - open the web dashboard
 ```
 
-It's a plain message, not a menu. Despite what it says, `/keys` only lists your keys. You add them in the dashboard. See [Exchange credentials are dashboard-only](#exchange-credentials-are-dashboard-only) below.
+It's a plain message, not a menu. Despite what it says, `/keys` only lists your keys. You add them in the Workspace. See [Exchange credentials are Workspace-only](#exchange-credentials-are-workspace-only) below.
 
 ## Chatting with Condor
 
@@ -63,7 +63,7 @@ Everyone sees these in Telegram's command menu:
 | `/servers` | Manage Hummingbot API servers |
 | `/keys` | See which exchanges are connected (read-only) |
 | `/gateway` | Gateway for DEX trading |
-| `/web` | Get a login link for the web dashboard |
+| `/web` | Get a login link for the Workspace |
 | `/cancel` | Back out of the current input flow |
 
 The admin also sees:
@@ -77,7 +77,7 @@ The admin also sees:
 
 ## /portfolio
 
-Shows a summary for your active server: the total value, then each connector's total and its tokens worth $1 or more. Buttons open each connector's full list, and **🔄 Refresh** re-fetches balances from the exchanges. There are no PnL periods or charts in Telegram. For those, use the dashboard's [Portfolio](/webui/portfolio) page. See [Seeing Your Portfolio](/getting-started/portfolio).
+Shows a summary for your active server: the total value, then each connector's total and its tokens worth $1 or more. Buttons open each connector's full list, and **🔄 Refresh** re-fetches balances from the exchanges. There are no PnL periods or charts in Telegram. For those, use the Workspace's [Portfolio](/webui/portfolio) page. See [Seeing Your Portfolio](/getting-started/portfolio).
 
 ## /bots
 
@@ -115,14 +115,14 @@ With no session, the menu offers **Start**, **Change LLM**, **Talk to**, **Conve
 **`/agent <name>`** goes straight to an agent without the menu, for example `/agent orca_lp_expert`. A partial name works if it matches only one agent. `/agent condor` goes back to the coordinator.
 
 <Warning>
-**`/stop`** only stops the reply being written; the session and its context stay. The **⏹ Stop generating** button under a streaming reply does the same. **End session** ends the conversation. Neither one stops an agent's running loop. See [Managing Agent Sessions](/getting-started/sessions#from-telegram).
+**`/stop`** only stops the reply being written; the session and its context stay. The **⏹ Stop generating** button under a streaming reply does the same. **End session** ends the conversation. Neither one stops an agent's running loop. See [Agent Loops](/getting-started/sessions#from-telegram).
 </Warning>
 
 The agent only works in private chats.
 
 ## /executors
 
-Lists your running executors, with buttons to create a **grid** or **position** executor, view an executor's details and stop it, and page through history. Other executor types are created from the dashboard's [Trade](/webui/trade) page or by the assistant.
+Lists your running executors, with buttons to create a **grid** or **position** executor, view an executor's details and stop it, and page through history. Other executor types are created from the Workspace's [Trade](/webui/trade) page or by the assistant.
 
 ## /trade
 
@@ -142,9 +142,9 @@ Configuration is split across three commands:
 | `/keys` | Which exchanges are connected. **Read-only in Telegram**; see below |
 | `/gateway` | Gateway for DEX trading: status, connectors, wallets, networks and RPC endpoints, pools and tokens |
 
-### Exchange credentials are dashboard-only
+### Exchange credentials are Workspace-only
 
-`/keys` only lists the exchanges that are connected. To connect or remove one, use the web dashboard under **Settings → Keys and Wallets**. The `/keys` reply includes a login link to that page, valid for 5 minutes. This way an API secret is never typed into a Telegram chat, where it would stay in message history on Telegram's servers. See [Exchange Credentials](/getting-started/credentials).
+`/keys` only lists the exchanges that are connected. To connect or remove one, use the Workspace under **Settings → Keys and Wallets**. The `/keys` reply includes a login link to that page, valid for 5 minutes. This way an API secret is never typed into a Telegram chat, where it would stay in message history on Telegram's servers. See [Exchange Credentials](/getting-started/credentials).
 
 <Warning>
   When creating the key at your exchange, enable **read + trade** only. Do not
@@ -153,7 +153,7 @@ Configuration is split across three commands:
 
 <Note>
   Older material refers to a single `/config` command. It no longer exists.
-  Use the three commands above, or the dashboard's [Settings page](/webui/settings),
+  Use the three commands above, or the Workspace's [Settings page](/webui/settings),
   which covers the same ground in one place.
 </Note>
 
@@ -169,16 +169,16 @@ where one exists — a dirty checkout offers **discard** or **stash** — and
 **warnings** that never refuse, such as restarting the API reaping its
 executors.
 
-An update lands the code, syncs dependencies, rebuilds the dashboard, and then
+An update lands the code, syncs dependencies, rebuilds the Workspace, and then
 **asks you to relaunch** rather than restarting itself: Condor is rarely the top
 of its own process tree, so re-execing races the parent into a second Condor on
 the same port and token. Run `make restart` when it asks.
 
 <Note>
-  The dashboard has the same panel at **Settings → Updates**, over the same
+  The Workspace has the same panel at **Settings → Updates**, over the same
   engine — an update started here can be watched to completion there, and a
   **Local mode** install uses that panel instead of this command. See [Keeping
-  Condor updated](/getting-started/installing#keeping-condor-updated).
+  Condor updated](/getting-started/updating).
 </Note>
 
 ## /cancel - Back Out of a Flow
@@ -198,18 +198,18 @@ Condor messages you when background work finishes:
 - An agent sends you a notification
 - System notices, such as runs that a restart interrupted
 
-The same notices also appear under the bell in the dashboard.
+The same notices also appear under the bell in the Workspace.
 
 ## Voice messages
 
 Send a voice message instead of typing. Condor transcribes it locally with Whisper (no audio leaves your server), shows you the text, and sends it to the assistant.
 
-You choose the Whisper model and language in the dashboard under **Settings → Voice & AI**. The default model is `small`; options run from `tiny` (fastest) to `large-v3` (most accurate). Language is auto-detected unless you set one. Condor loads the default model at startup. A different model is downloaded the first time you use it, so that voice message takes longer.
+You choose the Whisper model and language in the Workspace under **Settings → Voice & AI**. The default model is `small`; options run from `tiny` (fastest) to `large-v3` (most accurate). Language is auto-detected unless you set one. Condor loads the default model at startup. A different model is downloaded the first time you use it, so that voice message takes longer.
 
 ## Security
 
 - **Access approval**: new users must be approved by the admin before Condor responds to them. See [Getting access](#getting-access).
-- **No secrets in chat**: exchange keys are added in the dashboard, not Telegram.
+- **No secrets in chat**: exchange keys are added in the Workspace, not Telegram.
 - **Separate sessions**: each chat has its own assistant session.
 
 Using Condor in Telegram every day? Tell us what's working and what you wish it could do.

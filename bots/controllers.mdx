@@ -163,15 +163,15 @@ time_limit: 2700
 
 ## Deploying a Controller
 
-The usual flow is: create one or more controller configs, then deploy a bot that runs them. You can create configs in the dashboard [Editor](/webui/bots#editor), in Telegram with `/new_bot` → **➕ New** (for `grid_strike`, `pmm_mister` and `pmm_v1` only), or through the API.
+The usual flow is: create one or more controller configs, then deploy a bot that runs them. You can create configs in the Workspace [Editor](/webui/bots#editor), in Telegram with `/new_bot` → **➕ New** (for `grid_strike`, `pmm_mister` and `pmm_v1` only), or through the API.
 
-### Via the dashboard
+### Via the Workspace
 
 On the [Bots](/webui/bots#deploy-bot) page, click **Deploy bot**, select one or more configs, and click **Deploy**. **Advanced Settings** holds the bot name, account, image and the two drawdown limits.
 
 ### Via Telegram
 
-`/new_bot` lists configs for the controller types Condor has Telegram forms for: `grid_strike`, `pmm_mister` and `pmm_v1`. Deploy other controllers from the dashboard or the API.
+`/new_bot` lists configs for the controller types Condor has Telegram forms for: `grid_strike`, `pmm_mister` and `pmm_v1`. Deploy other controllers from the Workspace or the API.
 
 ```text
 /new_bot
@@ -207,7 +207,7 @@ An agent can ship its own controller code and sample configs inside its folder, 
 
 You can stop one controller without stopping its bot. Stopping turns on the controller's `manual_kill_switch`: it cancels its orders and stops opening new executors, but keeps its config. Starting turns the switch off again.
 
-- **Dashboard**: select the controller on the [Bots](/webui/bots) page and click **Pause** or **Start**.
+- **Workspace**: select the controller on the [Bots](/webui/bots) page and click **Pause** or **Start**.
 - **Telegram**: `/bots` → select the bot → tap ⏸ or ▶️ next to the controller.
 - **Agents**: `manage_bots` with `action="stop_controllers"` or `"start_controllers"`, plus `bot_name` and `controller_names`.
 
@@ -237,7 +237,7 @@ def get_custom_info(self) -> dict:
     return {"inventory_pct": float(self.current_inventory_pct)}
 ```
 
-These fields are stored with each controller snapshot and surfaced per controller in the dashboard.
+These fields are stored with each controller snapshot and surfaced per controller in the Workspace.
 
 ## Creating Custom Controllers
 
@@ -246,7 +246,7 @@ These fields are stored with each controller snapshot and surfaced per controlle
 3. Implement `update_processed_data()` (and `determine_executor_actions()` if you subclass `ControllerBase` directly)
 4. Add a config file and deploy it
 
-Custom controllers run in stock Hummingbot too. Upload them from the dashboard **Editor** (**Upload** → **Controller (.py)**). Telegram's `/new_bot` → **📤 Upload** takes YAML configs only.
+Custom controllers run in stock Hummingbot too. Upload them from the Workspace **Editor** (**Upload** → **Controller (.py)**). Telegram's `/new_bot` → **📤 Upload** takes YAML configs only.
 
 ## Monitoring Controllers
 
