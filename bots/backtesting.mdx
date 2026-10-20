@@ -181,9 +181,9 @@ These `pmm_mister` fields have the most effect on backtest behaviour. Field name
 | `buy_position_effectivization_time` / `sell_position_effectivization_time` | Seconds after a fill before it's turned into held inventory | `1660` |
 | `position_profit_protection` | Block the reducing side while the price is worse than break-even | `true` |
 
-## Trading bots vs trading agents
+## Trading bots vs Condor agents
 
-| Aspect | Trading bots | Trading agents |
+| Aspect | Trading bots | Condor agents |
 |--------|--------------|----------------|
 | Logic | Deterministic, coded | LLM-driven decisions |
 | Tick speed | 1 second by default | Minutes (each loop sets its own interval) |

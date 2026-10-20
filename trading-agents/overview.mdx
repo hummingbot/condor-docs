@@ -3,11 +3,11 @@ title: "Overview"
 description: "LLM-driven trading agents that reason on a fixed tick and trade through Hummingbot executors and bots behind a risk gate"
 ---
 
-A **Trading Agent** is a folder on disk that Condor runs as a tick loop. On each tick it reads the market, asks an LLM what to do, and turns the decision into trades through Hummingbot executors or controller-based bots. A risk gate checks every call that could move money.
+A **Condor Agent** is a folder on disk that Condor runs as a tick loop. On each tick it reads the market, asks an LLM what to do, and turns the decision into trades through Hummingbot executors or controller-based bots. A risk gate checks every call that could move money.
 
 ## Design philosophy
 
-Trading Agents separate what LLMs do well, reasoning under uncertainty, from what traditional software does well, reliable and repeatable execution.
+Condor Agents separate what LLMs do well, reasoning under uncertainty, from what traditional software does well, reliable and repeatable execution.
 
 ```mermaid
 flowchart TB
@@ -43,7 +43,7 @@ Agents never place orders directly. The risk gate always refuses `place_order`. 
 - **Executors.** It creates Hummingbot executors (position, grid, DCA, order or LP) with the `create_*_executor` tools.
 - **Controller-based bots.** It deploys and retunes a Hummingbot bot that runs a controller, with `manage_bots`. Every deploy must declare a loss cap (`max_global_drawdown_quote`) no larger than the session's `max_position_size_quote`. See the [Market Making Expert](/examples/market-making-expert) for a loop that works this way.
 
-### Ownership through controller_id
+## Ownership through controller_id
 
 Each loop session has its own ID, such as `my_agent.my_loop_3`. Every executor the session creates must carry that ID as its `controller_id`; the risk gate refuses a create without it. This gives you:
 

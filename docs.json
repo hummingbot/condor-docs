@@ -54,7 +54,7 @@
             ]
           },
           {
-            "group": "Agent Architecture",
+            "group": "Condor Agents",
             "pages": [
               "trading-agents/overview",
               "trading-agents/architecture",

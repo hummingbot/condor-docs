@@ -18,7 +18,7 @@ flowchart LR
 
 <Tabs>
   <Tab title="Beginner">
-    Get Condor running on your own machine with no Telegram account, and build one Trading Agent from the browser.
+    Get Condor running on your own machine with no Telegram account, and build one Condor Agent from the browser.
 
     <Steps>
       <Step title="Install locally">
@@ -58,7 +58,7 @@ flowchart LR
         [Installing → Server](/getting-started/installing#server)
       </Step>
       <Step title="Understand the architecture">
-        [Trading Agents Architecture](/trading-agents/architecture)
+        [Condor Agents Architecture](/trading-agents/architecture)
       </Step>
       <Step title="Build custom agents">
         [Agent Builder](/condor-agent/agent-builder)
@@ -104,7 +104,7 @@ flowchart TD
     Q1{"Should an LLM<br/>make the decisions?"}
     Q2{"Is it a single trade<br/>or position?"}
     Q3{"Should it trade<br/>continuously?"}
-    TA["<b>Trading Agent</b>"]
+    TA["<b>Condor Agent</b>"]
     EX["<b>Executor</b>"]
     BOT["<b>Bot</b>"]
     RT["<b>Routine</b>"]
@@ -117,7 +117,7 @@ flowchart TD
 ```
 
 <CardGroup cols={2}>
-  <Card title="Trading Agent" icon="robot" href="/trading-agents/overview">
+  <Card title="Condor Agent" icon="robot" href="/trading-agents/overview">
     **Decides:** an LLM, reasoning every tick.<br />
     **Runs:** long-running and adaptive.<br />
     **Best for:** an AI-assisted strategy that adapts to conditions.
@@ -143,7 +143,7 @@ flowchart TD
 
 <AccordionGroup>
   <Accordion title="Let AI manage a strategy for me">
-    [Trading Agents Overview](/trading-agents/overview) → [LLM Integration](/llm-integration) → [Build Your First Agent](/getting-started/first-agent) → [Agent Loops](/getting-started/sessions) → [Agent Builder](/condor-agent/agent-builder)
+    [Condor Agents Overview](/trading-agents/overview) → [LLM Integration](/llm-integration) → [Build Your First Agent](/getting-started/first-agent) → [Agent Loops](/getting-started/sessions) → [Agent Builder](/condor-agent/agent-builder)
   </Accordion>
   <Accordion title="Run an always-on bot without AI micromanagement">
     [Bots Overview](/bots/overview) → [Controllers](/bots/controllers) or [Scripts](/bots/scripts) → [Backtesting](/bots/backtesting)
@@ -161,7 +161,7 @@ flowchart TD
     [Installing](/getting-started/installing#secure-remote-access-with-tailscale) (remote install—**Tailscale required**) → [Servers](/webui/settings#servers) → [Agent Loops](/getting-started/sessions)
   </Accordion>
   <Accordion title="Manage many agents or bots as a team or fund">
-    [Trading Agents Architecture](/trading-agents/architecture) (multi-agent via `controller_id`) → [Global Routines](/routines/global-routines) → [Servers](/webui/settings#servers)
+    [Condor Agents Architecture](/trading-agents/architecture) (multi-agent via `controller_id`) → [Global Routines](/routines/global-routines) → [Servers](/webui/settings#servers)
   </Accordion>
 </AccordionGroup>
 
@@ -171,7 +171,7 @@ What Condor does, and where each feature is documented.
 
 | Feature | What it does |
 |---|---|
-| [Trading Agents](/trading-agents/overview) | LLM-driven agents that observe markets, reason about strategy, and execute through Hummingbot API |
+| [Condor Agents](/trading-agents/overview) | LLM-driven agents that observe markets, reason about strategy, and execute through Hummingbot API |
 | [Agent Builder](/condor-agent/agent-builder) | Build a custom agent — its playbooks, tools and risk limits — without writing the harness |
 | [Hummingbot bots](/bots/overview) | Always-on market making, grid and directional strategies via [controllers](/bots/controllers) and scripts, no LLM in the loop |
 | [Backtesting](/bots/backtesting) | Replay a controller config against historical candles before it touches capital |
