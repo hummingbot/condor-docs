@@ -42,13 +42,13 @@
             "pages": [
               "getting-started/overview",
               "getting-started/installing",
-              "getting-started/configuration",
-              "getting-started/telegram",
               "getting-started/web-dashboard",
+              "getting-started/telegram",
               "llm-integration",
               "getting-started/credentials",
               "getting-started/portfolio",
               "getting-started/sessions",
+              "getting-started/configuration",
               "getting-started/troubleshooting"
             ]
           },
