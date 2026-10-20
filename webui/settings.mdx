@@ -178,12 +178,12 @@ Admin only. Updates Condor and the Hummingbot API. This is the same update engin
 </Frame>
 
 - The tab shows what each component runs and what is available. Version checks are cached for 60 seconds. **Refresh** checks again.
-- Before a run, Condor lists **blockers** and **warnings**. A checkout with local changes can be fixed from the tab with **Discard** or **Stash**. Other blockers must be fixed by hand. Warnings don't stop the run.
+- Before a run, Condor lists **blockers** and **warnings**. A checkout with local changes can be fixed from the tab with **Discard** or **Stash**, or with **Keep my version** when the changes are edits to shipped agents (they move to `.condor/agents/`). Other blockers must be fixed by hand. Warnings don't stop the run.
 - While it runs, the tab shows each step. Updating the API recreates its containers, so the API may stop answering for a while. The tab keeps checking and picks the run back up. **Done** clears a finished run.
 
-<Warning>
-Updating Condor doesn't restart it. The new code is installed and the Workspace is rebuilt, then you relaunch Condor yourself with `make restart`. Until you do, every page shows a relaunch banner.
-</Warning>
+<Note>
+When an update finishes, a banner counts down from 5 seconds, then restarts Condor and reloads the page. **Cancel** stops the countdown, and the banner then offers **Restart now** for when you are ready. See [The restart step](/getting-started/updating#the-restart-step).
+</Note>
 
 See [Keeping Condor updated](/getting-started/updating).
 
