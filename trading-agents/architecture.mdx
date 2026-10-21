@@ -265,12 +265,12 @@ Each loop session has these limits. Set them in `default_config.risk_limits` or 
 The risk gate also always refuses:
 
 - **Direct orders:** `place_order`. Agents trade through executors and bots.
-- **Other sessions' executors:** executors that don't carry this session's ID, and stopping executors owned by another session.
+- **Other sessions' executors:** creating executors that don't carry this session's ID, and stopping executors owned by another session. The exception is executors adopted from a stopped session of the same loop.
 - **Uncapped bots:** a bot deploy without `max_global_drawdown_quote`, or with one above `max_position_size_quote`.
 - **Anything in a Dry Run:** every action that would change state, plus running code and routines.
 
 <Note>
-Each Loop run gets its own session ID. A new session cannot see or stop executors opened by an earlier session, including after a restart. Stop or hand over positions before starting a new session.
+Each Loop run gets its own session ID. When a stopped loop starts again, the new session adopts the executors the earlier session left running: they appear in its tick data as `adopted_executors`, and it can stop them. Held positions from `keep_position=true` stay with the earlier session, and Run Once executors are never adopted. See [Sessions](/trading-agents/sessions#executors-left-by-a-stopped-session).
 </Note>
 
 ## Stopping a loop

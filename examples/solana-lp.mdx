@@ -103,14 +103,14 @@ While it runs, the **Now**, **Runs**, **Fleet** and **Playbook** tabs work as de
 ## Stop it
 
 <Warning>
-**Stop** ends the loop but leaves every LP position open. Nothing applies the take-profit, stop-loss or out-of-range exits after that. A new session can't manage positions opened by an earlier one, even after a restart. Close the positions before you stop, or stop them yourself afterwards: on the **DEX** page, click a position under **Your LP positions** to open its pool, then use **Stop executor** in the executors panel below the chart.
+**Stop** ends the loop but leaves every LP position open. Nothing applies the take-profit, stop-loss or out-of-range exits until you start the loop again; the next session adopts the running LP positions. Run Once positions are never adopted. Close the positions before you stop, or stop them yourself afterwards: on the **DEX** page, click a position under **Your LP positions** to open its pool, then use **Stop executor** in the executors panel below the chart.
 </Warning>
 
 | You want to | Do this |
 |---|---|
 | Pause decisions, keep positions | **Pause** on the agent page; **Resume** to continue |
 | End the loop | Close the positions, then click **Stop** |
-| Wind everything down now | Ask the agent in chat to shut its loop down. It removes the liquidity and reclaims the rent on every position this session opened. |
+| Wind everything down now | Ask the agent in chat to shut its loop down. It removes the liquidity and reclaims the rent on every position this session opened or adopted. |
 
 <Note>
 The emergency shutdown can't swap leftover tokens back to SOL; the risk gate only allows closing actions during a shutdown. Afterwards, sell any remaining tokens from the pool's page on the **DEX** tab (**Order** tab).

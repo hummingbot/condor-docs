@@ -24,9 +24,9 @@ Two components, versioned by what actually governs them:
 | **Condor** | A git checkout — `HEAD` against `origin/<branch>` |
 | **Hummingbot API** | A git checkout **and** a container image. The repo governs the compose file and the bind-mounted `bots/`; the image governs the API's own code, so both are reported |
 
-Whether the API is rebuilt from source or pulled as a published image is not a
-setting — `docker compose config` already knows, from whether the service has a
-`build:` key.
+The API always runs the published image: an update pulls the new image with
+`docker compose pull`. If you built your own image locally, the update leaves it
+alone and tells you so.
 
 ## Preflight: what is in the way
 
@@ -36,30 +36,35 @@ Before anything runs you get the blockers, the warnings, and the ordered plan.
 is not a git repo, it has commits the remote does not (so it cannot be
 fast-forwarded), local changes would be overwritten, or the registry could not
 be reached. Where a blocker has a safe way out it offers one: a dirty checkout
-can be resolved with **discard** or **stash** without leaving the panel.
+can be resolved with **Discard** or **Stash** without leaving the panel. When
+every conflicting file is an edit to a shipped agent under `agents/`, it also
+offers **Keep my version**, which moves your edit to `.condor/agents/` (where it
+keeps overriding the shipped file) and lets the update go ahead.
 
 **Warnings** never refuse — they tell you a consequence worth knowing:
 restarting the API container stops its executors, and Condor keeps running the
-code it booted with until you relaunch it.
+code it booted with until it restarts.
 
-## The relaunch step
+## The restart step
 
-An update deliberately stops one step short of running the new code. It lands
-the code, syncs dependencies, rebuilds the Workspace, records that a relaunch is
-owed, and asks you to do it.
+An update lands the code, syncs dependencies and rebuilds the Workspace, then
+hands you the moment to restart, because bots may be trading and a chat may be
+mid-answer.
 
-That is not an omission. Condor is almost never the top of its own process tree
-— started through `make run`, a shell wrapper, or a supervisor — so re-execing
-itself races the parent into bringing a **second** Condor up on the same port,
-against the same config and the same Telegram token.
+- **Workspace:** a banner says *Condor has been updated. Restarting in 5s to apply it* and
+  then restarts Condor and reloads the page. Bots and open positions are not
+  touched. **Cancel** stops the countdown; the banner then offers **Restart
+  now** for when you are ready.
+- **Telegram:** `/update` shows a **Restart Now** button.
+- **Shell:** `make restart` works too.
 
-```bash
-make restart
-```
+The restart is in place: Condor shuts down cleanly and replaces itself under the
+same process, so no second copy comes up on the port. Restarting needs the
+admin role; a seat without it is told to set `role: admin` in `config.yml` or
+run `make restart` on the host.
 
-Between the update and the relaunch, every seat sees a **relaunch to apply**
-banner, because the browser is running the new bundle against the old API and
-would otherwise just look broken. The run is journalled to `data/update_run.json`
+If Condor does not come back, the banner says so and the reason is in
+`.condor/restart-failure.log`. The run is journalled to `data/update_run.json`
 at every step, so the panel picks the result back up across the restart and the
 next boot tells you whether the update worked.
 

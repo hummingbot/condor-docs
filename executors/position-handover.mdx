@@ -58,7 +58,7 @@ The `controller_id` in the key is the agent session's ID, such as `my_agent.my_l
 - On each tick, the agent sees the held positions for its own session ID only.
 - A new session of the same loop has a new ID, and can't see what an earlier session held.
 
-Before you stop a loop that holds positions, close them or decide to manage them by hand. See [Executors stay with the session that opened them](/trading-agents/sessions#executors-stay-with-the-session-that-opened-them).
+Before you stop a loop that holds positions, close them or decide to manage them by hand. Held positions are not adopted by the next session; see [Executors left by a stopped session](/trading-agents/sessions#executors-left-by-a-stopped-session).
 
 ## Example: a grid that crosses its limit price
 

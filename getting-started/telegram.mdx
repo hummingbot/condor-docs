@@ -169,10 +169,10 @@ where one exists — a dirty checkout offers **discard** or **stash** — and
 **warnings** that never refuse, such as restarting the API reaping its
 executors.
 
-An update lands the code, syncs dependencies, rebuilds the Workspace, and then
-**asks you to relaunch** rather than restarting itself: Condor is rarely the top
-of its own process tree, so re-execing races the parent into a second Condor on
-the same port and token. Run `make restart` when it asks.
+An update lands the code, syncs dependencies and rebuilds the Workspace, then
+waits for you to restart, because the moment is yours (bots may be trading).
+Tap **Restart Now** when you are ready, or run `make restart`. See
+[The restart step](/getting-started/updating#the-restart-step).
 
 <Note>
   The Workspace has the same panel at **Settings → Updates**, over the same

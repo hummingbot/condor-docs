@@ -74,10 +74,10 @@ While a session runs, the **Start** button is replaced by **Pause** and **Stop**
 |---|---|
 | **Pause** | The loop skips its ticks. Executors, positions and bots stay open. |
 | **Resume** | Ticking continues in the same session |
-| **Stop** | Asks you to **Confirm**, then ends the session. Executors, positions and bots **stay open**, and nothing manages them any more. |
+| **Stop** | Asks you to **Confirm**, then ends the session. Executors, positions and bots **stay open**, and nothing manages them until you start the loop again. |
 
 <Warning>
-Stopping a session doesn't close its positions. A new session gets a new ID, and it can't stop the executors an earlier session opened. Close or hand over positions before you start again. See [Stopping a loop](/trading-agents/architecture#stopping-a-loop).
+Stopping a session doesn't close its positions. When you start the same loop again, the new session adopts the executors and bots the old one left running. Held positions and Run Once executors are not adopted. See [Stopping a loop](/trading-agents/architecture#stopping-a-loop).
 </Warning>
 
 To stop the loop **and** wind its positions down, ask the agent in chat to shut its loop down. That runs an emergency shutdown, which closes this session's executors according to the agent's shutdown policy.

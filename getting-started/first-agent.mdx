@@ -126,7 +126,7 @@ To stop it:
 | Wind everything down now | Ask the agent in chat to shut its loop down |
 
 <Warning>
-**Stop** ends the loop but leaves its executors, positions and bots open, and nothing manages them afterwards. Close them yourself, or use a shutdown, which closes them according to the agent's `shutdown.md` policy. See [Stopping a loop](/trading-agents/architecture#stopping-a-loop).
+**Stop** ends the loop but leaves its executors, positions and bots open, and nothing manages them until you start the same loop again, which adopts what was left. Close them yourself, or use a shutdown, which closes them according to the agent's `shutdown.md` policy. See [Stopping a loop](/trading-agents/architecture#stopping-a-loop).
 </Warning>
 
 ## Write the folder by hand instead
